@@ -33,9 +33,8 @@ class HSDIO(Instrument): # could inherit from an Instrument class if helpful
 		# instrument handles. not really sure what these are yet
 		self.instrumentHandles = []
 		
-		# HSDIO has now been initialized
-		self.isInitialized = True # presumably this is False sometimes but I'm
-								  # I'm not sure when yet or what resets it
+		# whether or not we've actually populated the attributes above
+		self.isInitialized = False 
 	
 	def load_xml(self, node):
 		"""
@@ -44,11 +43,16 @@ class HSDIO(Instrument): # could inherit from an Instrument class if helpful
 		"""
 		
 	def init(self):
-		# I think this is here because the HSDIO is only instantiated once but
-		# may get re-initialized throughout one session of running the server
+		"""
+		set up the triggering, initial states, script triggers, etc
+		"""
 		
-		if not self.isInitialized:
-			self.__init__()
+		if self.isInitialized:
+			return
+		
+		# do stuff; several calls to c functions
+		
+		self.isInitialized = True
 	
 	def update(self):
 		""" 
