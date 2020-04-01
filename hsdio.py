@@ -4,6 +4,7 @@
 # I'll start to fill in the gaps to make this functioning code - Juan
 
 from ctypes import * # open to suggestions on making this better with minimal obstruction to workflow
+import xml.etree.ElementTree as ET
 import os
 import struct
 
@@ -43,12 +44,7 @@ class HSDIO(Instrument): # could inherit from an Instrument class if helpful
 								      wait 1
 								   end script"""
 		
-		# trigger settings -- could make a trigger class
-		self.trigger = {'wait for start trigger': False, 
-						'source': 'PFI0',
-						'edge': 'rising edge',
-						'description' : ""}
-		self.scriptTriggerArr = [trigger settings like above]
+		self.scriptTriggers = []
 		
 		# instrument handles. not really sure what these are yet
 		self.instrumentHandles = []
@@ -60,7 +56,56 @@ class HSDIO(Instrument): # could inherit from an Instrument class if helpful
 		"""
 		iterate through node's children and parse xml by tag to update HSDIO
 		device settings
+		'node': type is ET.Element. tag should be "HSDIO"
 		"""
+		
+		assert node.tag == "HSDIO", "This XML is not tagged for the HSDIO"
+		
+		for child in node:
+			
+			# the LabView code ignores non-element nodes. not sure if this equivalent
+			if type(child) == ET.Element:
+				
+				# handle each tag by name:
+				if child.tag == "enable":
+					print_txt(child) # DEBUGGING
+					self.enablePulses = bool(child.text)
+				
+				elif child.tag == "description":
+					print_txt(child) # DEBUGGING
+					self.description = child.text
+				
+				elif child.tag == "resourceName":
+					print_txt(child) # DEBUGGING
+					resources = child.text.split(",")
+					self.resourceNames = resources
+					
+				elif child.tag == "clockRate":
+					clockRate = float(child.text)
+					print_txt(child) # DEBUGGING
+					self.clockRate = clockRate
+					
+				elif child.tag == "hardwareAlignmentQuantum":
+					print_txt(child) # DEBUGGING
+					self.hardwareAlignmentQuantum = child.text
+				
+				elif child.tag == "triggers":
+					print_txt(child) # DEBUGGING
+					
+					if type(child) == ET.Element:
+						
+						trigger_node = child
+						
+						# for each line of script triggers
+						for child in trigger_node:
+							if type(child) == ET.Element:
+								
+								print()
+								trig = Trigger()
+								trig.init_from_xml(child)
+								  
+					  self.scriptTriggers.append(trig)
+		
 		
 	def init(self):
 		"""
