@@ -7,6 +7,9 @@ from ctypes import * # open to suggestions on making this better with minimal ob
 import os
 import struct
 
+## local module imports
+from trigger import Trigger
+
 class HSDIO(Instrument): # could inherit from an Instrument class if helpful
 
 	dllpath32 = os.path.join("C:\Program Files (x86)\IVI Foundation\IVI\Bin", "niHSDIO.dll")
