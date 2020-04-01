@@ -1,13 +1,30 @@
 ###############################################################################
 ## pseudocode architecture for HSDIO class
 ###############################################################################
+# I'll start to fill in the gaps to make this functioning code - Juan
 
+from ctypes import * # open to suggestions on making this better with minimal obstruction to workflow
+import os
+import struct
 
 class HSDIO(Instrument): # could inherit from an Instrument class if helpful
 
+	dllpath32 = os.path.join("C:\Program Files (x86)\IVI Foundation\IVI\Bin", "niHSDIO.dll")
+	dllpath64 = os.path.join("C:\Program Files\IVI Foundation\IVI\Bin", "niHSDIO_64.dll")
+
 	def __init__(self):
-		
-		# waveform obj has arrays of certain dimensions to be filled with 
+
+		# Quick test for bitness
+		self.bitness = struct.calcsize("P") * 8
+		if self.bitness == 32:
+			# Default location of the 32 bit dll
+			self.hsdio = CDLL(self.dllpath32)
+		else:
+			# Default location of the 64 bit dll
+			self.hsdio = CDLL(self.dllpath64)
+
+
+		# waveform obj has arrays of certain dimensions to be filled with
 		# waveform data received from cspy
 		self.waveformArr = [{name: Waveform()}] # maybe specify array length? 
 		
@@ -78,6 +95,12 @@ class HSDIO(Instrument): # could inherit from an Instrument class if helpful
 		
 		# log stuff, call settings in the server code for debugging?
 		
-		
-		
-		
+	def chk(self,er_code):
+		"""
+		Checks the error state of your session and prints (should become logs) the error/warning message and code (if
+		not an all good)
+		"""
+		codebf = c_int32("")
+
+		hsdio.niHSIDO_GetError(self.vi,byref(codebf))
+
