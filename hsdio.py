@@ -8,8 +8,9 @@ import xml.etree.ElementTree as ET
 import os
 import struct
 
-## local module imports
+## local class imports
 from trigger import Trigger
+from waveform import Waveform
 
 class HSDIO(Instrument): # could inherit from an Instrument class if helpful
 
@@ -30,7 +31,8 @@ class HSDIO(Instrument): # could inherit from an Instrument class if helpful
 
 		# waveform obj has arrays of certain dimensions to be filled with
 		# waveform data received from cspy
-		self.waveformArr = [{name: Waveform()}] # maybe specify array length? 
+		self.waveformArr = [] 
+
 		
 		## device settings
 		self.enablePulses = False
@@ -95,18 +97,35 @@ class HSDIO(Instrument): # could inherit from an Instrument class if helpful
 					if type(child) == ET.Element:
 						
 						trigger_node = child
-						
+												
 						# for each line of script triggers
 						for child in trigger_node:
+							
 							if type(child) == ET.Element:
 								
-								print()
 								trig = Trigger()
 								trig.init_from_xml(child)
-								  
-					  self.scriptTriggers.append(trig)
-		
-		
+								self.scriptTriggers.append(trig)
+					  
+				elif child.tag == "waveforms":
+
+					#print_txt(child) # HUGE WAVEFORM STRING PLZ BE CAREFUL
+					print("found a waveform") #TODO: change to logger
+	
+					# TODO: wrap in load waveform xml
+					wvforms_node = child
+	
+					# for each waveform
+					for wvf_child in wvforms_node:
+				
+						if type(wvf_child) == ET.Element:
+																					
+							if wvf_child.tag == "waveform":
+
+								wvform = Waveform()
+								wvform.init_from_xml(wvf_child)
+								self.waveformArr.append(wvform)
+				
 	def init(self):
 		"""
 		set up the triggering, initial states, script triggers, etc

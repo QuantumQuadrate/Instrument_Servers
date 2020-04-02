@@ -21,27 +21,27 @@ class Trigger:
 		
 	def init_from_xml(self, node):
 		"""
-		Initialize trigger attributes from xml text.
-		'node' should have parent with tag="triggers"
+		re-initialize attributes for existing Trigger from children of node. 
+		'node' is of type xml.etree.ElementTree.Element, with tag="trigger"
 		"""
 		
 		if child.tag == "id": 
-			trig.id = child.text # script trigger 0
+			self.id = child.text # script trigger 0
 
 		elif child.tag == "source":
-			trig.source = child.text # PFI 0
+			self.source = child.text # PFI 0
 
 		elif child.tag == "type":
 
 			if child.text == "level":
-				trig.type = Trigger.types["Level"]
+				self.type = Trigger.types["Level"]
 
 			# else, stick with default initialization
 
 		elif child.tag == "edge":
 
 			if child.text == "Falling Edge":
-				trig.edge = Trigger.edges["Falling Edge"]
+				self.edge = Trigger.edges["Falling Edge"]
 				pass
 
 			# else, stick with default initialization
@@ -49,7 +49,7 @@ class Trigger:
 		elif child.tag == "level":
 
 			if child.text == "Low Level":
-				trig.level = Trigger.levels["Low Level"]
+				self.level = Trigger.levels["Low Level"]
 				pass
 			
 		else:
