@@ -23,7 +23,7 @@ class HSDIO: # could inherit from an Instrument class if helpful
 
 	dllpath32 = os.path.join(f"C:\{programsDir32}\IVI Foundation\IVI\Bin", "niHSDIO.dll")
 	dllpath64 = os.path.join("C:\Program Files\IVI Foundation\IVI\Bin", "niHSDIO_64.dll")
-mk
+
 	def __init__(self):
 
 		# Quick test for bitness
