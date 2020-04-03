@@ -35,13 +35,10 @@ class HSDIO: # could inherit from an Instrument class if helpful
 			# Default location of the 64 bit dll
 			self.hsdio = CDLL(self.dllpath64)
 
-
-		# waveform obj has arrays of certain dimensions to be filled with
-		# waveform data received from cspy
-		self.waveformArr = [] 
-
-		
 		## device settings
+		# TODO: could make an attribute with these settings in a dictionary
+		# and then settings can be updated by calling a settings function with
+		# kwargs
 		self.enablePulses = False
 		self.resourceNames = np.array([], dtype=str)
 		self.clockRate = 2*10**7 # 20 MHz
@@ -49,15 +46,17 @@ class HSDIO: # could inherit from an Instrument class if helpful
 		self.activeChannels = np.array([], dtype=c_int32)
 		self.initialStates = np.array([], dtype=str)
 		self.idleStates = np.array([], dtype=str)
-		self.pulseGenScript = """script script 1 
+		self.pulseGenScript = """script script 1
 								      wait 1
 								   end script"""
 		self.scriptTriggers = []
-		self.instrumentHandles = []
+		self.instrumentHandles = [] 
+		self.waveformArr = [] 
+
 		
 		# whether or not we've actually populated the attributes above
 		self.isInitialized = False 
-	
+		
 	def load_xml(self, node):
 		"""
 		iterate through node's children and parse xml by tag to update HSDIO
@@ -69,7 +68,8 @@ class HSDIO: # could inherit from an Instrument class if helpful
 		
 		for child in node:
 			
-			# the LabView code ignores non-element nodes. not sure if this equivalent
+			# the LabView code ignores non-element nodes. not sure if this 
+			# equivalent
 			if type(child) == ET.Element:
 				
 				# handle each tag by name:
@@ -113,7 +113,7 @@ class HSDIO: # could inherit from an Instrument class if helpful
 					  
 				elif child.tag == "waveforms":
 
-					#self.print_txt(child) # HUGE WAVEFORM STRING PLZ BE CAREFUL
+					#self.print_txt(child) #HUGE WAVEFORM STRING PLZ BE CAREFUL
 					print("found a waveform") #TODO: change to logger
 	
 					# TODO: wrap in load waveform xml
@@ -164,10 +164,61 @@ class HSDIO: # could inherit from an Instrument class if helpful
 		"""
 		
 		if self.isInitialized:
-			return
+			
+			
+			for handle in self.instrumentHandles:
+				pass
+				
+				# TODO: Juan - niHSDIO Abort VI
+				# TODO: Juan - niHSDIO Close VI
+				
+				# i think this should clear the list of instrumentHandles too.
+				# in LabView the handle gets passed in/out of the above VIs.
+				# maybe just reset the array after the loop:
+			self.instrumentHandles = [] # reset
+							
+		self.instrumentHandles.append("")
 		
-		# do stuff; several calls to c functions
-		
+		if self.enablePulses:
+				
+			iterables = zip(self.idleStates, self.initalStates,
+							self.activeChannels, self.resourceNames)
+			for idle_state,init_state,chan_list,resource in iterables:
+				
+				# TODO: Juan - niHSDIO Init Generation Session VI
+				# 	args: resource name = resource
+				
+				# TODO: Juan - niHSDIO Assign Dynamic Channels VI
+				#	args: channel list = chan_list
+
+				# TODO: Juan - niHSDIO Configure Sample Clock
+				#	args: resource name = resource
+				#		  clock rate = self.clockRate,
+				#		  clock source = "OnBoardClock"
+				
+				# TODO: Juan - niHSDIO Configure Generation Mode VI
+				#	args: resource name = resource
+				#	      generation mode = c_int32(15) 
+				# note: 14 to waveform, 15 corresponds to scripted
+				
+				# TODO: Juan - niHSDIO Configure Generation Mode VI
+				#	args: resource name = resource
+				#	      generation mode = c_int32(15) 
+				
+				# TODO: Juan - niHSDIO Configure Initial State (String) VI
+				#	args: resource name = resource
+				#		  initial state = init_state,
+				#		  channel list = chan_list
+				
+				# TODO: Juan - niHSDIO Configure Idle State (String) VI
+				#	args: resource name = resource
+				#		  generation mode = c_int32(15) 
+				
+				for trig in self.scriptTriggers:
+					
+					if trig.start
+					
+							
 		self.isInitialized = True
 	
 	def update(self):
@@ -201,8 +252,8 @@ class HSDIO: # could inherit from an Instrument class if helpful
 		
 	def chk(self,er_code):
 		"""
-		Checks the error state of your session and prints (should become logs) the error/warning message and code (if
-		not an all good)
+		Checks the error state of your session and prints (should become logs) 
+		the error/warning message and code (if not an all good)
 		"""
 		codebf = c_int32("")
 
