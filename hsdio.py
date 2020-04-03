@@ -8,16 +8,22 @@ import numpy as np
 import xml.etree.ElementTree as ET
 import os
 import struct
+import platform # for checking the os bit
 
 ## local class imports
 from trigger import Trigger, StartTrigger
 from waveform import Waveform
 
 class HSDIO: # could inherit from an Instrument class if helpful
+	
+	if platform.machine().endswith("64"):
+		programsDir32 = "Program Files (x86)"
+	else:
+		programsDir32 = "Program Files"
 
-	dllpath32 = os.path.join("C:\Program Files (x86)\IVI Foundation\IVI\Bin", "niHSDIO.dll")
+	dllpath32 = os.path.join(f"C:\{programsDir32}\IVI Foundation\IVI\Bin", "niHSDIO.dll")
 	dllpath64 = os.path.join("C:\Program Files\IVI Foundation\IVI\Bin", "niHSDIO_64.dll")
-
+mk
 	def __init__(self):
 
 		# Quick test for bitness
