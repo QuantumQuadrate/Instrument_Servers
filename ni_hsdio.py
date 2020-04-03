@@ -29,20 +29,30 @@ class niHSDIO():
 
         self.vi = c_int(0)  # session id
 
-    def check(self, error_code, traceback_msg=None):
+    def check(self, error_code: int, traceback_msg: str = None):
         """
         Checks error_code against NI HSDIO built in error codes, prints (should become logs) error if operation was
         unsuccessful.
-        @param error_code : Int, error code which reports status of operation. 0 = Success,
-            positive values = Warnings , negative values = Errors
-        @param traceback_msg : String, message useful for traceback
+
+        TODO : Make this do proper traceback
+        TODO : Setup logging
+        TODO : Raise Errors and Warnings where appropriate
+
+
+        Args:
+            error_code: error code which reports status of operation.
+
+                0 = Success, positive values = Warnings , negative values = Errors
+            traceback_msg: message useful for traceback
         """
 
         if error_code == 0:
             return
 
         err_msg = c_char_p("".encode("utf-8"))  # unsure this will work, c function requires buffer array of length 256
-        self.hsdio.niHSDIO_error_message(self.vi, c_int32(error_code), err_msg)
+        self.hsdio.niHSDIO_error_message(self.vi,                       # ViSession
+                                         c_int32(error_code),           # ViStatus
+                                         err_msg)                       # ViChar[256]
 
         if error_code < 0:
             message = "Error Code"
@@ -59,7 +69,8 @@ class niHSDIO():
         print(message)
         return
 
-    def init_generation_sess(self, device_name, id_query=True, reset_instr=True, check_error=True):
+    def init_generation_sess(self, device_name: str, id_query: bool = True, reset_instr: bool = True,
+                             check_error: bool = True) -> int:
         """
         Creates new generation session with device_name. This doesn't automatically tristate front panel terminals or
         channels that might have been left driving voltages from previous sessions (Refer to self.close() ).
@@ -67,28 +78,60 @@ class niHSDIO():
         Pass in reset_instr = True to place device in a known state when creating a new session. This is equivalent to
         calling self.reset() and tristates front panel terminals and channels.
 
-        @return: error_code : Int, error code which reports status of operation. 0 = Success,
-            positive values = Warnings , negative values = Errors
-        @param device_name : String, name/address of device to be accessed as it shows up in NI MAX (e.g. "Dev1")
-        @param id_query : Boolean, should the driver perform and ID query on the device. When true, compatibility
-            between device and driver is ensured
-        @param reset_instr : Boolean, should the instrument be reset when session is generated. This is equivalent to
-            calling self.reset() and tristates front panel terminals and channels.
-        @param check_error : Boolean, should the check() function be called once operation has completed
+
+        Args:
+            device_name : address of device to be accessed as it shows up in NI MAX (e.g. "Dev1")
+            id_query : should the driver perform and ID query on the device. When true, compatibility
+                between device and driver is ensured
+            reset_instr : should the instrument be reset when session is generated. This is equivalent to
+                calling self.reset() and tristates front panel terminals and channels.
+
+                Warning: This will reset the entire device. Acquisition or generation operations in progress are aborted
+                and cleared.
+            check_error : should the check() function be called once operation has completed
+
+        Returns:
+            error code which reports status of operation.
+
+                0 = Success, positive values = Warnings,
+                negative values = Errors
         """
 
-        error_code = self.hsdio.niHSDIO_InitGenerationSession(c_char_p(device_name.encode('utf-8')),
-                                                         c_bool(id_query),
-                                                         c_bool(reset_instr),
-                                                         c_char_p("".encode('utf-8')),
-                                                         byref(self.vi))
+        error_code = self.hsdio.niHSDIO_InitGenerationSession(c_char_p(device_name.encode('utf-8')),  # ViRsrc
+                                                              c_bool(id_query),                       # ViBoolean
+                                                              c_bool(reset_instr),                    # ViBoolean
+                                                              c_char_p("".encode('utf-8')),           # ViConstString
+                                                              byref(self.vi))                         # ViSession
 
         if error_code != 0 and check_error:
             self.check(error_code, traceback_msg="init_generation_sess")
 
         return error_code
 
-    def close(self, reset=True, check_error=True):
+    def assign_dynamic_channels(self, channel_list: str) -> int:
+        """
+        Configures channels for dynamic acquisition (if self.vi is an acquisition session) or dynamic generation
+        (if self.vi is a generation session).
+
+
+        Args:
+            channel_list : Identifies which channels are reserved for dynamic operation.
+                Valid Syntax:
+                "0-19" or "0-15,16-19" or "0-18,19", "" (empty string) or None to specify all channels
+                "none" to unassign all channels
+
+                Channels cannot be configured for both static generation and dynamic generation.
+
+        Returns:
+            error code which reports status of operation.
+
+                0 = Success, positive values = Warnings,
+                negative values = Errors
+        """
+
+        # c function take vi const string : mapped to const ViChar * mapped to char *.
+
+    def close(self, reset: bool = True, check_error: bool = True) -> int:
         """
         Closes the session and frees resources that were reserved. If the session is running, it is first aborted.
 
@@ -97,10 +140,17 @@ class niHSDIO():
         called the self.abort() function. Pass in reset = True if you want to tristate your terminals and channels
         before closing your session.
 
-        @return: error_code : Int, error code which reports status of operation. 0 = Success,
-            positive values = Warnings , negative values = Errors
-        @param reset : Boolean, calls self.reset() prior to closing the session, tristates terminals and channels
-        @param check_error : Boolean, should the check() function be called once operation has completed
+
+        Args:
+            reset : error code which reports status of operation. 0 = Success,
+                positive values = Warnings , negative values = Errors
+            check_error : should the check() function be called once operation has completed
+
+        Returns:
+            error code which reports status of operation.
+
+                0 = Success, positive values = Warnings,
+                negative values = Errors
         """
 
         if reset:
@@ -112,7 +162,7 @@ class niHSDIO():
 
         return error_code
 
-    def abort(self, check_error=True):
+    def abort(self, check_error: bool = True) -> int:
         """
         Stops a running dynamic session. This function is generally not required on finite data operations, as these
         operations complete after the last data point is generated or acquired. This function is generally required for
@@ -123,7 +173,16 @@ class niHSDIO():
 
         @return: error_code : Int, error code which reports status of operation. 0 = Success,
             positive values = Warnings , negative values = Errors
-        @param check_error : Boolean, should the check() function be called once operation has completed
+
+
+        Args:
+            check_error : should the check() function be called once operation has completed
+
+        Returns:
+            error code which reports status of operation.
+
+                0 = Success, positive values = Warnings,
+                negative values = Errors
         """
 
         error_code = self.hsdio.niHSDIO_Abort(self.vi)
@@ -133,7 +192,7 @@ class niHSDIO():
 
         return error_code
 
-    def reset(self, check_error=True):
+    def reset(self, check_error: bool = True) -> int:
         """
         Call this function to reset the session to its Initial state. All channels and front panel terminals are put
         into a high-impedance state. All software attributes are reset to their initial values.
@@ -150,9 +209,14 @@ class niHSDIO():
         session is active at a time (as of 2020.04.03).
 
 
-        @return: error_code : Int, error code which reports status of operation. 0 = Success,
-            positive values = Warnings , negative values = Errors
-        @param check_error : Boolean, should the check() function be called once operation has completed
+        Args:
+            check_error : should the check() function be called once operation has completed
+
+        Returns:
+            error code which reports status of operation.
+
+                0 = Success, positive values = Warnings,
+                negative values = Errors
         """
 
         error_code = self.hsdio.niHSDIO_reset(self.vi)
@@ -160,4 +224,4 @@ class niHSDIO():
         if error_code != 0 and check_error:
             self.check(error_code, traceback_msg="reset")
 
-        return  error_code
+        return error_code
