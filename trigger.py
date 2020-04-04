@@ -3,7 +3,7 @@ import xml.etree.ElementTree as ET
 
 class Trigger:
 	""" Trigger data type for PXI server """
-	
+	# TODO: make these into ordered dicts or have someway
 	types = {"Edge": c_uint32(0),
 			 "Level": c_uint32(1)}
 	edges = {"Rising Edge": c_uint32(0),
