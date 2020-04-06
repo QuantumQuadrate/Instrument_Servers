@@ -418,7 +418,7 @@ class niHSDIO():
 
         return error_code
 
-    def
+    def write_waveform_wdt(self,waveform_name: str, samp_per_chan: int, data_layout: int, data: ):
 
     def close(self, reset: bool = True, check_error: bool = True) -> int:
         """
