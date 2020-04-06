@@ -243,7 +243,7 @@ class HSDIO: # could inherit from an Instrument class if helpful
 			pass
 			# write each waveform wf to the PC memory: (or not actually according to Juan)
 			
-			#call the c function: niHSDIO_WriteNamedWaveformWDT 
+			#TODO : Juan call the c function: niHSDIO_WriteNamedWaveformWDT
 			#http://zone.ni.com/reference/en-XX/help/370520P-01/hsdiocref/cvinihsdio_writenamedwaveformwdt/
 			
 			#this function is wrapped in a VI, the functionality is explained here:
