@@ -1,7 +1,12 @@
-###############################################################################
-## pseudocode architecture for HSDIO class
-###############################################################################
-# I'll start to fill in the gaps to make this functioning code - Juan
+"""
+HSDIO Class for the PXI Server
+SaffmanLab, University of Wisconsin - Madison
+
+Authors: Preston Huft, Juan Bohorquez
+
+For parsing XML strings which specify triggers and waveforms to be loaded to National
+Instruments HSDIO hardware. 
+"""
 
 from ctypes import * # open to suggestions on making this better with minimal obstruction to workflow
 import numpy as np
@@ -165,7 +170,6 @@ class HSDIO: # could inherit from an Instrument class if helpful
 		
 		if self.isInitialized:
 			
-			
 			for handle in self.instrumentHandles:
 				pass
 				
@@ -201,10 +205,6 @@ class HSDIO: # could inherit from an Instrument class if helpful
 				#	      generation mode = c_int32(15) 
 				# note: 14 to waveform, 15 corresponds to scripted
 				
-				# TODO: Juan - niHSDIO Configure Generation Mode VI
-				#	args: resource name = resource
-				#	      generation mode = c_int32(15) 
-				
 				# TODO: Juan - niHSDIO Configure Initial State (String) VI
 				#	args: resource name = resource
 				#		  initial state = init_state,
@@ -216,9 +216,19 @@ class HSDIO: # could inherit from an Instrument class if helpful
 				
 				for trig in self.scriptTriggers:
 					
-					if trig.start
+					# implement this in a better way so not hardcoding the numeric code
+					if trig.type == c_uint32(1): # Level type
 					
-							
+						# TODO: Juan - niHSDIO Configure Trigger (Level) VI
+						# 	args: source (PFI 0): str, edge (rising): c_int32(1)
+						
+					else: # Edge type is default when initialized
+						
+						# TODO: Juan - niHSDIO Configure Trigger (Edge) VI
+						# 	args: source (PFI 0): str, edge (rising): c_int32(1)					
+				
+				self.instrumentHandles.append(resource)
+				
 		self.isInitialized = True
 	
 	def update(self):

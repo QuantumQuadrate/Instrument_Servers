@@ -1,3 +1,10 @@
+"""
+Waveform class for the PXI Server
+SaffmanLab, University of Wisconsin - Madison
+
+Authors: Preston Huft, Juan Bohorquez
+"""
+
 from ctypes import c_uint32
 import numpy as np
 
