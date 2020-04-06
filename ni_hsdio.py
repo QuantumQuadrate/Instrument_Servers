@@ -69,7 +69,7 @@ class niHSDIO():
         print(message)
         return
 
-    def init_generation_sess(self, device_name: str, id_query: bool = True, reset_instr: bool = True,
+    def init_generation_sess(self, resource_name: str, id_query: bool = True, reset_instr: bool = True,
                              check_error: bool = True) -> int:
         """
         Creates new generation session with device_name. This doesn't automatically tristate front panel terminals or
@@ -80,7 +80,7 @@ class niHSDIO():
 
 
         Args:
-            device_name : address of device to be accessed as it shows up in NI MAX (e.g. "Dev1")
+            resource_name : address of device to be accessed as it shows up in NI MAX (e.g. "Dev1")
             id_query : should the driver perform and ID query on the device. When true, compatibility
                 between device and driver is ensured
             reset_instr : should the instrument be reset when session is generated. This is equivalent to
@@ -97,18 +97,18 @@ class niHSDIO():
                 negative values = Errors
         """
 
-        error_code = self.hsdio.niHSDIO_InitGenerationSession(c_char_p(device_name.encode('utf-8')),  # ViRsrc
-                                                              c_bool(id_query),                       # ViBoolean
-                                                              c_bool(reset_instr),                    # ViBoolean
-                                                              c_char_p("".encode('utf-8')),           # ViConstString
-                                                              byref(self.vi))                         # ViSession
+        error_code = self.hsdio.niHSDIO_InitGenerationSession(c_char_p(resource_name.encode('utf-8')),  # ViRsrc
+                                                              c_bool(id_query),                         # ViBoolean
+                                                              c_bool(reset_instr),                      # ViBoolean
+                                                              c_char_p("".encode('utf-8')),             # ViConstString
+                                                              byref(self.vi))                           # ViSession
 
         if error_code != 0 and check_error:
             self.check(error_code, traceback_msg="init_generation_sess")
 
         return error_code
 
-    def assign_dynamic_channels(self, channel_list: str) -> int:
+    def assign_dynamic_channels(self, channel_list: str, check_error: bool = True) -> int:
         """
         Configures channels for dynamic acquisition (if self.vi is an acquisition session) or dynamic generation
         (if self.vi is a generation session).
@@ -121,7 +121,7 @@ class niHSDIO():
                 "none" to unassign all channels
 
                 Channels cannot be configured for both static generation and dynamic generation.
-
+            check_error : should the check() function be called once operation has completed
         Returns:
             error code which reports status of operation.
 
@@ -129,7 +129,31 @@ class niHSDIO():
                 negative values = Errors
         """
 
-        # c function take vi const string : mapped to const ViChar * mapped to char *.
+        error_code = self.hsdio.niHSDIO_AssignDynamicChannels(self.vi,                                  # ViSession
+                                                              c_char_p(channel_list.encode('utf-8')))   # ViConstString
+
+        if error_code != 0 and check_error:
+            self.check(error_code, traceback_msg="init_generation_sess")
+
+        return error_code
+
+    def configure_sample_clock(self, clock_source: , clock_rate: float, check_error: bool = True) -> int:
+        """
+
+        Args:
+            clock_rate :
+            clock_source :
+            check_error : should the check() function be called once operation has completed
+        Returns:
+            error code which reports status of operation.
+
+                0 = Success, positive values = Warnings,
+                negative values = Errors
+        """
+
+        error_code = self.hsdio.niHSDIO_ConfigureSampleClock(self.vi,
+                                                             #clock_source,  #ViConstString
+                                                             c_double(clock_rate))    #ViReal64
 
     def close(self, reset: bool = True, check_error: bool = True) -> int:
         """
