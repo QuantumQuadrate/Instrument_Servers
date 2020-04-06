@@ -1,8 +1,8 @@
 """
-HSDIO Class for the PXI Server
+HSDIO class for the PXI Server
 SaffmanLab, University of Wisconsin - Madison
 
-Authors: Preston Huft, Juan Bohorquez
+Author(s): Preston Huft, Juan Bohorquez
 
 For parsing XML strings which specify triggers and waveforms to be loaded to National
 Instruments HSDIO hardware. 
