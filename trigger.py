@@ -1,6 +1,13 @@
 from ctypes import c_uint32
 import xml.etree.ElementTree as ET
 
+"""
+Trigger class for the PXI Server
+SaffmanLab, University of Wisconsin - Madison
+
+Author(s): Preston Huft
+"""
+
 class Trigger:
 	""" Trigger data type for PXI server """
 	# TODO: make these into ordered dicts or have someway
