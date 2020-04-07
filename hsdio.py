@@ -170,8 +170,7 @@ class HSDIO: # could inherit from an Instrument class if helpful
 					
 		# TODO: replace with logging
 		print("HSDIO XML Loaded")
-		
-					
+
 	def init(self):
 		"""
 		set up the triggering, initial states, script triggers, etc
@@ -180,11 +179,9 @@ class HSDIO: # could inherit from an Instrument class if helpful
 		if self.isInitialized:
 			
 			for session in self.sessions:
-				self.niHSDIO.abort()
-				self.niHSDIO.close()
-				pass
 				session.abort()
 				session.close()
+				pass
 
 				# i think this should clear the list of instrumentHandles too.
 				# in LabView the handle gets passed in/out of the above VIs.
@@ -211,19 +208,19 @@ class HSDIO: # could inherit from an Instrument class if helpful
 
 				session.configure_generation_mode(generation_mode=15)
 
-				session.configure_initial_state(chan_list,init_state)
+				session.configure_initial_state(chan_list, init_state)
 
 				session.configure_idle_state(chan_list,idle_state)
 				
 				for trig in self.scriptTriggers:
 					
 					# implement this in a better way so not hardcoding the numeric code
-					if trig.type == c_uint32(1): # Level type
+					if trig.type == trig.types["Level"]:  # Level type
 
 						session.configure_digital_level_script_trigger(
 							trig.trigID,  # str
 							trig.source,  # str
-							trig.level     # int
+							trig.level    # int
 						)
 
 					else:  # Edge type is default when initialized
