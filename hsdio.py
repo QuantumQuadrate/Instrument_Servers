@@ -59,6 +59,8 @@ class HSDIO: # could inherit from an Instrument class if helpful
 								      wait 1
 								   end script"""
 		self.scriptTriggers = []
+		self.startTrigger = StartTrigger()
+
 
 		# These two have are related to one another, each session is attached to a handle, each handle can support man
 		# sessions. Sessions now have an attribute HsdioSession.handle (a python string)
@@ -230,8 +232,8 @@ class HSDIO: # could inherit from an Instrument class if helpful
 							trig.source,
 							trig.edge
 						)
-
-				# self.instrumentHandles.append(resource)  # Taken care of at start of for loop
+			
+			if self.waitForStartTrigger
 				
 		self.isInitialized = True
 	
@@ -244,7 +246,7 @@ class HSDIO: # could inherit from an Instrument class if helpful
 		pulse_gen = self.pulseGenScript
 					  
 		for wf in waveform_arr:
-			pass
+		
 			# write each waveform wf to the PC memory: (or not actually according to Juan)
 			
 			#TODO : Juan call the c function: niHSDIO_WriteNamedWaveformWDT
@@ -252,6 +254,8 @@ class HSDIO: # could inherit from an Instrument class if helpful
 			
 			#this function is wrapped in a VI, the functionality is explained here:
 			#http://zone.ni.com/reference/en-XX/help/370520P-01/hsdio/writing_waveforms_to_your_instrument/
+			
+			
 			
 	def settings(self, wf_arr, wf_names):
 		pass
