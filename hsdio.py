@@ -14,6 +14,7 @@ import xml.etree.ElementTree as ET
 import os
 import struct
 import platform # for checking the os bit
+from ni_hsdio import NiHsdio
 
 ## local class imports
 from trigger import Trigger, StartTrigger
@@ -31,6 +32,8 @@ class HSDIO: # could inherit from an Instrument class if helpful
 
 	def __init__(self):
 
+		'''
+		This is taken care of inside of ni_hsdio now
 		# Quick test for bitness
 		self.bitness = struct.calcsize("P") * 8
 		if self.bitness == 32:
@@ -39,6 +42,7 @@ class HSDIO: # could inherit from an Instrument class if helpful
 		else:
 			# Default location of the 64 bit dll
 			self.hsdio = CDLL(self.dllpath64)
+		'''
 
 		## device settings
 		# TODO: could make an attribute with these settings in a dictionary
@@ -55,8 +59,13 @@ class HSDIO: # could inherit from an Instrument class if helpful
 								      wait 1
 								   end script"""
 		self.scriptTriggers = []
-		self.instrumentHandles = [] 
-		self.waveformArr = [] 
+
+		# These two have are related to one another, each session is attached to a handle, each handle can support man
+		# sessions. Sessions now have an attribute HsdioSession.handle (a python string)
+		self.instrumentHandles = []  # array to hold instrument handles
+		self.session = []  # array to hold HsdioSession objects
+
+		self.waveformArr = []
 
 		
 		# whether or not we've actually populated the attributes above
@@ -170,7 +179,9 @@ class HSDIO: # could inherit from an Instrument class if helpful
 		
 		if self.isInitialized:
 			
-			for handle in self.instrumentHandles:
+			for instrument in self.instruments:
+				self.niHSDIO.abort()
+				self.niHSDIO.close()
 				pass
 				
 				# TODO: Juan - niHSDIO Abort VI
@@ -179,6 +190,8 @@ class HSDIO: # could inherit from an Instrument class if helpful
 				# i think this should clear the list of instrumentHandles too.
 				# in LabView the handle gets passed in/out of the above VIs.
 				# maybe just reset the array after the loop:
+				# Its worth considering how these handles are being populated - Juan
+
 			self.instrumentHandles = [] # reset
 							
 		self.instrumentHandles.append("")
