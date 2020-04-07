@@ -418,7 +418,26 @@ class niHSDIO():
 
         return error_code
 
-    def write_waveform_wdt(self,waveform_name: str, samp_per_chan: int, data_layout: int, data: ):
+    def write_waveform_wdt(self,waveform_name: str, samples_per_chan: int, data_layout: int, data: [int]) -> int:
+        """
+        Transfers multistate digital waveforms from PC memory to onboard memory. Each element of data[] uses one byte
+        per channel per sample. The supported values are defined in niHSDIO.h.
+
+
+
+        Args:
+            waveform_name :
+            samples_per_chan :
+            data_layout :
+            data : list or array of waveform data. Each value on this array defines the state of one channel of one
+                sample.
+
+        Returns:
+
+        """
+
+        c_data = (c_uint8 * len(data))(*data)
+
 
     def close(self, reset: bool = True, check_error: bool = True) -> int:
         """
