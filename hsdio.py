@@ -234,10 +234,10 @@ class HSDIO: # could inherit from an Instrument class if helpful
 						)
 			
 				if self.startTrigger.waitForStartTrigger:
-				
-					# TODO: Juan - implement DigitalEdgeStartTrigger
-					#http://zone.ni.com/reference/en-XX/help/370520P-01/hsdiocref/cvinihsdio_configuredigitaledgestarttrigger/
-					# args: source = self.startTrigger.source, edge = self.startTrigger.edge
+					session.configure_digital_edge_start_trigger(
+						self.startTrigger.source,
+						self.startTrigger.edge
+					)
 				
 				
 		self.isInitialized = True

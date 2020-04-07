@@ -75,8 +75,8 @@ class Trigger:
 # with some refactoring, this could inherit from Trigger
 class StartTrigger: 
 
-	edges = {"Rising Edge": c_uint32(0),
-			 "Falling Edge": c_uint32(1)}
+	edges = {"Rising Edge": c_uint32(12),
+			 "Falling Edge": c_uint32(13)}
 
 	def __init__(self, waitForStartTrigger=False, source="", description="", 
 				 edge=edges["Rising Edge"]):
