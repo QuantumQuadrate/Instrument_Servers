@@ -14,7 +14,7 @@ import xml.etree.ElementTree as ET
 import os
 import struct
 import platform # for checking the os bit
-from ni_hsdio import NiHsdio
+from ni_hsdio import HsdioSession
 
 ## local class imports
 from trigger import Trigger, StartTrigger
@@ -63,7 +63,7 @@ class HSDIO: # could inherit from an Instrument class if helpful
 		# These two have are related to one another, each session is attached to a handle, each handle can support man
 		# sessions. Sessions now have an attribute HsdioSession.handle (a python string)
 		self.instrumentHandles = []  # array to hold instrument handles
-		self.session = []  # array to hold HsdioSession objects
+		self.sessions = []  # array to hold HsdioSession objects
 
 		self.waveformArr = []
 
@@ -179,68 +179,62 @@ class HSDIO: # could inherit from an Instrument class if helpful
 		
 		if self.isInitialized:
 			
-			for instrument in self.instruments:
+			for session in self.sessions:
 				self.niHSDIO.abort()
 				self.niHSDIO.close()
 				pass
-				
-				# TODO: Juan - niHSDIO Abort VI
-				# TODO: Juan - niHSDIO Close VI
-				
+				session.abort()
+				session.close()
+
 				# i think this should clear the list of instrumentHandles too.
 				# in LabView the handle gets passed in/out of the above VIs.
 				# maybe just reset the array after the loop:
 				# Its worth considering how these handles are being populated - Juan
 
-			self.instrumentHandles = [] # reset
+			self.sessions = []  # reset
 							
-		self.instrumentHandles.append("")
+		# self.instrumentHandles.append("")  # Not sure why this is here
 		
 		if self.enablePulses:
 				
 			iterables = zip(self.idleStates, self.initalStates,
 							self.activeChannels, self.resourceNames)
 			for idle_state,init_state,chan_list,resource in iterables:
-				
-				# TODO: Juan - niHSDIO Init Generation Session VI
-				# 	args: resource name = resource
-				
-				# TODO: Juan - niHSDIO Assign Dynamic Channels VI
-				#	args: channel list = chan_list
+				self.sessions.append(HsdioSession(resource))
+				session = self.sessions[-1]
 
-				# TODO: Juan - niHSDIO Configure Sample Clock
-				#	args: resource name = resource
-				#		  clock rate = self.clockRate,
-				#		  clock source = "OnBoardClock"
-				
-				# TODO: Juan - niHSDIO Configure Generation Mode VI
-				#	args: resource name = resource
-				#	      generation mode = c_int32(15) 
-				# note: 14 to waveform, 15 corresponds to scripted
-				
-				# TODO: Juan - niHSDIO Configure Initial State (String) VI
-				#	args: resource name = resource
-				#		  initial state = init_state,
-				#		  channel list = chan_list
-				
-				# TODO: Juan - niHSDIO Configure Idle State (String) VI
-				#	args: resource name = resource
-				#		  generation mode = c_int32(15) 
+				session.init_generation_sess()
+
+				session.assign_dynamic_channels(chan_list)
+
+				session.configure_sample_clock(self.clockRate)
+
+				session.configure_generation_mode(generation_mode=15)
+
+				session.configure_initial_state(chan_list,init_state)
+
+				session.configure_idle_state(chan_list,idle_state)
 				
 				for trig in self.scriptTriggers:
 					
 					# implement this in a better way so not hardcoding the numeric code
 					if trig.type == c_uint32(1): # Level type
-					
-						# TODO: Juan - niHSDIO Configure Trigger (Level) VI
-						# 	args: source (PFI 0): str, edge (rising): c_int32(1)
-						
-					else: # Edge type is default when initialized
-						
-						# TODO: Juan - niHSDIO Configure Trigger (Edge) VI
-						# 	args: source (PFI 0): str, edge (rising): c_int32(1)					
-				
-				self.instrumentHandles.append(resource)
+
+						session.configure_digital_level_script_trigger(
+							trig.trigID,  # str
+							trig.source,  # str
+							trig.level     # int
+						)
+
+					else:  # Edge type is default when initialized
+
+						session.configure_digital_edge_script_trigger(
+							trig.trigID,
+							trig.source,
+							trig.edge
+						)
+
+				# self.instrumentHandles.append(resource)  # Taken care of at start of for loop
 				
 		self.isInitialized = True
 	

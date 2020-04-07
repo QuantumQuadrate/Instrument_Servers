@@ -13,10 +13,10 @@ class Trigger:
 	# TODO: make these into ordered dicts or have someway
 	types = {"Edge": c_uint32(0),
 			 "Level": c_uint32(1)}
-	edges = {"Rising Edge": c_uint32(0),
-			 "Falling Edge": c_uint32(1)}
-	levels = {"High Level": c_uint32(0),
-			  "Low Level": c_uint32(1)}
+	edges = {"Rising Edge": c_uint32(12),
+			 "Falling Edge": c_uint32(13)}
+	levels = {"High Level": c_uint32(34),
+			  "Low Level": c_uint32(35)}
 	
 	def __init__(self, trigID="", source="", trigType=types["Edge"], 
 				 edge=edges["Rising Edge"], level=levels["High Level"]):

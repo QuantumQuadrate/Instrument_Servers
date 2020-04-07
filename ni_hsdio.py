@@ -437,6 +437,8 @@ class HsdioSession:
 
         This function is valid only for generation sessions that use scripting.
 
+        "ScriptTrigger3" is not available when using the NI 6544/6545/6547/6548.
+
         Args:
             trigger_id : Identifies which Script trigger this function configures.
                 Defined Values :
@@ -479,10 +481,10 @@ class HsdioSession:
         c_source = c_char_p(source.encode('utf-8'))
         c_trigger_id = c_char_p(trigger_id.encode('utf-8'))
         error_code = self.hsdio.niHSDIO_ConfigureDigitalLevelScriptTrigger(
-            self.vi,             # ViSession
-            c_trigger_id,        # ViConstString
-            c_source,            # ViConstString
-            c_int32(trigger_id)  # ViInt32
+            self.vi,        # ViSession
+            c_trigger_id,   # ViConstString
+            c_source,       # ViConstString
+            c_int32(level)  # ViInt32
         )
 
         if error_code != 0 and check_error:
@@ -490,12 +492,78 @@ class HsdioSession:
 
         return error_code
 
-    def write_waveform_wdt(self,
-                           waveform_name: str,
-                           samples_per_chan: int,
-                           data_layout: int,
-                           data: [int],
-                           check_error: bool = True) -> int:
+    def configure_digital_edge_script_trigger(
+            self,
+            trigger_id: str,
+            source: str,
+            edge: int,
+            check_error: bool = True) -> int:
+        """
+        Configures the Script trigger for edge triggering.
+
+        This function is valid only for generation sessions that use scripting.
+
+        "ScriptTrigger3" is not available when using the NI 6544/6545/6547/6548.
+
+        Args:
+            trigger_id : Identifies which Script trigger this function configures.
+                Defined Values :
+                "ScriptTrigger0"
+                "ScriptTrigger1"
+                "ScriptTrigger2"
+                "ScriptTrigger3"
+
+            source : You may specify any valid source terminal for this trigger. Trigger voltages
+                and positions are only relevant if the source of the trigger is from the front panel
+                connectors.
+
+                For more info on valid Source values
+                http://zone.ni.com/reference/en-XX/help/370520P-01/hsdiocref/cvinihsdio_configuredigitaledgestarttrigger
+
+                Note  Only NI 6555/6556 devices support PFI <24..31> and PXIe DStarB.
+
+            edge : Specifies the active level for the desired trigger.
+                Defined Values :
+                NIHSDIO_VAL_RISING_EDGE (12)—Rising edge trigger.
+                NIHSDIO_VAL_FALLING_EDGE (13)—Falling edge trigger.
+            check_error : should the check() function be called once operation has completed
+
+        Returns:
+            error code which reports status of operation.
+
+                0 = Success, positive values = Warnings,
+                negative values = Errors
+        """
+
+        allowed_edges = [12, 13]
+        assert edge in allowed_edges
+        allowed_ids = ["ScriptTrigger0",
+                       "ScriptTrigger1",
+                       "ScriptTrigger2",
+                       "ScriptTrigger3"]
+        assert trigger_id in allowed_ids
+
+        c_source = c_char_p(source.encode('utf-8'))
+        c_trigger_id = c_char_p(trigger_id.encode('utf-8'))
+        error_code = self.hsdio.niHSDIO_ConfigureDigitalLevelScriptTrigger(
+            self.vi,       # ViSession
+            c_trigger_id,  # ViConstString
+            c_source,      # ViConstString
+            c_int32(edge)  # ViInt32
+        )
+
+        if error_code != 0 and check_error:
+            self.check(error_code, traceback_msg="configure_digital_edge_script_trigger")
+
+        return error_code
+
+    def write_waveform_wdt(
+            self,
+            waveform_name: str,
+            samples_per_chan: int,
+            data_layout: int,
+            data: [int],
+            check_error: bool = True) -> int:
         """
         Transfers multistate digital waveforms from PC memory to onboard memory. Each element of
         data[] uses one byte per channel per sample. The supported values are defined in niHSDIO.h.
@@ -566,7 +634,7 @@ class HsdioSession:
 
     def close(
             self,
-            reset: bool = True,
+            reset: bool = Trues,
             check_error: bool = True) -> int:
         """
         Closes the session and frees resources that were reserved. If the session is running, it is
