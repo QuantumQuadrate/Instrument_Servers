@@ -236,7 +236,12 @@ class HSDIO: # could inherit from an Instrument class if helpful
 							trig.edge
 						)
 			
-			if self.waitForStartTrigger
+				if self.startTrigger.waitForStartTrigger:
+				
+					# TODO: Juan - implement DigitalEdgeStartTrigger
+					#http://zone.ni.com/reference/en-XX/help/370520P-01/hsdiocref/cvinihsdio_configuredigitaledgestarttrigger/
+					# args: source = self.startTrigger.source, edge = self.startTrigger.edge
+				
 				
 		self.isInitialized = True
 	
@@ -245,10 +250,11 @@ class HSDIO: # could inherit from an Instrument class if helpful
 		write waveforms to the PC memory 
 		"""
 		
-		waveform_arr = self.waveformArr # each waveform is dict-like
 		pulse_gen = self.pulseGenScript
 					  
-		for wf in waveform_arr:
+		for wf in self.waveformArr:
+		
+			
 		
 			# write each waveform wf to the PC memory: (or not actually according to Juan)
 			
