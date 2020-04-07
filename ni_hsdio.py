@@ -418,7 +418,78 @@ class niHSDIO():
 
         return error_code
 
-    def
+    def write_waveform_wdt(self,
+                           waveform_name: str,
+                           samples_per_chan: int,
+                           data_layout: int,
+                           data: [int],
+                           check_error: bool = True) -> int:
+        """
+        Transfers multistate digital waveforms from PC memory to onboard memory. Each element of data[] uses one byte
+        per channel per sample. The supported values are defined in niHSDIO.h.
+
+        If you specify a waveformName not already allocated on the device, the appropriate amount of onboard memory is
+        allocated (if available), and the data is stored in that new location.
+
+        Data is always written to memory starting at the current write position of the waveform. A new waveform's write
+        position is the start of the allocated memory. Calling this function moves the next write position to the end of
+        the data just written. Thus, subsequent calls to this function append data to the end of previously written
+        data. You can manually change the write position by calling the niHSDIO_SetNamedWaveformNextWritePosition
+        function. If you try to write past the end of the allocated space, NI-HSDIO returns an error.
+
+        Waveforms are stored contiguously in onboard memory. You cannot resize an existing named waveform. Instead,
+        delete the existing waveform using the niHSDIO_DeleteNamedWaveform function and then recreate it with the new
+        size using the same name.
+
+        This function calls the niHSDIO_CommitDynamic function. All pending attributes are committed to hardware.
+
+        wraps niHSDIO_WriteNamedWaveformWDT
+
+        Args:
+            waveform_name : name of waveform to be written
+
+            samples_per_chan : Specifies the number of samples in data to be written to onboard memory.
+
+                If samples_per_chan is less than the size of data only the number of samples indicated in
+                samples_per_chan are written
+
+            data_layout : Describes the layout of the waveform contained in data
+                Defined Values :
+                NIHSDIO_VAL_GROUP_BY_SAMPLE (71) - Specifies that consecutive samples in data[] are such that the array
+                contains the first sample from every signal in the operation, then the second sample from every signal,
+                up to the last sample from every signal.
+                NIHSDIO_VAL_GROUP_BY_CHANNEL (72) - Specifies that consecutive samples in data[] are such that the array
+                contains all the samples from the first signal in the operation, then all the samples from the second
+                signal, up to all samples from the last signal.
+
+            data : list or array of waveform data. Each value on this array defines the state of one channel of one
+                sample.
+
+            check_error : should the check() function be called once operation has completed
+
+        Returns:
+            error code which reports status of operation.
+
+                0 = Success, positive values = Warnings,
+                negative values = Errors
+        """
+
+        c_data = (c_uint8 * len(data))(*data)
+        c_wvfm_name = c_char_p(waveform_name.encode('utf-8'))
+        error_code = self.hsdio.niHSDIO_WriteNamedWaveformWDT(
+            self.vi,                    # ViSession
+            c_wvfm_name,                # ViConstString
+            c_int32(samples_per_chan),  # ViInt32
+            c_int32(data_layout),       # ViInt32
+            c_data                      # ViUInt8[]
+        )
+
+        if error_code != 0 and check_error:
+            self.check(error_code, traceback_msg="write_waveform_wdt")
+
+        return error_code
+
+
 
     def close(self, reset: bool = True, check_error: bool = True) -> int:
         """
