@@ -632,6 +632,8 @@ class HsdioSession:
 
         return error_code
 
+# TODO create write_waveform_uint32()
+
     def close(
             self,
             reset: bool = Trues,
