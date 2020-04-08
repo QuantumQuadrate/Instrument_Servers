@@ -254,8 +254,10 @@ class HSDIO: # could inherit from an Instrument class if helpful
 			
 				for wf in self.waveformArr:
 				
+					# select only the channels for this card and
 					# reverse order of channels for upload
-					states = np.array([np.flip(channels) for channels in wf.states])
+					states = np.array([np.flip(state[i*32:(i+1)*32]) 
+									   for state in wf.states]) 
 				
 					# write each waveform wf to the PC memory: (or not actually according to Juan)
 					
@@ -264,8 +266,6 @@ class HSDIO: # could inherit from an Instrument class if helpful
 					
 					#this function is wrapped in a VI, the functionality is explained here:
 					#http://zone.ni.com/reference/en-XX/help/370520P-01/hsdio/writing_waveforms_to_your_instrument/
-			
-			
 			
 	def settings(self, wf_arr, wf_names):
 		pass

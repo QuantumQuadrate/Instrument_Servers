@@ -92,5 +92,5 @@ class Waveform:
 		# and the other encoding the ordering of the states. While transitions maps to states.
 
 	def __repr__(self): # mostly for debugging
-		return (f"Waveform(name={selfname}, transitions={self.transitions}, "
-				f"states={states}")
+		return (f"Waveform(name={self.name}, transitions={self.transitions}, "
+				f"states={self.states}")
