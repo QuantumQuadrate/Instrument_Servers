@@ -249,7 +249,7 @@ class HSDIO: # could inherit from an Instrument class if helpful
 		
 		pulse_gen = self.pulseGenScript
 					  
-		for wf in self.waveformArr:
+		#for wf in self.waveformArr:
 		
 			
 		

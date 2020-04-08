@@ -636,7 +636,7 @@ class HsdioSession:
 
     def close(
             self,
-            reset: bool = Trues,
+            reset: bool = True,
             check_error: bool = True) -> int:
         """
         Closes the session and frees resources that were reserved. If the session is running, it is
