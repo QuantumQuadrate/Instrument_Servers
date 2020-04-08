@@ -632,7 +632,74 @@ class HsdioSession:
 
         return error_code
 
-# TODO create write_waveform_uint32()
+    def write_waveform_uint32(
+            self,
+            waveform_name: str,
+            samples_to_write: int,
+            data: [c_int32],
+            check_error: bool = True
+    ) -> int:
+        """
+        Transfers data from PC memory to the HSDIO's onboard memory.
+
+        Supported devices for this function depend on the data width of your device, not on the
+        number of assigned  dynamic channels. This function may be used when the data width is 4.
+
+        If you specify a waveform_name not already allocated on the device, the appropriate amount
+        of onboard memory is allocated (if available), and the data is stored in that new location.
+
+        Data is always written to memory starting at the current write position of the waveform.
+        A new waveform write position is the start of the allocated memory. Calling this function
+        moves the next write position to the end of the data just written, so subsequent calls to
+        this function append data to the end of previously written data. You can manually change
+        the write position by calling the niHSDIO_SetNamedWaveformNextWritePosition function. If you
+        try to write past the end of the allocated space, NI-HSDIO returns an error.
+
+        Waveforms are stored contiguously in onboard memory. You cannot resize an existing named
+        waveform. Instead, delete the existing waveform using the niHSDIO_DeleteNamedWaveform
+        function and then recreate it with the new size using the same name.
+
+        This function calls the niHSDIO_CommitDynamic c function. All pending attributes are
+        committed to hardware.
+
+        When you explicitly call the niHSDIO_AllocateNamedWaveform function and write waveforms
+        using multiple niHSDIO_WriteNamedWaveformU32 calls, each waveform block written must be a
+        multiple of 32 samples for the NI 6541/6542/6544/6545/655x devices (64 samples for the
+        NI 6547/6548 in DDR mode) or a multiple of 64 samples for the NI 656x devices
+        (128 samples if the NI 656x is in DDR mode).
+
+        Args:
+            waveform_name : name of waveform to be written
+            samples_to_write : Specifies the number of samples in data to be written to onboard
+                memory.
+
+                If samples_per_write is less than the size of data only the number of samples
+                indicated in samples_to_write are written
+            data : Specifies the samples to write.
+
+            check_error : should the check() function be called once operation has completed
+
+        Returns:
+            error code which reports status of operation.
+
+                0 = Success, positive values = Warnings,
+                negative values = Errors
+
+        """
+
+        c_wvfm_name = c_char_p(waveform_name.encode('utf-8'))
+
+        error_code = self.hsdio.niHSDIO_WriteNamedWaveformU32(
+            self.vi,                    # ViSession
+            c_wvfm_name,                # ViConstString
+            c_int32(samples_to_write),  # ViInt32
+            data,                       # ViUInt32[]
+        )
+
+        if error_code != 0 and check_error:
+            self.check(error_code, traceback_msg="write_waveform_unit32")
+
+        return error_code
 
     def close(
             self,

@@ -74,11 +74,13 @@ class Waveform:
 					waveform functions
 			data_layout : Specifies the data layout expected by the write_waveform function.
 				True - Values are grouped by sample. Consecutive samples in self.data are
-					such that the array contains the first sample from every signal in the operation,
-					then the second sample from every signal, up to the last sample from every signal
+					such that the array contains the first sample from every signal in the
+					operation, then the second sample from every signal, up to the last sample from
+					every signal
 				False - Values are grouped by channel. Consecutive samples in self.data are
-					such that the array contains all the samples from the first signal in the operation.
-					then all the samples from the second signal, up to all samples from the last signal.
+					such that the array contains all the samples from the first signal in the
+					operation. Then all the samples from the second signal, up to all samples from
+					the last signal.
 
 		Returns:
 			self.format (str): data encoding format
