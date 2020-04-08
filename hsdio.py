@@ -247,19 +247,23 @@ class HSDIO: # could inherit from an Instrument class if helpful
 		write waveforms to the PC memory 
 		"""
 		
-		pulse_gen = self.pulseGenScript
-					  
-		#for wf in self.waveformArr:
+		if self.enablePulses:
 		
+			# for each HSDIO card (e.g., Rb experiment has two cards)
+			for i,resource in enumerate(self.resourceNames):
 			
-		
-			# write each waveform wf to the PC memory: (or not actually according to Juan)
-			
-			#TODO : Juan call the c function: niHSDIO_WriteNamedWaveformWDT
-			#http://zone.ni.com/reference/en-XX/help/370520P-01/hsdiocref/cvinihsdio_writenamedwaveformwdt/
-			
-			#this function is wrapped in a VI, the functionality is explained here:
-			#http://zone.ni.com/reference/en-XX/help/370520P-01/hsdio/writing_waveforms_to_your_instrument/
+				for wf in self.waveformArr:
+				
+					# reverse order of channels for upload
+					states = np.array([np.flip(channels) for channels in wf.states])
+				
+					# write each waveform wf to the PC memory: (or not actually according to Juan)
+					
+					#TODO : Juan call the c function: niHSDIO_WriteNamedWaveformWDT
+					#http://zone.ni.com/reference/en-XX/help/370520P-01/hsdiocref/cvinihsdio_writenamedwaveformwdt/
+					
+					#this function is wrapped in a VI, the functionality is explained here:
+					#http://zone.ni.com/reference/en-XX/help/370520P-01/hsdio/writing_waveforms_to_your_instrument/
 			
 			
 			
