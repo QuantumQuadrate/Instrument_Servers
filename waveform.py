@@ -5,15 +5,17 @@ SaffmanLab, University of Wisconsin - Madison
 Authors: Preston Huft, Juan Bohorquez
 """
 
-from ctypes import c_uint32
+from ctypes import *
 import numpy as np
 
 class Waveform:
 	
-	def __init__(self, name="", transitions=None, states=None):
+	def __init__(self, name="", transitions=None, states=None,data_format=None):
 		self.name = name
 		self.transitions = transitions
 		self.states = states
+		self.data_format = data_format
+		self.wvfm = None
 		
 	def init_from_xml(self, node): # equivalent to load waveform in labVIEW
 		""" 
@@ -43,8 +45,7 @@ class Waveform:
 	def decompress(
 			self,
 			data_format: str = "WDT",
-			data_layout: bool = True,
-			flip_states: bool = True):
+			data_layout: bool = True):
 		"""
 		Decompresses the waveform based on the information in self.states and self.transitions.
 
@@ -78,9 +79,6 @@ class Waveform:
 				False - Values are grouped by channel. Consecutive samples in self.data are
 					such that the array contains all the samples from the first signal in the operation.
 					then all the samples from the second signal, up to all samples from the last signal.
-			flip_states : should the ordering of self.states be flipped prior to compression, this
-				compensates for a potential error where outputs from channel 0 may be mapped to
-				channel 31.
 
 		Returns:
 			self.format (str): data encoding format
@@ -88,9 +86,53 @@ class Waveform:
 
 		"""
 
-		# It's my assumption that states is a 2D array of state data, with either row or column encoding an output state
-		# and the other encoding the ordering of the states. While transitions maps to states.
+		allowed_formats = ["WDT", "uInt32"]
+		assert data_format in allowed_formats
+
+		iterables = zip(self.states, self.transitions)
+		if data_format == "WDT":
+			t_old = self.transitions[0]
+			s_old = self.states[0]
+			wvfm = np.zeros((max(self.transitions), len(self.states[0])), dtype=c_uint8)
+			for state, transition in iterables:
+				for c in range(t_old, transition):
+					wvfm[c, :] = s_old
+				t_old = transition
+				s_old = state
+		elif data_layout == "uInt32":
+			t_old = self.transitions[0]
+			s_old = self.state_to_int32(self.states[0])
+			wvfm = np.zeros(max(self.transitions), dtype=c_uint32)
+			for state, transition in iterables:
+				c_state = self.state_to_int32(state)
+				for c in range(t_old, transition):
+					wvfm[c] = s_old
+				t_old = transition
+				s_old = c_state
+		else:
+			return
+
+		self.data_format = data_format
+		self.wvfm = wvfm
+
+		return self.data_format, self.wvfm
+
+	def state_to_int32(self, state: [int]):
+		"""
+		Converts state into a c_unit32() bit by bit.
+
+		Args:
+			state : 32 element long array of booleans (or ints that are only 0 and 1)
+				to be convered into a c_uint32()
+
+		Returns:
+			c_state : c_unit32 encoding of state
+		"""
+		state_int = 0
+		for ele in state:
+			state_int = (state_int << 1) | ele
+		return c_uint32(state_int)
 
 	def __repr__(self): # mostly for debugging
-		return (f"Waveform(name={selfname}, transitions={self.transitions}, "
-				f"states={states}")
+		return (f"Waveform(name={self.name}, transitions={self.transitions}, "
+				f"states={self.states}")
