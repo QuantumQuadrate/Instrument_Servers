@@ -1,3 +1,8 @@
+# general todos:
+# TODO: make a command queue for storing messages received from CsPy
+# TODO: make a return data variable for storing messages from hardware to be 
+# sent to CsPy over the return connection
+
 import socket
 from typing import Tuple
 import logging
@@ -52,6 +57,14 @@ class PXI:
             self.logger.info(f"Closing connection with {client_address}")
             self.current_connection.close()
             self.current_connection.shutdown()
+			
+	def command_loop(self)
+		"""
+		TODO: pop a command from the command queue on each iteration, parse
+		the xml in that command, and update the instruments accordingly. 
+		TODO: after xml is handled in a particular iteration, send return data
+		back to cspy over the TCP connection.
+		"""
 
     def receive_message(self):
         """
@@ -76,6 +89,9 @@ class PXI:
             if len(message) == length:
                 self.logger.info("message received with expected length.")
                 self.last_received_xml = message
+				# TODO slap this boi on the back of a commands queue.
+				# or could return the messsage and queue it outside.
+.
             else:
                 self.logger.info(f"Something went wrong,"
                                  f" I only found {len(message)} bytes to read!")
