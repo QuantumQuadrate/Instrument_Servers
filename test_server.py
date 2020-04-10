@@ -53,6 +53,7 @@ if __name__ == '__main__':
     logger.info(f'starting up on {hostname} port {port}')
     print("two")
     experiment = PXI(address)
+    experiment.launch_keylisten_thread()
     experiment.launch_network_thread()
     experiment.launch_experiment_thread()
     print("three")

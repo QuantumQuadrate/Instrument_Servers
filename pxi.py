@@ -3,6 +3,7 @@
 # TODO: make a return data variable for storing messages from hardware to be 
 # sent to CsPy over the return connection
 
+from keylistener import KeyListener
 import socket
 from typing import Tuple
 import logging
@@ -26,6 +27,7 @@ class PXI:
         self.last_received_xml = ""
 
         self.network_thread = None
+        self.keylisten_thread = None
 
     def launch_experiment_thread(self):
         """
@@ -40,6 +42,12 @@ class PXI:
         )
         self.network_thread.setDaemon(False)
         self.network_thread.start()
+    
+    def launch_keylisten_thread(self):
+        self.keylisten_thread = KeyListener(self.on_key_press)
+        self.keylisten_thread.setDaemon(True)
+        self.logger.info("starting keylistener")
+        self.keylisten_thread.start()
 
     def network_loop(self):
         """
@@ -57,14 +65,14 @@ class PXI:
             self.logger.info(f"Closing connection with {client_address}")
             self.current_connection.close()
             self.current_connection.shutdown()
-			
-	def command_loop(self)
-		"""
-		TODO: pop a command from the command queue on each iteration, parse
-		the xml in that command, and update the instruments accordingly. 
-		TODO: after xml is handled in a particular iteration, send return data
-		back to cspy over the TCP connection.
-		"""
+        
+    def command_loop(self):
+        """
+        TODO: pop a command from the command queue on each iteration, parse
+        the xml in that command, and update the instruments accordingly. 
+        TODO: after xml is handled in a particular iteration, send return data
+        back to cspy over the TCP connection.
+        """
 
     def receive_message(self):
         """
@@ -89,9 +97,9 @@ class PXI:
             if len(message) == length:
                 self.logger.info("message received with expected length.")
                 self.last_received_xml = message
-				# TODO slap this boi on the back of a commands queue.
-				# or could return the messsage and queue it outside.
-.
+                # TODO slap this boi on the back of a commands queue.
+                # or could return the messsage and queue it outside.
+
             else:
                 self.logger.info(f"Something went wrong,"
                                  f" I only found {len(message)} bytes to read!")
@@ -107,5 +115,23 @@ class PXI:
             finally:
                 self.reset_connection = True
 
-
-
+    
+    def on_key_press(self, key):
+        """
+        Determines what happens for key presses in the command prompt.
+        
+        This method to be passed into the KeyListener instance to be called 
+        when keys are pressed.
+        
+        'key': the returned from msvcrt.getwch(), e.g. 'h'
+        """
+        
+        self.logger.info(f"{key} was pressed")
+        
+        if key == 'r':
+            self.reset_connection = True
+        elif key == 'q':
+            self.keylisten_thread.end()
+            self.stop_connections = True
+        else:
+            pass
