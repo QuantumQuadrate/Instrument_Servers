@@ -54,6 +54,7 @@ if __name__ == '__main__':
     print("two")
     experiment = PXI(address)
     experiment.launch_keylisten_thread()
+    logger.info(PXI.help_str)
     experiment.launch_network_thread()
     experiment.launch_experiment_thread()
     print("three")

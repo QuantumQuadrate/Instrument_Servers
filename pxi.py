@@ -11,7 +11,12 @@ import threading
 
 
 class PXI:
-
+    
+    help_str = ("At any time, type... \n"+
+	            " - \'h\' to see this message again \n"+
+				" - \'r\' to reset the connection to CsPy \n"+
+				" - \'q\' to stop the connection and close this server.")
+				
     def __init__(self, address: Tuple[str, int]):
         self.logger = logging.getLogger(str(self.__class__))
         self.listening_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
@@ -53,6 +58,8 @@ class PXI:
         """
         Check for incoming connections and messages on those connections
         """
+		
+        self.logger.info("Entering Network Loop")
         while not self.stop_connections:
             self.reset_connection = False
             self.current_connection, client_address = self.listening_socket.accept()
@@ -126,12 +133,17 @@ class PXI:
         'key': the returned from msvcrt.getwch(), e.g. 'h'
         """
         
-        self.logger.info(f"{key} was pressed")
+        # self.logger.info(f"{key} was pressed")
         
+        if key == 'h':
+            self.logger.info(self.help_str)
+		
         if key == 'r':
+            self.logger.info("Connection reset by user.")
             self.reset_connection = True
         elif key == 'q':
-            self.keylisten_thread.end()
+            self.logger.info("Connection stopped by user. Closing server.")
+            # self.keylisten_thread.end()
             self.stop_connections = True
         else:
-            pass
+            self.logger.info("Not a valid keypress. Type \'h\' for help.")
