@@ -93,6 +93,7 @@ class Waveform:
 
 		iterables = zip(self.states, self.transitions)
 		if data_format == "WDT":
+
 			t_old = self.transitions[0]
 			s_old = self.states[0]
 			wvfm = np.zeros((max(self.transitions), len(self.states[0])), dtype=c_uint8)
@@ -101,6 +102,12 @@ class Waveform:
 					wvfm[c, :] = s_old
 				t_old = transition
 				s_old = state
+
+			if data_layout:
+				wvfm = wvfm.flatten()
+			else:
+				wvfm = wvfm.transpose().flatten()
+
 		elif data_layout == "uInt32":
 			t_old = self.transitions[0]
 			s_old = self.state_to_int32(self.states[0])
