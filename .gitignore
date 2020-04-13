@@ -1,4 +1,3 @@
-<<<<<<< HEAD
 # Pycharm
 .idea/
 
@@ -145,6 +144,9 @@ cython_debug/
 # static files generated from Django application using `collectstatic`
 media
 static
+
+# pycache
+*.pyc
 
 # local test files
 thread_test.py
