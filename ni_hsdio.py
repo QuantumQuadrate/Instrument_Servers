@@ -79,7 +79,7 @@ class HsdioSession:
         if traceback_msg is not None:
             message += "\n{}"
 
-        message = message.format(error_code, err_msg, traceback_msg)
+        message = message.format(error_code, err_msg.value, traceback_msg)
 
         print(message)
         return
