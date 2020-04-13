@@ -62,6 +62,8 @@ class PXI:
         self.logger.info("Entering Network Loop")
         while not self.stop_connections:
             self.reset_connection = False
+            
+            #TODO: entering q in cmd line should terminate this process
             self.current_connection, client_address = self.listening_socket.accept()
             self.logger.info(f"Started connection with {client_address}")
             while not (self.reset_connection or self.stop_connections):
