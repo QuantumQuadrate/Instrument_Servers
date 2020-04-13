@@ -196,7 +196,7 @@ class HSDIO: # could inherit from an Instrument class if helpful
 		
 		if self.enablePulses:
 				
-			iterables = zip(self.idleStates, self.initalStates,
+			iterables = zip(self.idleStates, self.initialStates,
 							self.activeChannels, self.resourceNames)
 			for idle_state,init_state,chan_list,resource in iterables:
 				self.sessions.append(HsdioSession(resource))

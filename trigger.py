@@ -11,12 +11,12 @@ Author(s): Preston Huft
 class Trigger:
 	""" Trigger data type for PXI server """
 	# TODO: make these into ordered dicts or have someway
-	types = {"Edge": c_uint32(0),
-			 "Level": c_uint32(1)}
-	edges = {"Rising Edge": c_uint32(12),
-			 "Falling Edge": c_uint32(13)}
-	levels = {"High Level": c_uint32(34),
-			  "Low Level": c_uint32(35)}
+	types = {"Edge": 0,
+			 "Level": 1}
+	edges = {"Rising Edge": 12,
+			 "Falling Edge": 13}
+	levels = {"High Level": 34,
+			  "Low Level": 35}
 	
 	def __init__(self, trigID="", source="", trigType=types["Edge"], 
 				 edge=edges["Rising Edge"], level=levels["High Level"]):
@@ -75,8 +75,8 @@ class Trigger:
 # with some refactoring, this could inherit from Trigger
 class StartTrigger: 
 
-	edges = {"Rising Edge": c_uint32(12),
-			 "Falling Edge": c_uint32(13)}
+	edges = {"Rising Edge": 12,
+			 "Falling Edge": 13}
 
 	def __init__(self, waitForStartTrigger=False, source="", description="", 
 				 edge=edges["Rising Edge"]):
