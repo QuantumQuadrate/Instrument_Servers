@@ -47,7 +47,7 @@ if __name__ == '__main__':
     logger = logging.getLogger(__name__)
     print("one")
     
-    #TODO: add config file to write this too and check config file in future
+    #TODO: add config file to write this to and check config file in future
     port = 9001
     logger.info(f"Default port={port}. \n Hit \'Enter\' for host=localhost "+
                 "(default), any other key to use host=\'\'")
