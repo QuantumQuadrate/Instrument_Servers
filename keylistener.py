@@ -12,7 +12,7 @@ class KeyListener(Thread):
 		self.quitch = quitch
 		super(KeyListener, self).__init__()
 		
-	def start(self):
+	def run(self):
 		self.running = True
 		
 		while self.running: 

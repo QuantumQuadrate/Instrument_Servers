@@ -1,3 +1,4 @@
+<<<<<<< HEAD
 # Pycharm
 .idea/
 
@@ -147,3 +148,4 @@ static
 
 # local test files
 thread_test.py
+local_test.py

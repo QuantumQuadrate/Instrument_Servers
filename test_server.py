@@ -46,14 +46,25 @@ if __name__ == '__main__':
     setup_logging_handlers()
     logger = logging.getLogger(__name__)
     print("one")
-    hostname = 'localhost'
+    
+    #TODO: add config file to write this too and check config file in future
     port = 9001
+    logger.info(f"Default port={port}. \n Hit \'Enter\' for host=localhost "+
+                "(default), any other key to use host=\'\'")
+    host_choice = input()
+    if host_choice == "":
+        hostname = "localhost"
+    else: 
+        hostname = ""
     address = (hostname, port)
 
     logger.info(f'starting up on {hostname} port {port}')
     print("two")
     experiment = PXI(address)
     experiment.launch_keylisten_thread()
+    logger.info(PXI.help_str)
+    
+    
     experiment.launch_network_thread()
     experiment.launch_experiment_thread()
     print("three")
