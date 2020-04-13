@@ -46,7 +46,7 @@ if __name__ == '__main__':
     setup_logging_handlers()
     logger = logging.getLogger(__name__)
     print("one")
-    hostname = 'localhost'
+    hostname = "localhost"
     port = 9001
     address = (hostname, port)
 

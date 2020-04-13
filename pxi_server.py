@@ -37,7 +37,7 @@ def network_loop(ip, port):
 	
 	while True: # wait for a connection
 		
-		connected = sock.listen_for_connection() 
+		connected = sock.listen_f or_connection() 
 		
 		while connected:
 		
