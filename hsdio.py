@@ -239,8 +239,7 @@ class HSDIO: # could inherit from an Instrument class if helpful
 						self.startTrigger.source,
 						self.startTrigger.edge
 					)
-				
-				
+
 		self.isInitialized = True
 	
 	def update(self):
@@ -252,7 +251,7 @@ class HSDIO: # could inherit from an Instrument class if helpful
 
 			for wf in self.waveformArr:
 
-				wv_arr = wf.split()
+				wv_arr = wf.wave_split()
 				# for each HSDIO card (e.g., Rb experiment has two cards)
 				for i, session in enumerate(self.sessions):
 
@@ -263,7 +262,7 @@ class HSDIO: # could inherit from an Instrument class if helpful
 						session.write_waveform_wdt(
 							wave.name,
 							max(wave.transitions),
-							71,
+							71,  # Group by sample for group by channel use 72
 							data
 						)
 					elif format == "uInt32":
@@ -283,13 +282,3 @@ class HSDIO: # could inherit from an Instrument class if helpful
 		
 	def print_txt(self, node): # for debugging
 		print(f"{node.tag} = {node.text}") # TODO replace with logging
-		
-	def chk(self,er_code):
-		"""
-		Checks the error state of your session and prints (should become logs) 
-		the error/warning message and code (if not an all good)
-		"""
-		codebf = c_int32("")
-
-		hsdio.niHSIDO_GetError(self.vi,byref(codebf))
-

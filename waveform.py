@@ -5,6 +5,7 @@ SaffmanLab, University of Wisconsin - Madison
 Authors: Preston Huft, Juan Bohorquez
 """
 
+from __future__ import annotations
 from ctypes import *
 import numpy as np
 
@@ -15,6 +16,8 @@ class Waveform:
 		self.name = name
 		self.transitions = transitions
 		self.states = states
+		if self.states is not None:
+			assert len(self.states[0]) % 32 == 0  # this assertion my be a little late
 		self.data_format = data_format
 		self.wvfm = None
 		
@@ -40,6 +43,8 @@ class Waveform:
 								  for line in child.text.split("\n")],
 								 dtype=c_uint32)
 				self.states = states
+				assert len(self.states[0]) % 32 == 0
+
 			else:
 				print("Invalid Waveform attribute") # TODO: replace with logger
 
@@ -109,7 +114,7 @@ class Waveform:
 			else:
 				wvfm = wvfm.transpose().flatten()
 
-		elif data_layout == "uInt32":
+		elif data_format == "uInt32":
 			t_old = self.transitions[0]
 			s_old = self.state_to_int32(self.states[0])
 			wvfm = np.zeros(max(self.transitions), dtype=c_uint32)
@@ -120,7 +125,9 @@ class Waveform:
 				t_old = transition
 				s_old = c_state
 		else:
+			print("You shouldn't be here, you used the wrong input for data_format")
 			return
+
 
 		self.data_format = data_format
 		self.wvfm = wvfm
@@ -143,9 +150,15 @@ class Waveform:
 			state_int = (state_int << 1) | ele
 		return c_uint32(state_int)
 
-	def split(self, flip: bool = True) -> [Waveform]:
+	def wave_split(self, flip: bool = True) -> [Waveform]:
 		"""
-		splits the waveform object into dev objects where dev is the number of devices listening for waveforms
+		splits a waveform object into a list of waveform objects with len() = dev. where dev is the number of hsdio
+		devices receiving waveforms.
+
+		The hsdioSession methods assume waveform data that is encoded for a maximum of 32 channels per device. The
+		waveform information passed into the hsdio class via xml encodes data for all channels which will be operated
+		on multiple devices. This function is intended to perform the necessary split of data by copying most of the
+		Waveform object info into separate objects, with the states info split between them
 
 		Args:
 			flip : should the order of the channels in each new waveform be flipped?
@@ -153,7 +166,7 @@ class Waveform:
 		Returns:
 			numpy array of split up waveform objects
 		"""
-		assert len(self.states[0]) % 32 == 0  # this assertion my be a little late
+
 		dev = int(len(self.states[0])/32)
 
 		# mapping may be confused in practical order of devices, maybe flip comes before split?
