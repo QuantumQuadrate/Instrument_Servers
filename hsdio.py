@@ -170,9 +170,6 @@ class HSDIO: # could inherit from an Instrument class if helpful
 				else:
 					# TODO: replace with logging
 					print("Not a valid XML tag for HSDIO initialization")
-					
-		# TODO: replace with logging
-		print("HSDIO XML Loaded")
 
 	def init(self):
 		"""
