@@ -20,6 +20,7 @@ from ni_hsdio import HsdioSession
 from trigger import Trigger, StartTrigger
 from waveform import Waveform
 
+
 class HSDIO: # could inherit from an Instrument class if helpful
 	
 	if platform.machine().endswith("64"):
@@ -248,25 +249,30 @@ class HSDIO: # could inherit from an Instrument class if helpful
 		"""
 		
 		if self.enablePulses:
-		
-			# for each HSDIO card (e.g., Rb experiment has two cards)
-			for i,resource in enumerate(self.resourceNames):
-			
-				for wf in self.waveformArr:
-				
-					# select only the channels for this card and
-					# reverse order of channels for upload
-					states = np.array([np.flip(state[i*32:(i+1)*32]) 
-									   for state in wf.states]) 
-				
-					# write each waveform wf to the PC memory: (or not actually according to Juan)
-					
-					#TODO : Juan call the c function: niHSDIO_WriteNamedWaveformWDT
-					#http://zone.ni.com/reference/en-XX/help/370520P-01/hsdiocref/cvinihsdio_writenamedwaveformwdt/
-					
-					#this function is wrapped in a VI, the functionality is explained here:
-					#http://zone.ni.com/reference/en-XX/help/370520P-01/hsdio/writing_waveforms_to_your_instrument/
-			
+
+			for wf in self.waveformArr:
+
+				wv_arr = wf.split()
+				# for each HSDIO card (e.g., Rb experiment has two cards)
+				for i, session in enumerate(self.sessions):
+
+					wave = wv_arr[i]
+					fmt, data = wave.decompress()
+
+					if format == "WDT":
+						session.write_waveform_wdt(
+							wave.name,
+							max(wave.transitions),
+							71,
+							data
+						)
+					elif format == "uInt32":
+						session.write_waveform_uint32(
+							wave.name,
+							max(wave.transitions),
+							data
+						)
+
 	def settings(self, wf_arr, wf_names):
 		pass
 		# the labview code has HSDIO.settings specifically for reading out the 

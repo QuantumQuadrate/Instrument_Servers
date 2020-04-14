@@ -8,6 +8,7 @@ Authors: Preston Huft, Juan Bohorquez
 from ctypes import *
 import numpy as np
 
+
 class Waveform:
 	
 	def __init__(self, name="", transitions=None, states=None,data_format=None):
@@ -132,7 +133,7 @@ class Waveform:
 
 		Args:
 			state : 32 element long array of booleans (or ints that are only 0 and 1)
-				to be convered into a c_uint32()
+				to be converted into a c_uint32()
 
 		Returns:
 			c_state : c_unit32 encoding of state
@@ -142,6 +143,32 @@ class Waveform:
 			state_int = (state_int << 1) | ele
 		return c_uint32(state_int)
 
-	def __repr__(self): # mostly for debugging
+	def split(self, flip: bool = True) -> [Waveform]:
+		"""
+		splits the waveform object into dev objects where dev is the number of devices listening for waveforms
+
+		Args:
+			flip : should the order of the channels in each new waveform be flipped?
+
+		Returns:
+			numpy array of split up waveform objects
+		"""
+		assert len(self.states[0]) % 32 == 0  # this assertion my be a little late
+		dev = int(len(self.states[0])/32)
+
+		# mapping may be confused in practical order of devices, maybe flip comes before split?
+		wave_array = np.empty(dev, dtype=type(self))
+		for d in range(dev):
+			if flip:
+				new_states = np.array([np.flip(state[d*32:(d+1)*32])
+									for state in self.states])
+			else:
+				new_states = np.array([state[d*32:(d+1)*32]
+									for state in self.states])
+			wave_array[d] = Waveform(self.name, self.transitions, new_states, self.data_format)
+
+		return wave_array
+
+	def __repr__(self):  # mostly for debugging
 		return (f"Waveform(name={self.name}, transitions={self.transitions}, "
 				f"states={self.states}")
