@@ -3,11 +3,18 @@
 # TODO: make a return data variable for storing messages from hardware to be 
 # sent to CsPy over the return connection
 
-from keylistener import KeyListener
+#### modules
 import socket
 from typing import Tuple
 import logging
 import threading
+
+#### misc local classes
+from keylistener import KeyListener
+
+#### local device classes
+from hsdio import HSDIO
+from hamamatsu import Hamamatsu
 
 
 class PXI:
@@ -23,9 +30,6 @@ class PXI:
         self.listening_socket.bind(address)
         self.listening_socket.listen()
 
-        # TODO: Make a method to change stop_connections and reset_connections
-        # TODO: These are the backend variables normally adjusted by clicking on the GUI
-        # TODO: In the LabVIEW program
         self.stop_connections = False
         self.reset_connection = False
         self.current_connection = None
@@ -33,6 +37,8 @@ class PXI:
 
         self.network_thread = None
         self.keylisten_thread = None
+        
+        #TODO: instantiate each device here: HSDIO, Hamamatsu, etc
 
     def launch_experiment_thread(self):
         """
@@ -82,6 +88,16 @@ class PXI:
         TODO: after xml is handled in a particular iteration, send return data
         back to cspy over the TCP connection.
         """
+        pass
+        
+    
+    def parse_xml(self, xml):
+        """
+        TODO: loop over received highest tier xml tags and call the appropriate
+        device class accordingly. 
+        """
+        pass
+        
 
     def receive_message(self):
         """
