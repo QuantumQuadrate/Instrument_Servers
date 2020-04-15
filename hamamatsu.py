@@ -60,6 +60,8 @@ class Hamamatsu: '''could inherit from a Camera class if we choose to move
         self.numImageBuffers = # imageBuffers in labview; renamed by tag name.
         self.shotsPerMeasurement = 
         self.forceImagesToU16 = False
+        self.cameraTemp = 0.0
+        self.lastFrameAcquired = -1
         
         # these things are implemented with their own classes in labview, 
         # could do that here too. 
@@ -314,6 +316,7 @@ class Hamamatsu: '''could inherit from a Camera class if we choose to move
             Returns:
                 "Error"
                 "Session reference" 
+                "Response from camera"
             """
             
             # TODO: Juan. "Hamamatsu_serial VI"
@@ -370,7 +373,12 @@ class Hamamatsu: '''could inherit from a Camera class if we choose to move
             
             # TODO: Juan. "Hamamatsu_serial VI"
             # read camera temperature
-            # self.session.serial("?TMP", error_in)
+            # response = self.session.serial("?TMP", error_in)
+            
+            self.cameraTemp = f"TMP {response:f}"
+            
+            # last frame acquired. first actual frame will be zero. 
+            self.lastFrameAcquired = -1 
             
             # TODO: Juan. "Hamamatsu_serial VI"
             # scan mode
@@ -438,4 +446,99 @@ class Hamamatsu: '''could inherit from a Camera class if we choose to move
                    
             #TODO: don't hardcode numbers here; enter from a value dict
             self.session.IMAQConfigureList(roi, 1, numImageBuffers, 0)
+            
+            # set up the image buffers
+            for buf_num in range(numImageBuffers):
+            
+                # labview formats i as a signed decimal integer here, but
+                # ints formatted with d qualifier should just be ints.
+                ringNum = f"LL Ring num {buf_num}" 
+                
+                # TODO: Juan - "IMAQ Create VI"
+                # http://zone.ni.com/reference/en-XX/help/370281AG-01/imaqvision/imaq_create/
+                """
+                Creates a temporary memory location for an image
+                
+                Use IMAQ Create in conjunction with the IMAQ Dispose VI to 
+                create or dispose of NI Vision images in LabVIEW.
+                
+                Args:
+                    'Border size': (int32)  **this isn't wired in the labview
+                        code, and a default value isn't specified, but i would
+                        think it should default to 0** 
+                        
+                        determines the width, in pixels,
+                        of the border to create around an image. These pixels
+                        are used only for specific VIs. Create a border at the 
+                        beginning of your application if an image is to be 
+                        processed later using functions that require a border 
+                        (for example, labeling and morphology). The default 
+                        border value is 3. With a border of three pixels, you
+                        can use kernels up to 7 × 7 with no change. If you plan
+                        to use kernels larger than 7 × 7 in your process, 
+                        specify a larger border when creating your image.
+                        
+                    'Image name': (str) is the name associated with the created 
+                        image. Each image created must have a unique name.
+                    'Error in': 
+                    'Image Type': (u32), e.g. from enum like this:
+                        {'Grayscale (U8)': 0, 'Grayscale (I16)': 1, 
+                         'Grayscale' (SGL): 2, 'Complex (CSG)': 3,
+                         'RGB (U32)': 4 ... ,
+                         'Grayscale (U16)': 7}
+                    
+                Returns:
+                    'New Image': the Image reference that is supplied as input
+                        to all subsequent (downstream) functions used by NI 
+                        Vision. Multiple images can be created in a LabVIEW 
+                        application.
+                    'Error out':
+                """
+                
+                # border size = 0 (i'm guessing; see above)
+                # image type is grayscale u16, or 7
+                # TODO: could create dicts of possible values rather hardcode
+                # these. in labview each returned image ref is appended to an
+                # array and passed out, but it doesn't look like that array
+                # is used anywhere. 
+                image_ref = IMAQSession.create(0, ringNum, 7, error_in)
+                
+                # TODO: Juan - "IMAQ Configure Buffer VI"
+                # https://documentation.help/NI-IMAQ-VI/IMAQ_Configure_Buffer.html
+                """
+                Configures individual buffers in the buffer list.
+                
+                Args: 
+                    'channel' (int32 )
+                    'skipcount' (u32)
+                    'IMAQSession in'
+                    'image in'
+                    'buffer number' (u32)
+                    'error in'
+                    
+                Returns: 
+                    'IMAQSession out'
+                    'error out'
+                """
+                # other params unused
+                self.session.configureBuffer(image_ref, buf_num, error_in)
+                
+                self.cameraInit() # in labview this belongs to a camera class, 
+                                  # and is Camera.initialize. the input is the
+                                  # Hamamatsu instance. again, if we decide to
+                                  # control other cameras here we could make an
+                                  # a Camera base class. for now i'll just make
+                                  # this a hamamatsu method.
+
+                self.start()
+           
+
+    def cameraInit(self)
+        pass
+    
+    
+    def start(self):
+        pass
+                
+                
 
