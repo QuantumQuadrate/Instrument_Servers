@@ -18,7 +18,9 @@ class Hamamatsu: '''could inherit from a Camera class if we choose to move
                  '''
                    
     def __init__(self):
-    
+
+        # TODO : @Juan create static class variables to map settings to Hamamatsu-Compatible settings
+        # TODO : @Juan compile descriptions of settings set bellow for ease of use later
         self.enable = False # called "use camera?" in labview
         self.analogGain = 0 # 0-5
         self.exposureTime = 0 # can be scientific format
@@ -254,4 +256,4 @@ class Hamamatsu: '''could inherit from a Camera class if we choose to move
         """
     
         pass
-    
+
