@@ -58,4 +58,108 @@ class NiImaqSession:
         print(message)
         return
 
-    def open_interface(self,dev_addr):
+    def open_interface(
+            self,
+            dev_addr: str,
+            check_error: bool = True) -> c_int32:
+        """
+        Opens an ni-imaq interface by name as specified in Measurement & Automation Explorer (MAX).
+        If it is successful, this function self.interface_id to a valid INTERFACE_ID
+
+        Args:
+            dev_addr : name of the interface to open as it shows up in NI MAX, such as img0, img1,
+                and so on.
+            check_error : should the check() function be called once operation has completed
+
+        Returns:
+            error code which reports status of operation.
+
+                0 = Success, positive values = Warnings,
+                negative values = Errors
+        """
+
+        c_addr = c_char_p(dev_addr.encode('utf-8'))
+        error_code = self.imaq.imgInterfaceOpen(
+            c_addr,                   # char*
+            byref(self.interface_id)  # INTERFACE_ID*
+        )
+
+        if error_code != 0 and check_error:
+            self.check(error_code, traceback_msg="open_interface")
+
+        return error_code
+
+    def open_session(
+            self,
+            check_error: bool = True) -> c_int32:
+        """
+        Opens a session and sets a session ID.
+
+        This function inherits all data associated with the given interface.
+
+        if successful sets self.session_id to a valid SESSION_ID
+
+        wraps imgSessionOpen()
+
+        Args:
+            check_error : should the check() function be called once operation has completed
+
+        Returns:
+            error code which reports status of operation.
+
+                0 = Success, positive values = Warnings,
+                negative values = Errors
+        """
+
+        error_code = self.imaq.imgSessionOpen(
+            self.interface_id,      # INTERFACE_ID
+            byref(self.session_id)  # SESSION_ID*
+        )
+
+        if error_code != 0 and check_error:
+            self.check(error_code, traceback_msg="open_interface")
+
+        return error_code
+
+    def close(
+            self,
+            free_resources: bool = True,
+            check_error: bool = True) -> c_int32:
+        """
+        Closes both session and interface, releases all associated resources if free_resources is
+        set to true
+
+        wraps imgClose()
+
+        Args:
+            free_resources : should all resources associated with this interface and session be
+                freed?
+            check_error : should the check() function be called once operation has completed
+
+        Returns:
+            error code which reports status of operation.
+
+                0 = Success, positive values = Warnings,
+                negative values = Errors
+        """
+
+        # close session
+        error_code = self.imaq.imgClose(
+            self.session_id,
+            free_resources)
+        self.session_id = c_uint32(0)
+
+        if error_code != 0 and check_error:
+            self.check(error_code, traceback_msg="close session")
+
+        # close interface
+        error_code = self.imaq.imgClose(
+            self.interface_id,
+            free_resources)
+        self.session_id = c_uint32(0)
+
+        if error_code != 0 and check_error:
+            self.check(error_code, traceback_msg="close interface")
+
+    def session_get_roi(
+            self):
