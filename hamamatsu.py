@@ -283,138 +283,146 @@ class Hamamatsu: '''could inherit from a Camera class if we choose to move
             
             ## reset the IMAQSession 
             
-            #TODO: Juan
+            #TODO: Juan figure out what's going on here
             if self.imaqSession is not None:
-                # self.session.close()
+                self.session.close()
+
+                # Not sure what to do here - Juan
                 # IMAQSession.dispose(destroyOldImages=True) # classmethod
                 pass
-            
-            #TODO: Juan 
-            # self.session = IMAQSession("img0")
-            """
-            Args: 
-                "interface name": (str); "img0" here
-            """
+
+            #  "img0" really shouldn't be hard-coded but it is in labview so we keep for now
+            self.session.open_interface("img0")
+            self.session.open_session()
             
             ## call the Hamamatsu setup functions, i.e. python-wrapped dllsn
-            
-            # TODO: Juan. "Hamamatsu_serial VI"
-            # self.session.serial(self.cooling, self.cooling, error_in)
-            """
-            note: the session reference is required, but i doubt it needs to
-            be an explicitly passed parameter... the serial method can probably
-            just reference the hamamatsu's current session instance internally.
-            in any case, i have opted to not type session ref in the args of 
-            calls to serial below.
-            
-            Args: 
-                "Session reference"
-                "Connection to send": (str)
-                "Expected Response": (str) <-- this looks like it is optional, 
-                    as it is unused in the camera temp request
-                "Error":
-            Returns:
-                "Error"
-                "Session reference" 
-                "Response from camera"
-            """
-            
-            # TODO: Juan. "Hamamatsu_serial VI"
-            # self.session.serial(self.fan, self.fan, error_in)
-            
-            # TODO: Juan. "Hamamatsu_serial VI"
+            '''
+            maybe these should be in one large function?
+            '''
+
+            self.session.hamamatsu_serial(self.cooling, self.cooling)
+
+            self.session.hamamatsu_serial(self.fan,self.fan)
+            self.session.hamamatsu_serial(self.scanSpeed,self.scanSpeed)
+
+            # self.session.serial(self.fan, self.fan, error_in)  # duplicate. is something missing?
+            self.session.hamamatsu_serial(self.fan,self.fan)
+
             # self.session.serial(self.scanSpeed, self.scanSpeed, error_in)
-            
-            # TODO: Juan. "Hamamatsu_serial VI"
-            # self.session.serial(self.fan, self.fan, error_in)
-           
-            # TODO: Juan. "Hamamatsu_serial VI"
+            self.session.hamamatsu_serial(self.scanSpeed, self.scanSpeed)
+
+            # self.session.serial(self.fan, self.fan, error_in)  # duplicate. is something missing?
+            self.session.hamamatsu_serial(self.fan,self.fan)
+
             # self.session.serial(self.externalTriggerSource, 
             #             self.externalTriggerSource, error_in)
-            
-            # TODO: Juan. "Hamamatsu_serial VI"
-            # set trigger mode to external
-            # in the labview code, the self.externalTriggerMode is set to
-            # "EMD L" by default, but the actual triggering is set to "AMD E"
-            # which isn't even an option for the externalTriggerMode attribute.
-            # idk why this discrepancy is here but might be worth investigating 
+            self.session.hamamatsu_serial(
+                self.externalTriggerSource,
+                self.externalTriggerSource)
+
+            # TODO: Juan. look into below
+            #  set trigger mode to external
+            #  in the labview code, the self.externalTriggerMode is set to
+            #  "EMD L" by default, but the actual triggering is set to "AMD E"
+            #  which isn't even an option for the externalTriggerMode attribute.
+            #  idk why this discrepancy is here but might be worth investigating
             #
             # self.session.serial("AMD E", "AMD E", error_in)
-            
-            # TODO: Juan. "Hamamatsu_serial VI"
+            self.session.hamamatsu_serial("AMD E", "AMD E")
+
             # see above comment; i guess these are different things, but the 
             # nomenclature is confusing as both calls appear to be configuring
             # external triggering. a clarifying comment in the code would help.
             # self.session.serial(self.externalTriggerMode, 
             #                     self.externalTriggerMode, error_in)
-            
-            # TODO: Juan. "Hamamatsu_serial VI"
+            self.session.hamamatsu_serial(
+                self.externalTriggerMode,
+                self.externalTriggerMode
+            )
+
             # self.session.serial(self.triggerPolarity, self.triggerPolarity, 
             #                       error_in)
-            
+            self.session.hamamatsu_serial(
+                self.triggerPolarity,
+                self.triggerPolarity
+            )
+
             # labview uses "Number to Fraction String Format VI" to convert the
             # exposure time to a string; as far as I can tell this str() cast 
             # accomplishes the same thing in this use case
             exposure = "AET\s" + str(self.exposureTime)
-            # TODO: Juan. "Hamamatsu_serial VI"
             # self.session.serial(exposure, exposure, error_in)
+            self.session.hamamatsu_serial(exposure,exposure)
             
             # labview uses "Number to Decimal String VI" to convert the
             # EMGain to a string; as far as I can tell this str() cast 
             # accomplishes the same thing in this use case
             emgain = "EMG\s" + str(self.EMGain)
-            # TODO: Juan. "Hamamatsu_serial VI"
             # self.session.serial(emgain, emgain, error_in)
+            self.session.hamamatsu_serial(emgain,emgain)
             
             analog_gain = f"CEG\s{self.analogGain}"
-            # TODO: Juan. "Hamamatsu_serial VI"
             # set exposure time
             # self.session.serial(analog_gain, analog_gain, error_in)
-            
-            # TODO: Juan. "Hamamatsu_serial VI"
+            self.session.hamamatsu_serial(analog_gain,analog_gain)
+
             # read camera temperature
             # response = self.session.serial("?TMP", error_in)
-            
+            error_code, response =  self.session.hamamatsu_serial("?TMP")
             self.cameraTemp = f"TMP {response:f}"
-            
+
             # last frame acquired. first actual frame will be zero. 
             self.lastFrameAcquired = -1 
-            
-            # TODO: Juan. "Hamamatsu_serial VI"
+
             # scan mode
             # self.session.serial(self.scanMode, self.scanMode, error_in)
-            
+            self.session.hamamatsu_serial(self.scanMode,self.scanMode)
             if self.scanMode in scanModeValues.values():
                 
-                if self.scanMode = "SMD S": # superPixelBinning
-                    
-                    # TODO: Juan. "Hamamatsu_serial VI"
+                if self.scanMode == "SMD S": # superPixelBinning
+
                     # self.session.serial(self.superPixelBinning, self.superPixelBinning,
                     #             error_in)
+                    self.session.hamamatsu_serial(
+                        self.superPixelBinning,
+                        self.superPixelBinning
+                    )
                     
-                elif self.scanMode = "SMD A": # sub-array
+                elif self.scanMode == "SMD A": # sub-array
                 
                     subArrayLeft = ("SHO\s"+
                                     str(CameraSubArrayAcquistionRegion.left))
-                    # TODO: Juan. "Hamamatsu_serial VI"
+
                     # self.session.serial(subArrayLeft, subArrayLeft, error_in)
-                    
+                    self.session.hamamatsu_serial(
+                        subArrayLeft,
+                        subArrayLeft
+                    )
+
                     subArrayTop = ("SVO\s"+
                                    str(CameraSubArrayAcquistionRegion.top))
-                    # TODO: Juan. "Hamamatsu_serial VI"
                     # self.session.serial(self.superPixelBinning, self.superPixelBinning,
                     #             error_in)
-                    
+                    self.session.hamamatsu_serial(
+                        subArrayTop,
+                        subArrayTop
+                    )
+
                     subArrayWidth = ("SHW\s"+
                                     str(CameraSubArrayAcquistionRegion.width))
-                    # TODO: Juan. "Hamamatsu_serial VI"
                     # self.session.serial(subArrayWidth, subArrayWidth, error_in)
-                    
+                    self.session.hamamatsu_serial(
+                        subArrayWidth,
+                        subArrayWidth
+                    )
+
                     subArrayHeight = ("SVW\s"+
                                      str(CameraSubArrayAcquistionRegion.height))
-                    # TODO: Juan. "Hamamatsu_serial VI"
                     # self.session.serial(subArrayHeight, subArrayHeight, error_in)
-                
+                    self.session.hamamatsu_serial(
+                        subArrayHeight,
+                        subArrayHeight
+                    )
             # default is to do nothing
             
             # TODO: Juan - "IMAQ Configure List VI"
@@ -532,6 +540,7 @@ class Hamamatsu: '''could inherit from a Camera class if we choose to move
 
                 self.start()
            
+    def serial(self):
 
     def cameraInit(self)
         pass
