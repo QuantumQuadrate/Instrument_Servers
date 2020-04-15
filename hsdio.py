@@ -92,7 +92,10 @@ class HSDIO: # could inherit from an Instrument class if helpful
 				# handle each tag by name:
 				if child.tag == "enable":
 					self.print_txt(child) # DEBUGGING
-					self.enablePulses = bool(child.text)
+                    res = False
+                    if child.text.lower() == "true":
+                        res = True
+					self.enablePulses = res
 				
 				elif child.tag == "description":
 					self.print_txt(child) # DEBUGGING
