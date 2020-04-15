@@ -41,7 +41,9 @@ class Hamamatsu: '''could inherit from a Camera class if we choose to move
     
                    
     def __init__(self):
-    
+
+        # TODO : @Juan create static class variables to map settings to Hamamatsu-Compatible settings
+        # TODO : @Juan compile descriptions of settings set bellow for ease of use later
         self.enable = False # called "use camera?" in labview
         self.analogGain = 0 # 0-5
         self.exposureTime = 0 # can be scientific format
@@ -274,7 +276,7 @@ class Hamamatsu: '''could inherit from a Camera class if we choose to move
         make appropriate calls to dlls wrapped in python to initialize the 
         camera hardware from the class attributes set in Hamamatsu.load_xml
         """
-        
+
         if self.enable:
             
             ## reset the IMAQSession 
@@ -437,13 +439,3 @@ class Hamamatsu: '''could inherit from a Camera class if we choose to move
             #TODO: don't hardcode numbers here; enter from a value dict
             self.session.IMAQConfigureList(roi, 1, numImageBuffers, 0)
 
-            
-            
-            
-            
-                    
-                    
-            
-            
-            
-            

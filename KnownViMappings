@@ -1,3 +1,5 @@
+HSDIO TYPES ---------------------------------------
+
 ViChar = char               #c_char()
 ViPChar = char *            #c_char_p()
 ViString = ViPChar = char * #c_char_p()
@@ -10,3 +12,12 @@ ViUInt32 = unsigned long    #c_uint32()
 ViStatus = ViInt32          #c_int32()
 ViInt32 = long              #c_int32()
 ViReal64 = double           #c_double()
+
+
+IMAQ TYPES ---------------------------------------
+INTERFACE_ID = uInt32       #c_uint32
+SESSION_ID = uInt32         #c_uint32
+EVENT_ID = uInt32           #c_uint32
+PULSE_ID = uInt32           #c_uint32
+BUFFLIST_ID = uInt32        #c_uint32
+GUIHDL = uInt32             #c_uint32
