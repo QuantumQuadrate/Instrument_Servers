@@ -5,9 +5,10 @@
 
 #### modules
 import socket
-from typing import Tuple
 import logging
 import threading
+from typing import Tuple
+from queue import Queue, Empty
 
 #### misc local classes
 from keylistener import KeyListener
@@ -33,12 +34,19 @@ class PXI:
         self.stop_connections = False
         self.reset_connection = False
         self.current_connection = None
+        self.cycle_continuously = True
         self.last_received_xml = ""
 
         self.network_thread = None
         self.keylisten_thread = None
         
-        #TODO: instantiate each device here: HSDIO, Hamamatsu, etc
+        # queues. 0 indicates no maximum queue length enforced.
+        self.command_queue = Queue(0) 
+        self.data_queue = Queue(0) # 'returned data queue' in LabVIEW code
+        
+        # instantiate the device objects
+        self.hsdio = HSDIO()
+        self.hamamatsu = Hamamatsu()
 
     def launch_experiment_thread(self):
         """
@@ -88,17 +96,40 @@ class PXI:
         TODO: after xml is handled in a particular iteration, send return data
         back to cspy over the TCP connection.
         """
-        pass
+        
+        while not self.stop_connections:
+
+            try:
+                # get queued xml; non-blocking
+                xml_str = self.command_queue.get(block=False, timeout=0)
+                self.parse_xml(xml_str)
+                
+            except Empty:
+                pass
+                
+                if self.cycle_continuously:
+                    pass
+            
+            
         
     
     def parse_xml(self, xml):
         """
-        TODO: loop over received highest tier xml tags and call the appropriate
-        device class accordingly. 
+        initialize the device instances and other settings from queued xml
+        
+        loop over highest tier of xml tags in the message received from CsPy,
+        and call the appropriate device class accordingly. the xml is popped 
+        from a queue, which updates in the network_loop whenever a valid 
+        message from CsPy is received. 
+        
+        Args:
+            'xml': (str) xml received from CsPy in the receive_message method
         """
+        
+        # TODO: put if/elif statement for handling each tag. see experiment.py
+        # psuedocode
         pass
         
-
     def receive_message(self):
         """
         listens for a message from cspy over the network.
@@ -122,8 +153,10 @@ class PXI:
             if len(message) == length:
                 self.logger.info("message received with expected length.")
                 self.last_received_xml = message
-                # TODO slap this boi on the back of a commands queue.
-                # or could return the messsage and queue it outside.
+                
+                # add message to queue; blocking if queue full, but max queue
+                # size set to infinite so blocking shouldn't occur
+                self.command_queue.put(message)
 
             else:
                 self.logger.info(f"Something went wrong,"
