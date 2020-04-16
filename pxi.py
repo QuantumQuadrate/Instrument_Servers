@@ -1,5 +1,4 @@
 # general todos:
-# TODO: make a command queue for storing messages received from CsPy
 # TODO: make a return data variable for storing messages from hardware to be 
 # sent to CsPy over the return connection
 
@@ -7,6 +6,7 @@
 import socket
 import logging
 import threading
+import xml.etree.ElementTree as ET
 from typing import Tuple
 from queue import Queue, Empty
 
@@ -35,6 +35,7 @@ class PXI:
         self.reset_connection = False
         self.current_connection = None
         self.cycle_continuously = True
+        self.exit_measurement = False
         self.last_received_xml = ""
 
         self.network_thread = None
@@ -42,11 +43,19 @@ class PXI:
         
         # queues. 0 indicates no maximum queue length enforced.
         self.command_queue = Queue(0) 
-        self.data_queue = Queue(0) # 'returned data queue' in LabVIEW code
+        self.return_data_queue = Queue(0)
+        self.return_data = Queue(0) #TODO: this terrible nomenclature, used in labview
+        
+        self.element_tags = [] # for debugging
         
         # instantiate the device objects
         self.hsdio = HSDIO()
         self.hamamatsu = Hamamatsu()
+        #TODO:
+        #self.counters = Counters()
+        #self.analog_input
+        #self.analog_output
+        #self.ttl = 
 
     def launch_experiment_thread(self):
         """
@@ -100,35 +109,133 @@ class PXI:
         while not self.stop_connections:
 
             try:
-                # get queued xml; non-blocking
+                # dequeue xml; non-blocking
                 xml_str = self.command_queue.get(block=False, timeout=0)
                 self.parse_xml(xml_str)
                 
             except Empty:
-                pass
+                
+                #TODO add these variables to constructor
+                self.exit_measurement = False
+                #self.return_data = [] # reset the list 
                 
                 if self.cycle_continuously:
-                    pass
-            
-            
+                    pass 
+                    
+                    #TODO: implement this method
+                    #self.return_data_queue = self.measurement()
         
     
-    def parse_xml(self, xml):
+    def parse_xml(self, xml_str):
         """
         initialize the device instances and other settings from queued xml
         
-        loop over highest tier of xml tags in the message received from CsPy,
-        and call the appropriate device class accordingly. the xml is popped 
+        loop over highest tier of xml tags with the root tag='LabView' in the 
+        message received from CsPy, and call the appropriate device class accordingly. the xml is popped 
         from a queue, which updates in the network_loop whenever a valid 
         message from CsPy is received. 
         
         Args:
-            'xml': (str) xml received from CsPy in the receive_message method
+            'xml_str': (str) xml received from CsPy in the receive_message method
         """
         
-        # TODO: put if/elif statement for handling each tag. see experiment.py
-        # psuedocode
-        pass
+        self.exit_measurement = False
+        
+        # get the xml root
+        root = ET.fromstring(xml_str)
+        if root.tag != "LabView":
+            self.logger.info("Not a valid msg for the pxi")
+            
+        else:
+            # loop non-recursively over children in root
+            for child in root: 
+            
+                self.element_tags.append(child)
+                
+                # TODO: some of these are no longer used in current SaffmanLab
+                # experiments, and could therefore be removed here.
+            
+                if child.tag == "measure":
+                    if return_data_queue.empty():
+                        # if no data ready, take one measurement
+                        self.measurement()
+                    else:
+                        self.return_data = return_data_queue
+                        
+                if child.tag == "pause":
+                    # TODO: set state of server to 'pause';
+                    # i don't know if this a feature that currently gets used,
+                    # so might be able to omit this. 
+                    pass
+                    
+                if child.tag == "run":
+                    # TODO: set state of server to 'run';
+                    # i don't know if this a feature that currently gets used,
+                    # so might be able to omit this. 
+                    pass
+                    
+                if child.tag == "HSDIO":
+                    # set up the HSDIO
+                    self.hsdio.load_xml(child)
+                    self.hsdio.init()
+                    self.hsdio.update()
+                    
+                if child.tag == "TTL":
+                    # TODO: implement TTL class
+                    #self.ttl.load_xml(child)
+                    #self.ttl.init()
+                    pass
+                if child.tag == "DAQmxDO":
+                    # TODO: implement DAQmxDO class
+                    #self.daqmxdo.load_xml(child)
+                    #self.daqmxdo.init() # called setup in labview
+                    pass
+                if child.tag == "timeout":
+                    try:
+                        # get timeout in [ms]
+                        self.measurement_timeout = 1000*float(child.text)
+                    except ValueError as e:
+                        self.logger.error(f"{e} \n {child.txt} is not valid "+
+                                          f"text for node {child.tag}")
+                    
+                if child.tag == "cycleContinuously":
+                    cycle = False
+                    if child.text.lower() == "True":
+                        cycle = True
+                    self.cycle_continuously = cycle
+                    
+                if child.tag == "camera":
+                    # set up the Hamamatsu camera
+                    self.hamamatsu.load_xml(child)
+                    self.hamamatsu.init()
+                    
+                if child.tag == "AnalogOutput":
+                    # TODO: implement analog_output class
+                    # set up the analog_output
+                    #self.analog_output.load_xml(child)
+                    #self.analog_output.init() # setup in labview
+                    #self.analog_output.update()
+                    pass
+                    
+                if child.tag == "AnalogInput":
+                    # TODO: implement analog_input class
+                    # set up the analog_input
+                    #self.analog_input.load_xml(child)
+                    #self.analog_input.init() 
+                    pass
+                    
+                if child.tag == "Counters":
+                    # TODO: implement counters class
+                    # set up the counters
+                    #self.counters.load_xml(child)
+                    #self.counters.init() 
+                    pass
+                    
+                # might implement, or might move RF generator functionality to
+                # CsPy based on code used by Hybrid. 
+                if child.tag == "RF_generators":
+                    pass
+                 
         
     def receive_message(self):
         """
@@ -155,7 +262,7 @@ class PXI:
                 self.last_received_xml = message
                 
                 # add message to queue; blocking if queue full, but max queue
-                # size set to infinite so blocking shouldn't occur
+                # size set to infinite so blocking shouldn't ever occur
                 self.command_queue.put(message)
 
             else:
@@ -181,7 +288,8 @@ class PXI:
         This method to be passed into the KeyListener instance to be called 
         when keys are pressed.
         
-        'key': the returned from msvcrt.getwch(), e.g. 'h'
+        Args:
+            'key': the returned from msvcrt.getwch(), e.g. 'h'
         """
         
         # self.logger.info(f"{key} was pressed")
