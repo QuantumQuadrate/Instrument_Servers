@@ -223,7 +223,7 @@ class NiImaqSession:
         enc_exp_rsp = f"{expected_response}\r".encode('utf-8')
 
         bf_size = c_uint32(sizeof(c_cmd))
-        
+
         error_code = self.imaq.imgSessionSerialWrite(
             self.session_id,   # SESSION_ID
             c_cmd,             # void*

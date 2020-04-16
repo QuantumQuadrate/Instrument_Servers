@@ -289,6 +289,8 @@ class Hamamatsu: '''could inherit from a Camera class if we choose to move
 
                 # Not sure what to do here - Juan
                 # IMAQSession.dispose(destroyOldImages=True) # classmethod
+                # in labview this maps to a class method indep of sessions
+                # TODO : Juan. implement the same in python using a c function
                 pass
 
             #  "img0" really shouldn't be hard-coded but it is in labview so we keep for now
