@@ -1,6 +1,13 @@
-# general todos:
-# TODO: make a return data variable for storing messages from hardware to be 
-# sent to CsPy over the return connection
+"""
+PXI class for the PXI Server
+SaffmanLab, University of Wisconsin - Madison
+
+Author(s): Cody Poole, Preston Huft
+
+For receiving xml-wrapped messages from CsPy over a TCP/IP connection, 
+updating the relevant PXI device classes with the parsed xml, and returning
+responses from hardware to CsPy. 
+"""
 
 #### modules
 import socket
@@ -140,6 +147,7 @@ class PXI:
         """
         
         self.exit_measurement = False
+        self.element_tags = [] # clear the list of received tags
         
         # get the xml root
         root = ET.fromstring(xml_str)
@@ -152,9 +160,6 @@ class PXI:
             
                 self.element_tags.append(child)
                 
-                # TODO: some of these are no longer used in current SaffmanLab
-                # experiments, and could therefore be removed here.
-            
                 if child.tag == "measure":
                     if return_data_queue.empty():
                         # if no data ready, take one measurement
@@ -162,35 +167,35 @@ class PXI:
                     else:
                         self.return_data = return_data_queue
                         
-                if child.tag == "pause":
+                elif child.tag == "pause":
                     # TODO: set state of server to 'pause';
                     # i don't know if this a feature that currently gets used,
                     # so might be able to omit this. 
                     pass
                     
-                if child.tag == "run":
+                elif child.tag == "run":
                     # TODO: set state of server to 'run';
                     # i don't know if this a feature that currently gets used,
                     # so might be able to omit this. 
                     pass
                     
-                if child.tag == "HSDIO":
+                elif child.tag == "HSDIO":
                     # set up the HSDIO
                     self.hsdio.load_xml(child)
                     self.hsdio.init()
                     self.hsdio.update()
                     
-                if child.tag == "TTL":
+                elif child.tag == "TTL":
                     # TODO: implement TTL class
                     #self.ttl.load_xml(child)
                     #self.ttl.init()
                     pass
-                if child.tag == "DAQmxDO":
+                elif child.tag == "DAQmxDO":
                     # TODO: implement DAQmxDO class
                     #self.daqmxdo.load_xml(child)
                     #self.daqmxdo.init() # called setup in labview
                     pass
-                if child.tag == "timeout":
+                elif child.tag == "timeout":
                     try:
                         # get timeout in [ms]
                         self.measurement_timeout = 1000*float(child.text)
@@ -198,18 +203,18 @@ class PXI:
                         self.logger.error(f"{e} \n {child.txt} is not valid "+
                                           f"text for node {child.tag}")
                     
-                if child.tag == "cycleContinuously":
+                elif child.tag == "cycleContinuously":
                     cycle = False
                     if child.text.lower() == "True":
                         cycle = True
                     self.cycle_continuously = cycle
                     
-                if child.tag == "camera":
+                elif child.tag == "camera":
                     # set up the Hamamatsu camera
                     self.hamamatsu.load_xml(child)
                     self.hamamatsu.init()
                     
-                if child.tag == "AnalogOutput":
+                elif child.tag == "AnalogOutput":
                     # TODO: implement analog_output class
                     # set up the analog_output
                     #self.analog_output.load_xml(child)
@@ -217,14 +222,14 @@ class PXI:
                     #self.analog_output.update()
                     pass
                     
-                if child.tag == "AnalogInput":
+                elif child.tag == "AnalogInput":
                     # TODO: implement analog_input class
                     # set up the analog_input
                     #self.analog_input.load_xml(child)
                     #self.analog_input.init() 
                     pass
                     
-                if child.tag == "Counters":
+                elif child.tag == "Counters":
                     # TODO: implement counters class
                     # set up the counters
                     #self.counters.load_xml(child)
@@ -233,9 +238,23 @@ class PXI:
                     
                 # might implement, or might move RF generator functionality to
                 # CsPy based on code used by Hybrid. 
-                if child.tag == "RF_generators":
+                elif child.tag == "RF_generators":
                     pass
+                    
+                else:
+                    logger.warning(f"Node {child.tag} received is not a valid"+
+                                   f"child tag under root <{root.tag}>")
                  
+        # TODO: some sort of error handling. could have several try/except 
+        # blocks in the if/elifs above
+        
+        # TODO: implement send message
+        # send a message back to CsPy
+        self.send_message():
+        
+        # clear the return data
+        self.return_data = Queue(0)
+        self.return_data_queue = Queue(0)
         
     def receive_message(self):
         """
@@ -279,7 +298,26 @@ class PXI:
                 pass
             finally:
                 self.reset_connection = True
+                
+        
+    def send_message(self, msg_str=None):
+        # if msg_str is none, just send the return data?
+        pass
+        
+        
+    def data_to_xml(self):
+        """
+        Convert responses from devices to xml and append to return_data
+        """
+        
+        # the devices that have a data_out method
+        data_spawns = [self.hamamatsu, self.counter, self.ttl, 
+                       self.analog_input]
 
+        for spawn in data_spawns:
+            #TODO: implement these methods in their respective classes:
+            self.return_data.append(spawn.data_out())
+            
     
     def on_key_press(self, key):
         """
