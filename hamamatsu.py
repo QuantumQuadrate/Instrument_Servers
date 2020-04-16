@@ -65,7 +65,7 @@ class Hamamatsu: '''could inherit from a Camera class if we choose to move
         
         # these things are implemented with their own classes in labview, 
         # could do that here too. 
-        self.cameraSubArrayAcquistionRegion = CameraSubArrayAcquistionRegion
+        self.cameraSubArrayAcquistionRegion = CameraSubArrayAcquistionRegion()
         self.frameGrabberAcquisitionRegion = FrameGrabberAcquistionRegion()
         
        
@@ -84,7 +84,7 @@ class Hamamatsu: '''could inherit from a Camera class if we choose to move
             Class attribute is set based on node_text, using a dictionary of 
             values for the attribute. If node_text is not a key in the
             dictionary, a default value specified in the dictionary itself will
-            be used. 
+            be used.
             
             Args:
                 'attr': (str) the name of the attribute to be set, which is
@@ -296,10 +296,6 @@ class Hamamatsu: '''could inherit from a Camera class if we choose to move
             self.session.open_session()
             
             ## call the Hamamatsu setup functions, i.e. python-wrapped dllsn
-            '''
-            maybe these should be in one large function?
-            '''
-
             self.session.hamamatsu_serial(self.cooling, self.cooling)
 
             self.session.hamamatsu_serial(self.fan,self.fan)
