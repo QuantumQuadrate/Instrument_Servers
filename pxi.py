@@ -76,9 +76,17 @@ class PXI:
 
     def launch_experiment_thread(self):
         """
-        TODO: make target method for this launcher
+        Launch a thread for the main experiment loop
+
+        Thread target method = self.command_loop
         """
-        pass
+        self.experiment_thread = threading.Thread(
+            target=self.commmand_loop,
+            name='Experiment Thread'
+        )
+        self.experiment_thread.setDaemon(False)
+        self.experiment_thread.start()
+
 
     def launch_network_thread(self):
         self.network_thread = threading.Thread(
@@ -87,12 +95,17 @@ class PXI:
         )
         self.network_thread.setDaemon(False)
         self.network_thread.start()
+
     
     def launch_keylisten_thread(self):
+        """
+        Launch a KeyListener thread to get key pressses in the command line
+        """
         self.keylisten_thread = KeyListener(self.on_key_press)
         self.keylisten_thread.setDaemon(True)
         self.logger.info("starting keylistener")
         self.keylisten_thread.start()
+
 
     def network_loop(self):
         """
@@ -115,12 +128,19 @@ class PXI:
             self.current_connection.close()
             self.current_connection.shutdown()
         
+
     def command_loop(self):
         """
-        TODO: pop a command from the command queue on each iteration, parse
-        the xml in that command, and update the instruments accordingly. 
-        TODO: after xml is handled in a particular iteration, send return data
-        back to cspy over the TCP connection.
+        Update devices with xml from CsPy and, get and return data from devices
+        
+        Pop a command from self.command_queue on each iteration, parse the xml
+        in that command, and update the instruments accordingly. When th queue
+        is empty, try to receive measurements from the data if cycling
+        continuously. 
+
+        This function handles the switching between updating devices and 
+        getting data from them, while the bulk of the work is done in the
+        hierarchy of methods in self.parse_xml and self.measurment.
         """
         
         while not self.stop_connections:
@@ -139,16 +159,16 @@ class PXI:
                 if self.cycle_continuously:
 
                     # This method returns the data as well as updates 
-                    # 'return_data_str', so having a return seems 
-                    # uneccesary
+                    # 'return_data_str', so having a return in this method
+                    # seems uneccesary
                     return_data_str = self.measurement()
         
     
     def parse_xml(self, xml_str):
         """
-        initialize the device instances and other settings from queued xml
+        Initialize the device instances and other settings from queued xml
         
-        loop over highest tier of xml tags with the root tag='LabView' in the 
+        Loop over highest tier of xml tags with the root tag='LabView' in the 
         message received from CsPy, and call the appropriate device class accordingly. the xml is popped 
         from a queue, which updates in the network_loop whenever a valid 
         message from CsPy is received. 
