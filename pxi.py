@@ -9,6 +9,15 @@ updating the relevant PXI device classes with the parsed xml, and returning
 responses from hardware to CsPy. 
 """
 
+'''
+general TODOs and ideas:
+- could decorate methods like is_done with a timeout method
+- could implement error handling and checking whether connection has been 
+    stopped or restarted with a decorator
+- error object to bundle exception/error message returned with a boolean? 
+    would be useful in loops that should exit on exception raised
+'''
+
 #### modules
 import socket
 import logging
@@ -31,7 +40,7 @@ class PXI:
 	            " - \'h\' to see this message again \n"+
 				" - \'r\' to reset the connection to CsPy \n"+
 				" - \'q\' to stop the connection and close this server.")
-				
+
     def __init__(self, address: Tuple[str, int]):
         self.logger = logging.getLogger(str(self.__class__))
         self.listening_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
@@ -51,18 +60,19 @@ class PXI:
         # queues. 0 indicates no maximum queue length enforced.
         self.command_queue = Queue(0) 
         self.return_data_queue = Queue(0)
-        self.return_data = Queue(0) #TODO: this terrible nomenclature, used in labview
+        
+        self.return_data_str = "" # this seems to exist primarily for debugging
         
         self.element_tags = [] # for debugging
         
         # instantiate the device objects
         self.hsdio = HSDIO()
         self.hamamatsu = Hamamatsu()
-        #TODO:
+        # TODO: implement these classes
         #self.counters = Counters()
-        #self.analog_input
-        #self.analog_output
-        #self.ttl = 
+        #self.analog_input = AnalogOutput()
+        #self.analog_output = AnalogInput()
+        #self.ttl = TTL()
 
     def launch_experiment_thread(self):
         """
@@ -88,7 +98,7 @@ class PXI:
         """
         Check for incoming connections and messages on those connections
         """
-		
+
         self.logger.info("Entering Network Loop")
         while not self.stop_connections:
             self.reset_connection = False
@@ -121,16 +131,17 @@ class PXI:
                 self.parse_xml(xml_str)
                 
             except Empty:
-                
+
                 #TODO add these variables to constructor
                 self.exit_measurement = False
-                #self.return_data = [] # reset the list 
+                self.return_data_str = "" # reset the list 
                 
                 if self.cycle_continuously:
-                    pass 
-                    
-                    #TODO: implement this method
-                    #self.return_data_queue = self.measurement()
+
+                    # This method returns the data as well as updates 
+                    # 'return_data_str', so having a return seems 
+                    # uneccesary
+                    return_data_str = self.measurement()
         
     
     def parse_xml(self, xml_str):
@@ -161,11 +172,18 @@ class PXI:
                 self.element_tags.append(child)
                 
                 if child.tag == "measure":
-                    if return_data_queue.empty():
+                    if self.return_data_queue.empty():
                         # if no data ready, take one measurement
                         self.measurement()
                     else:
-                        self.return_data = return_data_queue
+                        pass
+                        # Cast return_data_queue to a string? in labview the
+                        # global "Return Data" is simply assigned the value of
+                        # "Return Data Queue", despite the fact that the latter
+                        # is a Queue instance and the former is filled elsewhere
+                        # with a string built from concatenated xml.
+                        #
+                        #self.return_data_str = str(return_data_queue
                         
                 elif child.tag == "pause":
                     # TODO: set state of server to 'pause';
@@ -250,10 +268,10 @@ class PXI:
         
         # TODO: implement send message
         # send a message back to CsPy
-        self.send_message():
+        self.send_message()
         
         # clear the return data
-        self.return_data = Queue(0)
+        self.return_data_str = ""
         self.return_data_queue = Queue(0)
         
     def receive_message(self):
@@ -301,24 +319,118 @@ class PXI:
                 
         
     def send_message(self, msg_str=None):
-        # if msg_str is none, just send the return data?
+        # if msg_str is none, just send the return data?        
         pass
-        
-        
+
+    # This method returns the data as well as updates 
+    # 'return_data_str', so having a return seems 
+    # uneccesary
+    @master_timeout()
     def data_to_xml(self):
         """
-        Convert responses from devices to xml and append to return_data
+        Convert responses from devices to xml and append to self.return_data_str
+
+        This method both returns the xml data as a string, and updates the PXI
+        instance variable 'return_data_str', where xml data comes from the 
+        device classes is_out methods.
+
+        Returns:
+            'return_data_str': (str) concatenated string of xml-formatted data
         """
         
+        return_data_str = ""
+
         # the devices that have a data_out method
         data_spawns = [self.hamamatsu, self.counter, self.ttl, 
                        self.analog_input]
 
         for spawn in data_spawns:
-            #TODO: implement these methods in their respective classes:
-            self.return_data.append(spawn.data_out())
+            # TODO: implement data_out methods in the relevant classes
+            self.return_data_str += spawn.data_out()
+
+        return return_data_str
+
             
+    @master_timeout()
+    def measurement(self):
+        """
+        Return a queue of the acquired responses queried from device hardware
+        
+        Returns:
+            'return_data_queue': (Queue) the responses received from the device
+                classes
+        """
+        
+        if not (self.stop_connections or self.exit_measurement):
+
+            # TODO: implement these methods
+            self.reset_data()
+            self.system_check()
+            self.start_tasks()
+
+            _is_done = False
+            _is_error = False
+            # TODO:labview uses timed loop with 1kHz clock and dt=10 ms. 
+            # loop until pulse output is completed
+            while not (_is_done or _is_error or self.stop_connections 
+                       or self.exit_measurement):
+                
+                _is_done, error_out = self.is_done()
+                #_is_error = error_out["IsError?"] # TODO implement somehow
+
+            self.get_data() # TODO: implement 
+            self.system_checks() # TODO: implement 
+            self.stop_tasks() # TODO: implement 
+            self.data_to_xml()
+
     
+    def get_data(self):
+        pass
+
+
+    def reset_data(self):
+        pass
+
+
+    def system_check(self):
+        pass
+
+
+    def start_tasks(self):
+        pass
+
+
+    @master_timeout()
+    def is_done(self):
+        """
+        Check if devices running processes are done yet
+
+        Loops over the device classes and calls the instance's is_done method
+        for each device capable of running a process and breaks when a process
+        is found to not be done. 
+
+        Returns:
+            'done': will return True iff all the device processes are done.
+        """
+
+        done = True
+        if not (self.stop_connections or self.exit_measurement):
+
+            devices = [self.hsdio, self.analog_ouput, self.analog_input]#, 
+                       #self.daqmx_pulseout] # in labview daqmx_pulseout is 
+                                             # distinct from the DAQmxDO class
+            
+            # loop over devices which have is_done method; could generalize to
+            # explicitly listing devices above, but this is more transparent
+            for dev in devices:
+                pass
+                #TODO implement is_done method in the relevant device classes
+                #if not dev.is_done():
+                #    done = False
+                #    break
+        return done
+
+   
     def on_key_press(self, key):
         """
         Determines what happens for key presses in the command prompt.
@@ -327,20 +439,38 @@ class PXI:
         when keys are pressed.
         
         Args:
-            'key': the returned from msvcrt.getwch(), e.g. 'h'
+            'key': the returned key from msvcrt.getwch(), e.g. 'h'
         """
         
         # self.logger.info(f"{key} was pressed")
         
         if key == 'h':
             self.logger.info(self.help_str)
-		
+
         if key == 'r':
             self.logger.info("Connection reset by user.")
             self.reset_connection = True
+
         elif key == 'q':
             self.logger.info("Connection stopped by user. Closing server.")
             # self.keylisten_thread.end()
             self.stop_connections = True
+
         else:
             self.logger.info("Not a valid keypress. Type \'h\' for help.")
+
+
+    # This decorator could be a nice way of handling timeouts across this class
+    # without the need to put time.time calls explicitly in loops in various
+    # methods, although that could be done. This would return a wrapper that 
+    # would probably have to do something like run the decorated function in
+    # a different thread than the timer so it could stop that thread when the
+    # time runs out; maybe there's a nicer way to do this. open to suggestions.
+    @classmethod
+    def master_timeout(func):
+        """
+        Check if function call in PXI class takes longer than a maximum time
+
+        To be used as a decorator for functions in this class to 
+        """
+        pass
