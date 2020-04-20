@@ -38,4 +38,6 @@ if __name__ == "__main__":
 			hsdio.load_xml(child)
 			print("HSDIO XML loaded! \n Calling HSDIO.init...")
 			hsdio.init()
-			print("HSDIO initialized!")
+			print("HSDIO initialized! \n Calling HSDIO.update...")
+			hsdio.update()
+			print("HSDIO updated")
