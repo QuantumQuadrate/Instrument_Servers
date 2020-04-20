@@ -12,6 +12,45 @@ from ctypes import *
 import os
 from typing import Tuple
 
+
+class FrameBuffer:
+
+    FRAME_LOCATIONS = {"IMG_HOST_FRAME" : c_uint32(0),
+                       "IMG_DEVICE_FRAME": c_uint32(1)}
+
+    def __init__(
+            self,
+            buffer_addr: c_void_p,
+            where: c_uint32,
+            name: str = None,
+    ):
+        """
+        Initialize the FrameBuffer
+        Args:
+            buffer_addr : address of memory location on PC or NI device
+            where : location of the buffer pointer
+                c_uint(0) : IMG_HOST_FRAME = located in PC memory
+                c_uint(1) : IMG_DEVICE_FRAME = located in NI device memory
+                if where is IMG_DEVICE_FRAME do not attempt to access buffer_addr
+            name : name or id to identify the buffer pointer uniquely
+        """
+        assert where in self.FRAME_LOCATIONS.values()
+        self.where = where
+        self.buffer_addr = buffer_addr
+        self.name = name
+
+    def get_buffer(self):
+        """
+
+        Returns:
+            either the buffer address pointer corresponding to this
+
+        """
+        if self.where == self.FRAME_LOCATIONS["IMG_DEVICE_FRAME"]:
+            return None
+        return self.buffer_addr.value
+
+
 class HamamatsuSerialError(Exception):
     """
     Error to deal with Hamamatsu serial writing issues
@@ -28,15 +67,58 @@ class HamamatsuSerialError(Exception):
     def __str__(self):
         return repr(self.msg)
 
+
 class NiImaqSession:
 
     # timeout values
     IMG_TIMEOUT_INFINITE = int(0xFFFFFFFF, 16)  # found in niimaq.h
 
+    # buffer location specifier
+    IMG_HOST_FRAME = c_uint32(0)
+    IMG_DEVICE_FRAME = c_uint32(1)
+
+    _IMG_BASE = int(0x3FF60000,16)
+
+    # Buffer Element Specifiers
+    IMG_BUFF_ADDRESS = _IMG_BASE + int(0x007E, 16)          # void*
+    IMG_BUFF_COMMAND = _IMG_BASE + int(0x007F, 16)          # uInt32
+    IMG_BUFF_SKIPCOUNT = _IMG_BASE + int(0x0080, 16)        # uInt32
+    IMG_BUFF_SIZE = _IMG_BASE + int(0x0082, 16)             # uInt32
+    IMG_BUFF_TRIGGER = _IMG_BASE + int(0x0083, 16)          # uInt32
+    IMG_BUFF_NUMBUFS = _IMG_BASE + int(0x00B0, 16)          # uInt32
+    IMG_BUFF_CHANNEL = _IMG_BASE + int(0x00Bc, 16)          # uInt32
+    IMG_BUFF_ACTUALHEIGHT = _IMG_BASE + int(0x0400, 16)     # uInt32
+
+    # Valid for imgGetBufferElement
+    ITEM_TYPES = {
+        "ActualHeight": IMG_BUFF_ACTUALHEIGHT,
+        "Address": IMG_BUFF_ADDRESS,
+        "Channel": IMG_BUFF_CHANNEL,
+        "Command": IMG_BUFF_COMMAND,
+        "Size": IMG_BUFF_SIZE,
+        "SkipCount": IMG_BUFF_SKIPCOUNT,
+    }
+    # Valid for imgSetBufferElement2 and set_buf_element2
+    ITEM_TYPES_2 = {
+        "Address": IMG_BUFF_ADDRESS,
+        "Channel": IMG_BUFF_CHANNEL,
+        "Command": IMG_BUFF_COMMAND,
+        "Size": IMG_BUFF_SIZE,
+        "SkipCount": IMG_BUFF_SKIPCOUNT,
+    }
+
     def __init__(self):
         self.imaq = CDLL(os.path.join("C:\Windows\System32", "imaq.dll"))
         self.interface_id = c_uint32(0)
         self.session_id = c_uint32(0)
+        self.buflist_id = c_uint32(0)
+        self.num_buffers = 0
+        self.buflist_init = False  # Has the buffer list been created and initialized?
+        '''
+        List of frame buffer pointers. It's extremely important that all image buffers created are
+        tracked here so that they can be cleared effectively and prevent memory leaks.
+        '''
+        self.buffers = []
 
     def check(
             self,
@@ -145,8 +227,10 @@ class NiImaqSession:
             free_resources: bool = True,
             check_error: bool = True) -> int:
         """
-        Closes both session and interface, releases all associated resources if free_resources is
-        set to true
+        Closes both session and interface, releases all associated resources, and clears all buffers
+        if free_resources is set to true.
+
+        Note : I highly recommend keeping free_resources = True. - Juan
 
         wraps imgClose()
 
@@ -180,9 +264,169 @@ class NiImaqSession:
 
         if error_code != 0 and check_error:
             self.check(error_code, traceback_msg="close interface")
-            return error_code
 
         return error_code
+
+    def dispose_buffer(
+            self,
+            buf_addr: c_void_p
+    ):
+        """
+        TODO @Juan Finish this up man
+        Disposes of the buffer pointed to by buf_addr.
+
+        wraps imgCreateBuffer
+
+        Args:
+            buf_addr : a pointer to an area of memory that stores the new buffer address
+        Returns:
+
+        """
+
+    def create_buffer_list(
+            self,
+            no_elements: int,
+            check_error: bool = True
+    ):
+        """
+        Creates a buffer list and stores it's location in self.buflist_id. The buffer list must be
+        initalized before calling self.session_configure(). Yse self.set_buffer_element()
+        to initialize the buffer list.
+
+        Wraps imgCreateBufList()
+
+        Args:
+            no_elements : number of elements the created buffer list should contain
+            check_error : should the check() function be called once operation has completed
+
+        Returns:
+            error code which reports status of operation.
+
+                0 = Success, positive values = Warnings,
+                negative values = Errors
+        """
+
+        error_code = self.imaq.imgCreateBufList(
+            c_uint32(no_elements),  # uInt32
+            byref(self.buflist_id)  # BUFLIST_ID*
+        )
+
+        if error_code != 0 and check_error:
+            self.check(error_code, traceback_msg="create_buffer_list")
+        self.num_buffers = no_elements
+        self.buffers = [None]*self.num_buffers  # Initialize a buffer list of a given size
+
+        return error_code
+
+    def create_buffer(
+            self,
+            buffer_pt: [c_uint32] = None,
+            system_memory: bool = True,
+            buffer_size: int = 0,
+            check_error: bool = True
+    ) -> int:
+        """
+        Creates a frame buffer based on the ROI in this session. If bufferSize is 0, the buffer
+        size is computed internally as follows:
+            [ROI height]x[rowPixels]x[number of bytes per pixel]
+
+        The function returns an error if the buffer size is smaller than the minimum buffer size
+        required by the session.
+
+        Appends buffer pointer to end of self.frame_buffers
+
+        Wraps the imgCreateBuffer() function
+        Args:
+            buffer_pt : TODO finish touching this up
+            system_memory : indicates if the buffer should be stored in system memory or in onboard memory
+                on the image acquisition device as specified bellow:
+                    True : buffer is created in the host computer memory
+                    False : buffer is created in onboard memory. This feature is not available on
+                    the NI NI PCI/PXI-1407, NI PCIe-1427, NI PCIe-1429, NI PCIe-1430, NI PCIe-1433,
+                    and NI PXIe-1435 devices
+            buffer_size : size of the buffer to be created, in bytes.
+
+            check_error : should the check() function be called once operation has completed
+
+        Returns:
+            error code which reports status of operation.
+
+                0 = Success, positive values = Warnings,
+                negative values = Errors
+        """
+
+        if system_memory:
+            where = self.IMG_HOST_FRAME
+        else:
+            where = self.IMG_DEVICE_FRAME
+
+        buffer_pointer = c_void_p(0)
+
+        error_code = self.imaq.imgCreateBuffer(
+            self.session_id,        # SESSION_ID
+            where,                  # uInt32
+            c_uint32(buffer_size),  # uInt32
+            byref(buffer_pointer)   # void**
+        )
+
+        # self.frame_buffers.append(buffer_pointer) # Not sure we want this yet
+
+        if error_code != 0 and check_error:
+            self.check(error_code, traceback_msg="create buffer")
+
+        return error_code
+
+    def set_buf_element2(
+            self,
+            element: int,
+            item_type: str,
+            value,
+            check_error: bool = True
+    ):
+        """
+        Sets the value for a specified item_type for a buffer in a buffer list
+
+        wraps imgSetBufferElement2()
+        Args:
+            element : index of element of self.buflist_id to be modified
+            item_type : the parameter of the element to set.
+                Allowed values:
+                "Address" - Specifies the buffer address portion of a buffer list element.
+                "Channel" - Specifies the channel from which to acquire an image.
+                "Command" - Specifies the command portion of a buffer list element.
+                "Size" - Specifies the size portion of a buffer list element (the buffer size).
+                    Required for user-allocated buffers.
+                "Skipcount" - Specifies the skip count portion of a buffer list element.
+
+            value (variable): data to be written to the element. data type should match the expected
+                item type
+
+            check_error : should the check() function be called once operation has completed
+
+        Returns:
+            error code which reports status of operation.
+
+                0 = Success, positive values = Warnings,
+                negative values = Errors
+        """
+        msg = f"{item_type} is not a valid ITEM_TYPE\n valid item types {self.ITEM_TYPES_2.keys()}"
+        assert item_type in self.ITEM_TYPES.keys(), msg
+
+        error_code = self.imaq.imgSetBufferElement2(
+            self.buflist_id,                       # BUFLIST_ID
+            c_uint32(element),                     # uInt32
+            c_uint32(self.ITEM_TYPES_2[item_type]),  # uInt32
+            value                                  # variable argument
+        )
+
+        if error_code != 0 and check_error:
+            self.check(
+                error_code,
+                traceback_msg=f"set_buf_element2\nitem_type :{item_type}\nvalue : {value}"
+            )
+
+        return error_code
+
 
     def hamamatsu_serial(
             self,

@@ -11,17 +11,25 @@ camera and initialization of the hardware of said camera.
 from ctypes import * # open to suggestions on making this better with minimal obstruction to workflow
 import numpy as np
 import xml.etree.ElementTree as ET
+from ni_imaq import NiImaqSession
 
-class Hamamatsu: '''could inherit from a Camera class if we choose to move 
-                    control of other cameras (e.g. Andor) over to this server
-                    And/or having a parent class would shorten the code here. 
-                 '''
-                 
+class Hamamatsu:
+    """
+    could inherit from a Camera class if we choose to move
+    control of other cameras (e.g. Andor) over to this server
+    And/or having a parent class would shorten the code here.
+    """
+
     # dictionaries of allowed values for class attributes. note that the key
     # 'Default' has a value which is the key for the default value to be used
     # in the dictionary
-    scanModeValues = {"Super Pixel": "SMD S","Sub-array", "SMD A", 
+
+    # TODO : Old version is above, new below. I think this is what was intended. I'll figure it out. -Juan
+    #    scanModeValues = {"Super Pixel": "SMD S","Sub-array", "SMD A",
+    #                      "Normal": "SMD N", "Default": "Normal"}
+    scanModeValues = {"Super Pixel": "SMD S","Sub-array": "SMD A",
                       "Normal": "SMD N", "Default": "Normal"}
+
     fanValues = {"On": "FAN O", "Off": "FAN F", "Default": "Off"}
     coolingValues = {"On": "CSW O", "Off": "CSW F", "Default": "Off"}
     externalTriggerSourceValues = {"CameraLink Interface": "ESC I", 
@@ -48,17 +56,25 @@ class Hamamatsu: '''could inherit from a Camera class if we choose to move
         self.analogGain = 0 # 0-5
         self.exposureTime = 0 # can be scientific format
         self.EMGain = 0 # 0-255
-        self.triggerPolarity = "ATP P" # positive by default
-        self.externalTriggerMode = "EMD L" # level by default
-        self.scanSpeed = "SSP H" # high by default
-        self.lowLightSensitivity =
-        self.externalTriggerSource = 
-        self.cooling = 
-        self.fan = 
-        self.scanMode = 
+        self.triggerPolarity = self.triggerPolarityValues[
+            self.triggerPolarityValues["Default"]
+        ]  # positive by default
+        self.externalTriggerMode = self.externalTriggerModeValues[
+            self.externalTriggerModeValues["Default"]
+        ]  #level by default
+        self.scanSpeed = self.scanSpeedValues[self.scanSpeedValues["Default"]]  # high by default
+        self.lowLightSensitivity = self.lowLightSensitivityValues[
+            self.lowLightSensitivityValues["Default"]
+        ]
+        self.externalTriggerSource = self.externalTriggerSourceValues[
+            self.externalTriggerModeValues["Default"]
+        ]
+        self.cooling = self.coolingValues[self.coolingValues["Default"]] #Find default value
+        self.fan = self.fanValues[self.fanValues["Default"]]
+        self.scanMode = self.scanModeValues[self.scanModeValues["Default"]]
         self.superPixelBinning = # WHERES. MY. SUPER. SUIT?
-        self.numImageBuffers = # imageBuffers in labview; renamed by tag name.
-        self.shotsPerMeasurement = 
+        self.numImageBuffers = 0 # imageBuffers in labview; renamed by tag name.
+        self.shotsPerMeasurement = 2
         self.forceImagesToU16 = False
         self.cameraTemp = 0.0
         self.lastFrameAcquired = -1
@@ -67,7 +83,8 @@ class Hamamatsu: '''could inherit from a Camera class if we choose to move
         # could do that here too. 
         self.cameraSubArrayAcquistionRegion = CameraSubArrayAcquistionRegion()
         self.frameGrabberAcquisitionRegion = FrameGrabberAcquistionRegion()
-        
+
+        self.session = NiImaqSession()
        
     def load_xml(self, node):
         """
@@ -109,19 +126,18 @@ class Hamamatsu: '''could inherit from a Camera class if we choose to move
                 print(f"Invalid {attr} setting {node_text}; using {default} "+ 
                       f"({values[default]}) instead.")
                 setattr(self, attr, values[default])
-                
-		
-		assert node.tag == "camera", "This XML is not tagged for the camera"
-		
+
+        assert node.tag == "camera", "This XML is not tagged for the camera"
+
         # in the labview class, all of the settings that get updated here are
         # appended to a settings array. the only purpose of that array is for
-        # viewing the settings on the front panel by reading out the array, 
-        # so i have opted to not include said array. 
-		for child in node:
+        # viewing the settings on the front panel by reading out the array,
+        # so i have opted to not include said array.
 
-			if type(child) == ET.Element:
-				
-				# handle each tag by name:
+        for child in node:
+
+            if type(child) == ET.Element:
+                # handle each tag by name:
                 if child.tag == "version":
                     # TODO: labview code checks if camera settings are from 
                     # "2015.05.24", which is hardcoded. probably don't need
@@ -131,60 +147,66 @@ class Hamamatsu: '''could inherit from a Camera class if we choose to move
                     enable = False
                     if child.text.lower() == "true":
                         enable = True
-					self.enable = enable
+                    self.enable = enable
                     
                 elif child.tag == "analogGain":
-                    try: 
-                        gain = float(child.text)
+                    try:
+                        gain = int(child.text)
+                        # Why was this a float? it's an int in labview code. - Juan
+                        #gain = float(child.text)
                         assert 0 < gain < 5, ("analogGain must be between 0 "+
                                               " and 5")
                         self.analogGain = gain
-                    except:
-                        #TODO replace with logger
-                        print("analogGain was given a non-numeric value!")
+                    except ValueError as e:  #
+                        # TODO replace with logger
+                        print(f"{e}\n{child.tag} value {child.text} is non-numeric!")
+                        # Should this also raise and error? -Juan
                         
                 elif child.tag == "exposureTime":
                     try: 
                         # can convert scientifically-formatted numbers - good
                         self.exposureTime = float(child.text)
-                    except:
-                        #TODO: replace with logger
-                        print("exposureTime was given a non-numeric value!")
+                    except ValueError as e:  #
+                        # TODO replace with logger
+                        print(f"{e}\n{child.tag} value {child.text} is non-numeric!")
+                        # Should this also raise and error? -Juan
                         
                 elif child.tag == "EMGain":
-                     try: 
-                        gain = float(child.text)
-                        assert 0 < gain < 255, ("EMGain must be between 0 "+
-                                              " and 255")
+                    try:
+                        # This is an int in labview, why was this set to a float?
+                        # gain = float(child.text)
+                        gain = int(child.text)
+                        assert 0 < gain < 255, ("EMGain must be between and 255")
                         self.EMGain = gain
-                    except:
-                        #TODO: replace with logger
-                        print("EMGain was given a non-numeric value!")
+                    except ValueError as e:  #
+                        # TODO replace with logger
+                        print(f"{e}\n{child.tag} value {child.text} is non-numeric!")
+                        # Should this also raise and error? -Juan
                     
                 elif child.tag == "triggerPolarity":
-                    set_by_dict(child.tag, child.text, triggerPolarityValues)
+                    set_by_dict(child.tag, child.text, self.triggerPolarityValues)
 
                 elif child.tag == "externalTriggerMode":
-                    set_by_dict(child.tag, child.text, )
+                    set_by_dict(child.tag, child.text, self.externalTriggerModeValues)
 
                 elif child.tag == "scanSpeed":
-                    set_by_dict(child.tag, child.text, scanSpeedValues)                
+                    set_by_dict(child.tag, child.text, self.scanSpeedValues)
                         
                 elif child.tag == "lowLightSensitivity":
-                    set_by_dict(child.tag, child.text, lowLightSensitivityValues)
+                    set_by_dict(child.tag, child.text, self.lowLightSensitivityValues)
  
                 elif child.tag == "externalTriggerSource":
                     set_by_dict(child.tag, child.text, 
-                                externalTriggerSourceValues)
+                                self.externalTriggerSourceValues)
   
                 elif child.tag == "cooling":
-                    set_by_dict(child.tag, child.text, coolingValues)
+                    set_by_dict(child.tag, child.text, self.coolingValues)
                     
                 elif child.tag == "fan":
-                    set_by_dict(child.tag, child.text, fanValues)
+                    set_by_dict(child.tag, child.text, self.fanValues)
                     
                 elif child.tag == "scanMode":
-                    set_by_dict(child.tag, child.text, scanModeValues)
+                    set_by_dict(child.tag, child.text, self.scanModeValues)
                     
                 elif child.tag == "superPixelBinning":
                     self.superPixelBinning = child.text
@@ -192,84 +214,92 @@ class Hamamatsu: '''could inherit from a Camera class if we choose to move
                 elif child.tag == "subArrayLeft":
                     try:
                         self.cameraSubArrayAcquistionRegion.left = float(child.text)
-                    except: # TODO put typecast error here
+                    except ValueError as e: #
                         # TODO replace with logger
-                        print(f"{child.tag} value {child.text} is non-numeric!")
-                        
+                        print(f"{e}\n{child.tag} value {child.text} is non-numeric!")
+                        # Should this also raise and error? -Juan
                 elif child.tag == "subArrayTop":
                     try:
                         self.cameraSubArrayAcquistionRegion.top = float(child.text)
-                    except: # TODO put typecast error here
+                    except ValueError as e:  #
                         # TODO replace with logger
-                        print(f"{child.tag} value {child.text} is non-numeric!")
+                        print(f"{e}\n{child.tag} value {child.text} is non-numeric!")
+                        # Should this also raise and error? -Juan
                         
                 elif child.tag == "subArrayWidth":
                     try:
                         self.cameraSubArrayAcquistionRegion.width = float(child.text)
-                    except: # TODO put typecast error here
+                    except ValueError as e:  #
                         # TODO replace with logger
-                        print(f"{child.tag} value {child.text} is non-numeric!")
+                        print(f"{e}\n{child.tag} value {child.text} is non-numeric!")
+                        # Should this also raise and error? -Juan
                         
                 elif child.tag == "subArrayHeight":
                     try:
                         self.cameraSubArrayAcquistionRegion.height = float(child.text)
-                    except: # TODO put typecast error here
+                    except ValueError as e:  #
                         # TODO replace with logger
-                        print(f"{child.tag} value {child.text} is non-numeric!")
+                        print(f"{e}\n{child.tag} value {child.text} is non-numeric!")
+                        # Should this also raise and error? -Juan
                         
                 elif child.tag == "frameGrabberAcquisitionRegionLeft":
                     try:
                         self.frameGrabberAcquisitionRegion.left = float(child.text)
-                    except: # TODO put typecast error here
+                    except ValueError as e:  #
                         # TODO replace with logger
-                        print(f"{child.tag} value {child.text} is non-numeric!")
+                        print(f"{e}\n{child.tag} value {child.text} is non-numeric!")
+                        # Should this also raise and error? -Juan
                     
                 elif child.tag == "frameGrabberAcquisitionRegionTop":
                     try:
                         self.frameGrabberAcquisitionRegion.top = float(child.text)
-                    except: # TODO put typecast error here
+                    except ValueError as e:  #
                         # TODO replace with logger
-                        print(f"{child.tag} value {child.text} is non-numeric!")
+                        print(f"{e}\n{child.tag} value {child.text} is non-numeric!")
+                        # Should this also raise and error? -Juan
                         
                 elif child.tag == "frameGrabberAcquisitionRegionRight":
                     try:
                         self.frameGrabberAcquisitionRegion.right = float(child.text)
-                    except: # TODO put typecast error here
+                    except ValueError as e:  #
                         # TODO replace with logger
-                        print(f"{child.tag} value {child.text} is non-numeric!")
+                        print(f"{e}\n{child.tag} value {child.text} is non-numeric!")
+                        # Should this also raise and error? -Juan
                         
                 elif child.tag == "frameGrabberAcquisitionRegionBottom":
                     try:
                         self.frameGrabberAcquisitionRegion.bottom = float(child.text)
-                    except: # TODO put typecast error here
+                    except ValueError as e:  #
                         # TODO replace with logger
-                        print(f"{child.tag} value {child.text} is non-numeric!")
+                        print(f"{e}\n{child.tag} value {child.text} is non-numeric!")
+                        # Should this also raise and error? -Juan
                         
                 elif child.tag == "numImageBuffers":
                     try:
                         self.numImageBuffers = float(child.text)
-                    except: # TODO put typecast error here
+                    except ValueError as e:  #
                         # TODO replace with logger
-                        print(f"{child.tag} value {child.text} is non-numeric!")
+                        print(f"{e}\n{child.tag} value {child.text} is non-numeric!")
+                        # Should this also raise and error? -Juan
                     
                 elif child.tag == "shotsPerMeasurement":
                     try:
-                        self.shotsPerMeasurement = float(child.text)
-                    except: # TODO put typecast error here
+                        # Why was this float?
+                        self.shotsPerMeasurement = int(child.text)
+                    except ValueError as e:  #
                         # TODO replace with logger
-                        print(f"{child.tag} value {child.text} is non-numeric!")
+                        print(f"{e}\n{child.tag} value {child.text} is non-numeric!")
+                        # Should this also raise and error? -Juan
                         
                 elif child.tag == "forceImagesToU16":
                     force = False
                     if child.text.lower() == "true":
                         force = True
-					self.forceImagesToU16 = force
+                    self.forceImagesToU16 = force
                     
                 else:
                     # TODO: replace with logger
-                    print(f"Node {child.tag} is not a valid Hamamatsu "+ 
-                           "attribute")
-
+                    print(f"Node {child.tag} is not a valid Hamamatsu attribute")
             
     def init(self):
         """
@@ -280,14 +310,16 @@ class Hamamatsu: '''could inherit from a Camera class if we choose to move
         """
 
         if self.enable:
-            
-            ## reset the IMAQSession 
-            
-            #TODO: Juan figure out what's going on here
+
             if self.imaqSession is not None:
                 self.session.close()
 
                 # Not sure what to do here - Juan
+                '''
+                This clears all existing image buffers in Labview. There doesn't seem to be an exact
+                mapping to a C function yet. But you can loop through image buffers if you're trying
+                to be clean about this. This functionality will be folded into the close() function.
+                '''
                 # IMAQSession.dispose(destroyOldImages=True) # classmethod
                 # in labview this maps to a class method indep of sessions
                 # TODO : Juan. implement the same in python using a c function
@@ -303,17 +335,15 @@ class Hamamatsu: '''could inherit from a Camera class if we choose to move
             self.session.hamamatsu_serial(self.fan,self.fan)
             self.session.hamamatsu_serial(self.scanSpeed,self.scanSpeed)
 
-            # self.session.serial(self.fan, self.fan, error_in)  # duplicate. is something missing?
-            self.session.hamamatsu_serial(self.fan,self.fan)
+            # # duplicate. is something missing?
+            # self.session.hamamatsu_serial(self.fan,self.fan)
 
-            # self.session.serial(self.scanSpeed, self.scanSpeed, error_in)
+            # duplicate
             self.session.hamamatsu_serial(self.scanSpeed, self.scanSpeed)
 
-            # self.session.serial(self.fan, self.fan, error_in)  # duplicate. is something missing?
+            # duplicate. is something missing?
             self.session.hamamatsu_serial(self.fan,self.fan)
 
-            # self.session.serial(self.externalTriggerSource, 
-            #             self.externalTriggerSource, error_in)
             self.session.hamamatsu_serial(
                 self.externalTriggerSource,
                 self.externalTriggerSource)
@@ -346,21 +376,19 @@ class Hamamatsu: '''could inherit from a Camera class if we choose to move
             )
 
             # labview uses "Number to Fraction String Format VI" to convert the
-            # exposure time to a string; as far as I can tell this str() cast 
-            # accomplishes the same thing in this use case
-            exposure = "AET\s" + str(self.exposureTime)
-            # self.session.serial(exposure, exposure, error_in)
+            # exposure time to a string; as far as I can tell this formatting
+            # accomplishes the same.
+            exposure = "AET\s{.6f}".format(self.exposureTime)
             self.session.hamamatsu_serial(exposure,exposure)
             
             # labview uses "Number to Decimal String VI" to convert the
-            # EMGain to a string; as far as I can tell this str() cast 
+            # EMGain to a string; as far as I can tell this formatting
             # accomplishes the same thing in this use case
-            emgain = "EMG\s" + str(self.EMGain)
-            # self.session.serial(emgain, emgain, error_in)
+            emgain = f"EMG\s{self.EMGain}"
             self.session.hamamatsu_serial(emgain,emgain)
             
             analog_gain = f"CEG\s{self.analogGain}"
-            # set exposure time
+            # set analog gain
             # self.session.serial(analog_gain, analog_gain, error_in)
             self.session.hamamatsu_serial(analog_gain,analog_gain)
 
@@ -370,12 +398,12 @@ class Hamamatsu: '''could inherit from a Camera class if we choose to move
             self.cameraTemp = f"TMP {response:f}"
 
             # last frame acquired. first actual frame will be zero. 
-            self.lastFrameAcquired = -1 
+            self.lastFrameAcquired = -1
 
             # scan mode
             # self.session.serial(self.scanMode, self.scanMode, error_in)
             self.session.hamamatsu_serial(self.scanMode,self.scanMode)
-            if self.scanMode in scanModeValues.values():
+            if self.scanMode in self.scanModeValues.values():
                 
                 if self.scanMode == "SMD S": # superPixelBinning
 
@@ -387,7 +415,8 @@ class Hamamatsu: '''could inherit from a Camera class if we choose to move
                     )
                     
                 elif self.scanMode == "SMD A": # sub-array
-                
+
+                    #TODO : @Juan Fix this up
                     subArrayLeft = ("SHO\s"+
                                     str(CameraSubArrayAcquistionRegion.left))
 
@@ -451,11 +480,37 @@ class Hamamatsu: '''could inherit from a Camera class if we choose to move
                    self.frameGrabberAcquistionRegion.Bottom]
                    
             #TODO: don't hardcode numbers here; enter from a value dict
-            self.session.IMAQConfigureList(roi, 1, numImageBuffers, 0)
-            
+            #self.session.IMAQConfigureList(roi, 1, numImageBuffers, 0)
+            self.session.create_buffer_list(self.numImageBuffers)
+
             # set up the image buffers
-            for buf_num in range(numImageBuffers):
-            
+            for buf_num in range(self.numImageBuffers):
+
+                # Juan's outline based on c ll ring example  -------------------
+
+                self.session.compute_buf_size()
+                # TODO : @Juan implement session.compute_buf_size and have it set session.buf_size
+                self.session.create_buffer()
+                self.session.set_buf_element2(
+                    buf_num,
+                    "Address",
+                    self.session.buffers[buf_num]
+                )
+                self.session.set_buf_element2(
+                    buf_num,
+                    "Size",
+                    self.session.buf_size
+                )
+                self.determine_buf_cmd()
+                # TODO : @Juan implement session.determine_buf_cmd and have is set session.buf_cmd
+                self.session.set_buf_element2(
+                    buf_num,
+                    "Command",
+                    self.session.buf_cmd
+                )
+
+
+
                 # labview formats i as a signed decimal integer here, but
                 # ints formatted with d qualifier should just be ints.
                 ringNum = f"LL Ring num {buf_num}" 
