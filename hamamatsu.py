@@ -23,13 +23,8 @@ class Hamamatsu:
     # dictionaries of allowed values for class attributes. note that the key
     # 'Default' has a value which is the key for the default value to be used
     # in the dictionary
-
-    # TODO : Old version is above, new below. I think this is what was intended. I'll figure it out. -Juan
-    #    scanModeValues = {"Super Pixel": "SMD S","Sub-array", "SMD A",
-    #                      "Normal": "SMD N", "Default": "Normal"}
     scanModeValues = {"Super Pixel": "SMD S","Sub-array": "SMD A",
                       "Normal": "SMD N", "Default": "Normal"}
-
     fanValues = {"On": "FAN O", "Off": "FAN F", "Default": "Off"}
     coolingValues = {"On": "CSW O", "Off": "CSW F", "Default": "Off"}
     externalTriggerSourceValues = {"CameraLink Interface": "ESC I", 
@@ -45,7 +40,6 @@ class Hamamatsu:
                        "Default": "High"}
     triggerPolarityValues = {"Negative": "ATP N", "Positive": "ATP P", 
                              "Default": "Positive"}
-    
     
                    
     def __init__(self):
@@ -79,13 +73,14 @@ class Hamamatsu:
         self.cameraTemp = 0.0
         self.lastFrameAcquired = -1
         
-        # these things are implemented with their own classes in labview, 
+        # TODO: these things are implemented with their own classes in labview, 
         # could do that here too. 
         self.cameraSubArrayAcquistionRegion = CameraSubArrayAcquistionRegion()
         self.frameGrabberAcquisitionRegion = FrameGrabberAcquistionRegion()
 
         self.session = NiImaqSession()
        
+
     def load_xml(self, node):
         """
 		parse xml by tag to initialize Hamamatsu class attributes
@@ -152,15 +147,13 @@ class Hamamatsu:
                 elif child.tag == "analogGain":
                     try:
                         gain = int(child.text)
-                        # Why was this a float? it's an int in labview code. - Juan
-                        #gain = float(child.text)
                         assert 0 < gain < 5, ("analogGain must be between 0 "+
                                               " and 5")
                         self.analogGain = gain
                     except ValueError as e:  #
                         # TODO replace with logger
                         print(f"{e}\n{child.tag} value {child.text} is non-numeric!")
-                        # Should this also raise and error? -Juan
+                        raise
                         
                 elif child.tag == "exposureTime":
                     try: 
@@ -169,8 +162,8 @@ class Hamamatsu:
                     except ValueError as e:  #
                         # TODO replace with logger
                         print(f"{e}\n{child.tag} value {child.text} is non-numeric!")
-                        # Should this also raise and error? -Juan
-                        
+                        raise
+
                 elif child.tag == "EMGain":
                     try:
                         # This is an int in labview, why was this set to a float?
@@ -181,7 +174,7 @@ class Hamamatsu:
                     except ValueError as e:  #
                         # TODO replace with logger
                         print(f"{e}\n{child.tag} value {child.text} is non-numeric!")
-                        # Should this also raise and error? -Juan
+                        raise
                     
                 elif child.tag == "triggerPolarity":
                     set_by_dict(child.tag, child.text, self.triggerPolarityValues)
@@ -217,14 +210,15 @@ class Hamamatsu:
                     except ValueError as e: #
                         # TODO replace with logger
                         print(f"{e}\n{child.tag} value {child.text} is non-numeric!")
-                        # Should this also raise and error? -Juan
+                        raise
+
                 elif child.tag == "subArrayTop":
                     try:
                         self.cameraSubArrayAcquistionRegion.top = float(child.text)
                     except ValueError as e:  #
                         # TODO replace with logger
                         print(f"{e}\n{child.tag} value {child.text} is non-numeric!")
-                        # Should this also raise and error? -Juan
+                        raise
                         
                 elif child.tag == "subArrayWidth":
                     try:
@@ -232,7 +226,7 @@ class Hamamatsu:
                     except ValueError as e:  #
                         # TODO replace with logger
                         print(f"{e}\n{child.tag} value {child.text} is non-numeric!")
-                        # Should this also raise and error? -Juan
+                        raise
                         
                 elif child.tag == "subArrayHeight":
                     try:
@@ -240,7 +234,7 @@ class Hamamatsu:
                     except ValueError as e:  #
                         # TODO replace with logger
                         print(f"{e}\n{child.tag} value {child.text} is non-numeric!")
-                        # Should this also raise and error? -Juan
+                        raise
                         
                 elif child.tag == "frameGrabberAcquisitionRegionLeft":
                     try:
@@ -248,7 +242,7 @@ class Hamamatsu:
                     except ValueError as e:  #
                         # TODO replace with logger
                         print(f"{e}\n{child.tag} value {child.text} is non-numeric!")
-                        # Should this also raise and error? -Juan
+                        raise
                     
                 elif child.tag == "frameGrabberAcquisitionRegionTop":
                     try:
@@ -256,7 +250,7 @@ class Hamamatsu:
                     except ValueError as e:  #
                         # TODO replace with logger
                         print(f"{e}\n{child.tag} value {child.text} is non-numeric!")
-                        # Should this also raise and error? -Juan
+                        raise
                         
                 elif child.tag == "frameGrabberAcquisitionRegionRight":
                     try:
@@ -264,7 +258,7 @@ class Hamamatsu:
                     except ValueError as e:  #
                         # TODO replace with logger
                         print(f"{e}\n{child.tag} value {child.text} is non-numeric!")
-                        # Should this also raise and error? -Juan
+                        raise
                         
                 elif child.tag == "frameGrabberAcquisitionRegionBottom":
                     try:
@@ -272,7 +266,7 @@ class Hamamatsu:
                     except ValueError as e:  #
                         # TODO replace with logger
                         print(f"{e}\n{child.tag} value {child.text} is non-numeric!")
-                        # Should this also raise and error? -Juan
+                        raise
                         
                 elif child.tag == "numImageBuffers":
                     try:
@@ -280,7 +274,7 @@ class Hamamatsu:
                     except ValueError as e:  #
                         # TODO replace with logger
                         print(f"{e}\n{child.tag} value {child.text} is non-numeric!")
-                        # Should this also raise and error? -Juan
+                        raise
                     
                 elif child.tag == "shotsPerMeasurement":
                     try:
@@ -289,7 +283,7 @@ class Hamamatsu:
                     except ValueError as e:  #
                         # TODO replace with logger
                         print(f"{e}\n{child.tag} value {child.text} is non-numeric!")
-                        # Should this also raise and error? -Juan
+                        raise
                         
                 elif child.tag == "forceImagesToU16":
                     force = False
@@ -315,6 +309,10 @@ class Hamamatsu:
                 self.session.close()
 
                 # Not sure what to do here - Juan
+
+                # ^The point of this block is just to close the IMAQ Session
+                # and do general cleanup, like discarding old images in the
+                # dispose call in the comment below - Preston
                 '''
                 This clears all existing image buffers in Labview. There doesn't seem to be an exact
                 mapping to a C function yet. But you can loop through image buffers if you're trying
@@ -335,41 +333,19 @@ class Hamamatsu:
             self.session.hamamatsu_serial(self.fan,self.fan)
             self.session.hamamatsu_serial(self.scanSpeed,self.scanSpeed)
 
-            # # duplicate. is something missing?
-            # self.session.hamamatsu_serial(self.fan,self.fan)
-
-            # duplicate
-            self.session.hamamatsu_serial(self.scanSpeed, self.scanSpeed)
-
-            # duplicate. is something missing?
-            self.session.hamamatsu_serial(self.fan,self.fan)
-
             self.session.hamamatsu_serial(
                 self.externalTriggerSource,
                 self.externalTriggerSource)
 
-            # TODO: Juan. look into below
-            #  set trigger mode to external
-            #  in the labview code, the self.externalTriggerMode is set to
-            #  "EMD L" by default, but the actual triggering is set to "AMD E"
-            #  which isn't even an option for the externalTriggerMode attribute.
-            #  idk why this discrepancy is here but might be worth investigating
-            #
-            # self.session.serial("AMD E", "AMD E", error_in)
+            # set trigger mode to external
             self.session.hamamatsu_serial("AMD E", "AMD E")
 
-            # see above comment; i guess these are different things, but the 
-            # nomenclature is confusing as both calls appear to be configuring
-            # external triggering. a clarifying comment in the code would help.
-            # self.session.serial(self.externalTriggerMode, 
-            #                     self.externalTriggerMode, error_in)
+            # set the external trigger mode
             self.session.hamamatsu_serial(
                 self.externalTriggerMode,
                 self.externalTriggerMode
             )
 
-            # self.session.serial(self.triggerPolarity, self.triggerPolarity, 
-            #                       error_in)
             self.session.hamamatsu_serial(
                 self.triggerPolarity,
                 self.triggerPolarity
@@ -389,26 +365,22 @@ class Hamamatsu:
             
             analog_gain = f"CEG\s{self.analogGain}"
             # set analog gain
-            # self.session.serial(analog_gain, analog_gain, error_in)
             self.session.hamamatsu_serial(analog_gain,analog_gain)
 
             # read camera temperature
-            # response = self.session.serial("?TMP", error_in)
             error_code, response =  self.session.hamamatsu_serial("?TMP")
             self.cameraTemp = f"TMP {response:f}"
 
             # last frame acquired. first actual frame will be zero. 
             self.lastFrameAcquired = -1
 
-            # scan mode
-            # self.session.serial(self.scanMode, self.scanMode, error_in)
+            # set scan mode
             self.session.hamamatsu_serial(self.scanMode,self.scanMode)
+
             if self.scanMode in self.scanModeValues.values():
                 
                 if self.scanMode == "SMD S": # superPixelBinning
 
-                    # self.session.serial(self.superPixelBinning, self.superPixelBinning,
-                    #             error_in)
                     self.session.hamamatsu_serial(
                         self.superPixelBinning,
                         self.superPixelBinning
@@ -416,11 +388,9 @@ class Hamamatsu:
                     
                 elif self.scanMode == "SMD A": # sub-array
 
-                    #TODO : @Juan Fix this up
                     subArrayLeft = ("SHO\s"+
                                     str(CameraSubArrayAcquistionRegion.left))
 
-                    # self.session.serial(subArrayLeft, subArrayLeft, error_in)
                     self.session.hamamatsu_serial(
                         subArrayLeft,
                         subArrayLeft
@@ -428,8 +398,7 @@ class Hamamatsu:
 
                     subArrayTop = ("SVO\s"+
                                    str(CameraSubArrayAcquistionRegion.top))
-                    # self.session.serial(self.superPixelBinning, self.superPixelBinning,
-                    #             error_in)
+
                     self.session.hamamatsu_serial(
                         subArrayTop,
                         subArrayTop
@@ -437,7 +406,7 @@ class Hamamatsu:
 
                     subArrayWidth = ("SHW\s"+
                                     str(CameraSubArrayAcquistionRegion.width))
-                    # self.session.serial(subArrayWidth, subArrayWidth, error_in)
+
                     self.session.hamamatsu_serial(
                         subArrayWidth,
                         subArrayWidth
@@ -445,7 +414,7 @@ class Hamamatsu:
 
                     subArrayHeight = ("SVW\s"+
                                      str(CameraSubArrayAcquistionRegion.height))
-                    # self.session.serial(subArrayHeight, subArrayHeight, error_in)
+
                     self.session.hamamatsu_serial(
                         subArrayHeight,
                         subArrayHeight
@@ -481,7 +450,9 @@ class Hamamatsu:
                    
             #TODO: don't hardcode numbers here; enter from a value dict
             #self.session.IMAQConfigureList(roi, 1, numImageBuffers, 0)
-            self.session.create_buffer_list(self.numImageBuffers)
+
+            # @Juan -- where do you incorporate the roi here?
+            self.session.create_buffer_list(self.numImageBuffers) 
 
             # set up the image buffers
             for buf_num in range(self.numImageBuffers):
