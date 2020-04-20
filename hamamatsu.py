@@ -488,9 +488,8 @@ class Hamamatsu:
 
                 # Juan's outline based on c ll ring example  -------------------
 
-                self.session.compute_buf_size()
-                # TODO : @Juan implement session.compute_buf_size and have it set session.buf_size
-                self.session.create_buffer()
+                self.session.compute_buffer_size()
+                self.session.create_buffer(self.session.buffers[buf_num])
                 self.session.set_buf_element2(
                     buf_num,
                     "Address",
@@ -499,18 +498,25 @@ class Hamamatsu:
                 self.session.set_buf_element2(
                     buf_num,
                     "Size",
-                    self.session.buf_size
+                    self.session.buffer_size
                 )
-                self.determine_buf_cmd()
-                # TODO : @Juan implement session.determine_buf_cmd and have is set session.buf_cmd
+                if buf_num == self.numImageBuffers:
+                    buf_cmd = self.session.BUFFER_COMMANDS["Loop"]
+                else:
+                    buf_cmd = self.session.BUFFER_COMMANDS["Next"]
                 self.session.set_buf_element2(
                     buf_num,
                     "Command",
-                    self.session.buf_cmd
+                    c_uint32(buf_cmd)
                 )
+            self.session.buflist_init = True
 
-
-
+            '''
+            This stuff below was expected to be in the for loop. It shadows the functionality of the
+            corresponding for loop in the labview code, but the c code example deviates 
+            significantly from this!
+            TODO : @Juan - Take a closer look at the labview code and see if there's something your 
+                copying of the c-loop missed!
                 # labview formats i as a signed decimal integer here, but
                 # ints formatted with d qualifier should just be ints.
                 ringNum = f"LL Ring num {buf_num}" 
@@ -592,6 +598,7 @@ class Hamamatsu:
                                   # this a hamamatsu method.
 
                 self.start()
+            '''
            
     def serial(self):
 

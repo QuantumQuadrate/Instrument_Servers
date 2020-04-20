@@ -79,7 +79,21 @@ class NiImaqSession:
 
     _IMG_BASE = int(0x3FF60000,16)
 
-    # Buffer Element Specifiers
+    # Buffer command keys
+    IMG_CMD_LOOP = _IMG_BASE + int(0x02, 16)
+    IMG_CMD_NEXT = _IMG_BASE + int(0x01, 16)
+    IMG_CMD_PASS = _IMG_BASE + int(0x04, 16)
+    IMG_CMD_STOP = _IMG_BASE + int(0x08, 16)
+    IMG_CMD_INVALID = _IMG_BASE + int(0x10, 16)  # Reserved for internal use in c dll
+
+    BUFFER_COMMANDS = {
+        "Loop": IMG_CMD_LOOP,
+        "Next": IMG_CMD_NEXT,
+        "Pass": IMG_CMD_PASS,
+        "Stop": IMG_CMD_STOP,
+    }
+
+    # Buffer Element Specifier keys
     IMG_BUFF_ADDRESS = _IMG_BASE + int(0x007E, 16)          # void*
     IMG_BUFF_COMMAND = _IMG_BASE + int(0x007F, 16)          # uInt32
     IMG_BUFF_SKIPCOUNT = _IMG_BASE + int(0x0080, 16)        # uInt32
@@ -107,18 +121,41 @@ class NiImaqSession:
         "SkipCount": IMG_BUFF_SKIPCOUNT,
     }
 
+    # Attribute key ===========================================================================
+    # Image Attribute keys --------------------------------------------------------------------
+    # incomplete, add as they become relevant
+    IMG_ATTR_ROI_WIDTH = _IMG_BASE + int(0x01A6, 16)
+    IMG_ATTR_ROI_HEIGHT = _IMG_BASE + int(0x01A7, 16)
+    IMG_ATTR_BYTESPERPIXEL = _IMG_BASE + int(0x0066, 16)
+
+    # dict of img keys corresponding to uint32 variables. Be careful of typing when adding variables
+    # to dicts
+    IMG_ATTRIBUTES_UINT32 = {
+        "ROI Width": IMG_ATTR_ROI_WIDTH,
+        "ROI Height": IMG_ATTR_ROI_HEIGHT,
+        "Bytes Per Pixel": IMG_ATTR_BYTESPERPIXEL
+    }
+
+    # Add all keys from ATTRIBUTE dicts to this array
+    ATTRIBUTE_KEYS = IMG_ATTRIBUTES_UINT32.keys()
+
     def __init__(self):
         self.imaq = CDLL(os.path.join("C:\Windows\System32", "imaq.dll"))
         self.interface_id = c_uint32(0)
         self.session_id = c_uint32(0)
-        self.buflist_id = c_uint32(0)
-        self.num_buffers = 0
-        self.buflist_init = False  # Has the buffer list been created and initialized?
+
         '''
         List of frame buffer pointers. It's extremely important that all image buffers created are
         tracked here so that they can be cleared effectively and prevent memory leaks.
         '''
         self.buffers = []
+        self.buflist_id = c_uint32(0)
+        self.num_buffers = 0
+        self.buffer_size = 0
+        self.buflist_init = False  # Has the buffer list been created and initialized?
+
+        # dict of values mapped to keys
+        self.attributes = {}
 
     def check(
             self,
@@ -266,6 +303,73 @@ class NiImaqSession:
             self.check(error_code, traceback_msg="close interface")
 
         return error_code
+# Buffer Management functions ----------------------------------------------------------------------
+
+    def get_attribute(
+            self,
+            attribute: str,
+            check_error: bool = True
+    ):
+        """
+        Reads the attribute value and writes it to the appropriate self.attributes
+
+        wraps imgGetAttribute
+        Args:
+            attribute : string indicating which attribute to be read
+            check_error : should the check() function be called once operation has completed
+
+        Returns:
+            error code which reports status of operation.
+
+                0 = Success, positive values = Warnings,
+                negative values = Errors
+        """
+        assert attribute in self.ATTRIBUTE_KEYS, f"{attribute} not a valid attribute"
+        # This should become an elif block to breakout different types of attributes
+        if attribute in self.IMG_ATTRIBUTES_UINT32.keys():
+            attr = c_uint32(self.IMG_ATTRIBUTES_UINT32[attribute])
+            attr_bf = c_uint32(0)
+        else:
+            return None  # to appease pycharm
+
+        error_code = self.imaq.imgGetAttribute(
+            self.session_id,  # SESSION_ID or INTERFACE_ID
+            attr,             # uInt32
+            byref(attr_bf),   # void*
+        )
+
+        self.attributes[attribute] = attr_bf
+
+        if error_code != 0 and check_error:
+            self.check(error_code, traceback_msg=f"get attribute {attribute}")
+
+        return error_code
+
+    def compute_buffer_size(self) -> c_uint32:
+        """
+        Sets self.buffer_size to the required size and returns self.buffer_size
+
+        Returns:
+            c_uint32 - size of the image buffer required for acquisition in this session
+
+        """
+
+        er_1 = self.get_attribute("Bytes Per Pixel")
+        if er_1 != 0:
+            return er_1
+        er_2 = self.get_attribute("ROI Width")
+        if er_2 != 0:
+            return er_2
+        er_3 = self.get_attribute("ROI Height")
+        if er_3 != 0:
+            return er_3
+
+        width = self.attributes["ROI Width"]
+        height = self.attributes["ROI Height"]
+        bytes_per_pix = self.attributes["Bytes Per Pixel"]
+
+        self.buffer_size = width*height*bytes_per_pix
+        return self.buffer_size
 
     def dispose_buffer(
             self,
@@ -314,13 +418,13 @@ class NiImaqSession:
         if error_code != 0 and check_error:
             self.check(error_code, traceback_msg="create_buffer_list")
         self.num_buffers = no_elements
-        self.buffers = [None]*self.num_buffers  # Initialize a buffer list of a given size
+        self.buffers = [c_void_p]*self.num_buffers  # Initialize a buffer list of a given size
 
         return error_code
 
     def create_buffer(
             self,
-            buffer_pt: [c_uint32] = None,
+            buffer_pt: c_void_p,  # TODO : Not sure this will work? - Juan
             system_memory: bool = True,
             buffer_size: int = 0,
             check_error: bool = True
@@ -337,9 +441,9 @@ class NiImaqSession:
 
         Wraps the imgCreateBuffer() function
         Args:
-            buffer_pt : TODO finish touching this up
-            system_memory : indicates if the buffer should be stored in system memory or in onboard memory
-                on the image acquisition device as specified bellow:
+            buffer_pt : pointer to place in memory that will store the pointer
+            system_memory : indicates if the buffer should be stored in system memory or in onboard
+                memory on the image acquisition device as specified bellow:
                     True : buffer is created in the host computer memory
                     False : buffer is created in onboard memory. This feature is not available on
                     the NI NI PCI/PXI-1407, NI PCIe-1427, NI PCIe-1429, NI PCIe-1430, NI PCIe-1433,
@@ -360,13 +464,11 @@ class NiImaqSession:
         else:
             where = self.IMG_DEVICE_FRAME
 
-        buffer_pointer = c_void_p(0)
-
         error_code = self.imaq.imgCreateBuffer(
             self.session_id,        # SESSION_ID
             where,                  # uInt32
             c_uint32(buffer_size),  # uInt32
-            byref(buffer_pointer)   # void**
+            byref(buffer_pt)   # void**
         )
 
         # self.frame_buffers.append(buffer_pointer) # Not sure we want this yet
@@ -374,7 +476,7 @@ class NiImaqSession:
         if error_code != 0 and check_error:
             self.check(error_code, traceback_msg="create buffer")
 
-        return error_code
+        return error_code,buffer_pt
 
     def set_buf_element2(
             self,
@@ -392,11 +494,16 @@ class NiImaqSession:
             item_type : the parameter of the element to set.
                 Allowed values:
                 "Address" - Specifies the buffer address portion of a buffer list element.
+                    data type = void*
                 "Channel" - Specifies the channel from which to acquire an image.
+                    data type = uInt32
                 "Command" - Specifies the command portion of a buffer list element.
+                    data type = uInt32
                 "Size" - Specifies the size portion of a buffer list element (the buffer size).
                     Required for user-allocated buffers.
+                    data type = uInt32
                 "Skipcount" - Specifies the skip count portion of a buffer list element.
+                    data type = uInt32
 
             value (variable): data to be written to the element. data type should match the expected
                 item type
@@ -426,7 +533,6 @@ class NiImaqSession:
             )
 
         return error_code
-
 
     def hamamatsu_serial(
             self,
