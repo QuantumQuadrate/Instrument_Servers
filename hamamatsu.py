@@ -420,39 +420,30 @@ class Hamamatsu:
                         subArrayHeight
                     )
             # default is to do nothing
-            
-            # TODO: Juan - "IMAQ Configure List VI"
-            # https://documentation.help/NI-IMAQ-VI/IMAQ_Configure_List.html
-            """
-            Configures a buffer list to be used in an acquisition.
-            
-            Args:
-                'Region of interest': (int32) Region of Interest is defined by an
-                    array of four elements [Left, Top, Right, Bottom]. You must set
-                    the width [Right-Left] to a multiple of eight. If Region of 
-                    Interest is not connected or empty, the entire acquisition 
-                    window is captured.
-                'IMAQSession in'
-                'Continuous?': int value, e.g. from an enum variable like 
-                    {'One-Shot': 0, 'Continuous': 1}
-                'Number of buffers' (u32), e.g. from an enum variable like
-                    {'System': 0, 'Onboard': 1}
-                'error_in'
-                'MemoryLocation'
-                
-            Returns:
-                'IMAQSession out'
-            """
-            roi = [self.frameGrabberAcquistionRegion.Top,
-                   self.frameGrabberAcquistionRegion.Left,
-                   self.frameGrabberAcquistionRegion.Right,
-                   self.frameGrabberAcquistionRegion.Bottom]
-                   
-            #TODO: don't hardcode numbers here; enter from a value dict
-            #self.session.IMAQConfigureList(roi, 1, numImageBuffers, 0)
 
-            # @Juan -- where do you incorporate the roi here?
-            self.session.create_buffer_list(self.numImageBuffers) 
+            # TODO : make sure all values referenced below are within the camera's acquisition region
+            roi = {"Top": self.frameGrabberAcquistionRegion.Top,
+                   "Left": self.frameGrabberAcquistionRegion.Left,
+                   "Right":self.frameGrabberAcquistionRegion.Right,
+                   "Bottom": self.frameGrabberAcquistionRegion.Bottom}
+
+            width = roi["Right"]-roi["Left"]
+            height = roi["Bottom"]-roi["Top"]
+
+            self.session.get_attribute("ROI Width")
+            acq_width = self.session.attributes["ROI Width"]
+            self.session.get_attribute("ROI Height")
+            acq_height = self.session.attributes["ROI Height"]
+
+            if width < acq_width:
+                self.session.set_attribute2("ROI Width",c_uint32(width))
+            if height < acq_height:
+                self.session.set_attribute2("ROI Height",c_uint32(height))
+            self.session.set_attribute2("ROI Left",roi["Left"])
+            self.session.set_attribute2("ROI Top",roi["Top"])
+
+
+            self.session.create_buffer_list(self.numImageBuffers)
 
             # set up the image buffers
             for buf_num in range(self.numImageBuffers):
@@ -471,7 +462,7 @@ class Hamamatsu:
                     "Size",
                     self.session.buffer_size
                 )
-                if buf_num == self.numImageBuffers:
+                if buf_num == self.numImageBuffers-1:
                     buf_cmd = self.session.BUFFER_COMMANDS["Loop"]
                 else:
                     buf_cmd = self.session.BUFFER_COMMANDS["Next"]
@@ -480,7 +471,9 @@ class Hamamatsu:
                     "Command",
                     c_uint32(buf_cmd)
                 )
-            self.session.buflist_init = True
+            self.session.buff_list_init = True
+
+
 
             '''
             This stuff below was expected to be in the for loop. It shadows the functionality of the

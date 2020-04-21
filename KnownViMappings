@@ -19,6 +19,6 @@ INTERFACE_ID = uInt32       #c_uint32
 SESSION_ID = uInt32         #c_uint32
 EVENT_ID = uInt32           #c_uint32
 PULSE_ID = uInt32           #c_uint32
-BUFLIST_ID = uInt32        #c_uint32
+BUFLIST_ID = uInt32         #c_uint32
 GUIHDL = uInt32             #c_uint32
 IMG_ERR = int32             #c_int32

@@ -10,7 +10,7 @@ interface data.
 
 from ctypes import *
 import os
-from typing import Tuple
+from typing import Tuple, Callable
 
 
 class FrameBuffer:
@@ -127,13 +127,17 @@ class NiImaqSession:
     IMG_ATTR_ROI_WIDTH = _IMG_BASE + int(0x01A6, 16)
     IMG_ATTR_ROI_HEIGHT = _IMG_BASE + int(0x01A7, 16)
     IMG_ATTR_BYTESPERPIXEL = _IMG_BASE + int(0x0066, 16)
+    IMG_ATTR_ROI_LEFT = _IMG_BASE + int(0x01A4,16)
+    IMG_ATTR_ROI_TOP = _IMG_BASE + int(0x01A5,16)
 
     # dict of img keys corresponding to uint32 variables. Be careful of typing when adding variables
     # to dicts
     IMG_ATTRIBUTES_UINT32 = {
         "ROI Width": IMG_ATTR_ROI_WIDTH,
         "ROI Height": IMG_ATTR_ROI_HEIGHT,
-        "Bytes Per Pixel": IMG_ATTR_BYTESPERPIXEL
+        "Bytes Per Pixel": IMG_ATTR_BYTESPERPIXEL,
+        "ROI Left": IMG_ATTR_ROI_LEFT,
+        "ROI Top": IMG_ATTR_ROI_TOP
     }
 
     # Add all keys from ATTRIBUTE dicts to this array
@@ -152,7 +156,7 @@ class NiImaqSession:
         self.buflist_id = c_uint32(0)
         self.num_buffers = 0
         self.buffer_size = 0
-        self.buflist_init = False  # Has the buffer list been created and initialized?
+        self.buff_list_init = False  # Has the buffer list been created and initialized?
 
         # dict of values mapped to keys
         self.attributes = {}
@@ -303,7 +307,6 @@ class NiImaqSession:
             self.check(error_code, traceback_msg="close interface")
 
         return error_code
-# Buffer Management functions ----------------------------------------------------------------------
 
     def get_attribute(
             self,
@@ -315,7 +318,8 @@ class NiImaqSession:
 
         wraps imgGetAttribute
         Args:
-            attribute : string indicating which attribute to be read
+            attribute : string indicating which attribute to be read, valid values listed in
+                NiImaqSession.ATTRIBUTE_KEYS
             check_error : should the check() function be called once operation has completed
 
         Returns:
@@ -335,15 +339,67 @@ class NiImaqSession:
         error_code = self.imaq.imgGetAttribute(
             self.session_id,  # SESSION_ID or INTERFACE_ID
             attr,             # uInt32
-            byref(attr_bf),   # void*
+            byref(attr_bf),   # void*, typing depends on attr
         )
 
         self.attributes[attribute] = attr_bf
 
         if error_code != 0 and check_error:
-            self.check(error_code, traceback_msg=f"get attribute {attribute}")
+            self.check(error_code, traceback_msg=f"get attribute\n attribute : {attribute}")
 
         return error_code
+
+    def set_attribute2(
+            self,
+            attribute: str,
+            value,
+            check_error: bool = True
+    ):
+        """
+        Sets an attribute value
+
+        wraps imgSetAttribute2()
+        Args:
+            attribute : string indicating which attribute to be read, valid values listed in
+                NiImaqSession.ATTRIBUTE_KEYS
+
+            value (variable type): value to be set to attribute. Typing listed in NiImaqSession
+                type list names. Type conversion between python types and c types
+                are done internally.
+                 e.g : NiImaqSession.IMG_ATTRIBUTES_UINT32 maps attributes stored, set and returned
+                    as c_uint32()s. To set one of these attributes using this function pass a python
+                    int or any variable which can be safely (and accurately) cast as a c_int32().
+
+            check_error : should the check() function be called once operation has completed
+
+        Returns:
+            error code which reports status of operation.
+
+                0 = Success, positive values = Warnings,
+                negative values = Errors
+        """
+        assert attribute in self.ATTRIBUTE_KEYS, f"{attribute} not a valid attribute"
+
+        if attribute in self.IMG_ATTRIBUTES_UINT32.keys():
+            attr = c_uint32(self.IMG_ATTRIBUTES_UINT32[attribute])
+            attr_val = c_uint32(value)
+        else:
+            return None  # to appease pycharm
+
+        error_code = self.imaq.imgSetAttribute2(
+            self.session_id,  # SESSION_ID
+            attr,             # uInt32
+            attr_val          # variable argument
+        )
+
+        self.attributes[attr] = attr_val
+        if error_code != 0 and check_error:
+            msg = f"set attribute 2\n attribute : {attribute} value : {value}"
+            self.check(error_code, traceback_msg=msg)
+
+        return error_code
+
+# Buffer Management functions ----------------------------------------------------------------------
 
     def compute_buffer_size(self) -> c_uint32:
         """
@@ -373,19 +429,75 @@ class NiImaqSession:
 
     def dispose_buffer(
             self,
-            buf_addr: c_void_p
+            buffer_pt: c_void_p,  # TODO : Not sure this will work? - Juan
+            check_error: bool = True
     ):
         """
         TODO @Juan Finish this up man
         Disposes of the buffer pointed to by buf_addr.
 
-        wraps imgCreateBuffer
+        wraps imgDisposeBuffer
 
         Args:
-            buf_addr : a pointer to an area of memory that stores the new buffer address
-        Returns:
+            buffer_pt : a pointer to an area of memory that stores the buffer address
 
+            check_error : should the check() function be called once operation has completed
+
+        Returns:
+            error code which reports status of operation.
+
+                0 = Success, positive values = Warnings,
+                negative values = Errors
         """
+
+        error_code = self.imaq.imgDisposeBuffer(
+            buffer_pt  # void*
+        )
+
+        if error_code != 0 and check_error:
+            self.check(error_code, traceback_msg="Dispose Buffer")
+
+        return error_code
+
+    def dispose_buffer_list(
+            self,
+            free_resources: bool = True,
+            check_error: bool = True
+    ):
+        """
+        Disposes of either buffers created by self.create_buffer_list() and the buffer list
+        specified by self.buflist_id, or of only the buffer list
+
+        wraps imgDisposeBufList()
+        Args:
+            free_resources : Determines whether both the buffers and the buffer list are disposed
+                or only the buffer list will be disposed. If True, the function disposes of all
+                driver-allocated buffers assigned to this list in addition to the buffer list. If
+
+            check_error : should the check() function be called once operation has completed
+
+        Returns:
+            error code which reports status of operation.
+
+                0 = Success, positive values = Warnings,
+                negative values = Errors
+        """
+
+        error_code = self.imaq.imgDisposeBufList(
+            self.buflist_id,          # BUFLIST_ID
+            c_uint32(free_resources)  # uInt32
+        )
+
+        if error_code == 0:
+            self.buflist_id = c_uint32(0)
+            if free_resources:
+                self.buffers = [c_void_p(0)]*self.num_buffers
+            self.buff_list_init = False
+
+        if error_code != 0 and check_error:
+            self.check(error_code, traceback_msg="Dispose Buffer List")
+
+        return error_code
 
     def create_buffer_list(
             self,
@@ -417,8 +529,9 @@ class NiImaqSession:
 
         if error_code != 0 and check_error:
             self.check(error_code, traceback_msg="create_buffer_list")
-        self.num_buffers = no_elements
-        self.buffers = [c_void_p]*self.num_buffers  # Initialize a buffer list of a given size
+        if error_code == 0:
+            self.num_buffers = no_elements
+            self.buffers = [c_void_p(0)]*self.num_buffers  # Initialize a buffer list of a given size
 
         return error_code
 
@@ -428,7 +541,7 @@ class NiImaqSession:
             system_memory: bool = True,
             buffer_size: int = 0,
             check_error: bool = True
-    ) -> int:
+    ) -> Tuple[int, c_void_p]:
         """
         Creates a frame buffer based on the ROI in this session. If bufferSize is 0, the buffer
         size is computed internally as follows:
@@ -468,7 +581,7 @@ class NiImaqSession:
             self.session_id,        # SESSION_ID
             where,                  # uInt32
             c_uint32(buffer_size),  # uInt32
-            byref(buffer_pt)   # void**
+            byref(buffer_pt)        # void**
         )
 
         # self.frame_buffers.append(buffer_pointer) # Not sure we want this yet
@@ -476,7 +589,7 @@ class NiImaqSession:
         if error_code != 0 and check_error:
             self.check(error_code, traceback_msg="create buffer")
 
-        return error_code,buffer_pt
+        return error_code, buffer_pt
 
     def set_buf_element2(
             self,
@@ -520,10 +633,10 @@ class NiImaqSession:
         assert item_type in self.ITEM_TYPES.keys(), msg
 
         error_code = self.imaq.imgSetBufferElement2(
-            self.buflist_id,                       # BUFLIST_ID
-            c_uint32(element),                     # uInt32
+            self.buflist_id,                         # BUFLIST_ID
+            c_uint32(element),                       # uInt32
             c_uint32(self.ITEM_TYPES_2[item_type]),  # uInt32
-            value                                  # variable argument
+            value                                    # variable argument
         )
 
         if error_code != 0 and check_error:
@@ -533,6 +646,93 @@ class NiImaqSession:
             )
 
         return error_code
+
+    def mem_lock(
+            self,
+            check_error: bool = True
+    ):
+        """
+
+        Args:
+            check_error : should the check() function be called once operation has completed
+
+        Returns:
+            error code which reports status of operation.
+
+                0 = Success, positive values = Warnings,
+                negative values = Errors
+        """
+
+    def session_configure(
+            self,
+            check_error: bool = True
+    ):
+        """
+        Configures hardware in preparation for an acquisision using self.buflist_id.
+
+        Upon successfull completion of this call, you can call self.session_aquire()
+
+        wraps imgSessionConfigure()
+        Args:
+            check_error : should the check() function be called once operation has completed
+
+        Returns:
+            error code which reports status of operation.
+
+                0 = Success, positive values = Warnings,
+                negative values = Errors
+        """
+
+        error_code = self.imaq.imgSessionConfigure(
+            self.session_id,  # SESSION_ID
+            self.buflist_id   # BUFLIST_ID
+        )
+
+        if error_code != 0 and check_error:
+            self.check(
+                error_code,
+                traceback_msg=f"session configure"
+            )
+
+        return error_code
+
+    def session_acquire(
+            self,
+            asynchronous: bool,
+            callback: Callable[[c_uint32, c_int32, c_uint32, c_void_p], c_uint32] = None,
+            check_error: bool = True
+    ):
+        """
+        Starts an acquisition to the buffers in self.buflist_id.
+
+        Acquisition can be started synchronously or asynchronously.
+
+        wraps imgSessionAcquire
+
+        Args:
+            asynchronous : asynchrnous flag. If False, this function does not return until the
+                acquisition completes
+            callback : A pointer to a c function that serves as a callback function. If asynchronous
+                is True, the callback functiono is called under one of the following two conditions:
+                    * If the acquisition is non-continuous, the callback is called when all buffers
+                        acquired
+                    * If the acquisition is continuous, the callback is called after each buffer
+                        becomes available.
+                    Note : For non-continuous acquisitions, the callback function must return zero.
+                    For continuous acquisitions, the return value of the callback function
+                    determines the behavior of the driver for subsequent buffer completions. Return
+                    zero to disregard future buffer complete notifications. Return a non-zero value
+                    to continue to receive callbacks.
+            check_error : should the check() function be called once operation has completed
+
+        Returns:
+            error code which reports status of operation.
+
+                0 = Success, positive values = Warnings,
+                negative values = Errors
+        """
+
+        # TODO: implement this
 
     def hamamatsu_serial(
             self,
@@ -583,7 +783,7 @@ class NiImaqSession:
 
         if error_code != 0 and check_error:
             self.check(error_code, f"imaq serial write command {command}")
-            return error_code
+            return error_code, "Error"
 
         str_bf = create_string_buffer(b"", bf_size.value)
         error_code = self.imaq.imgSessionSerialRead(
@@ -592,6 +792,10 @@ class NiImaqSession:
             byref(bf_size),   # uInt32*
             c_int32(timeout)  # Int32
         )
+
+        if error_code != 0 and check_error:
+            self.check(error_code, f"imaq serial read command {command}")
+            return error_code, "Error"
 
         '''
         Not 100% on why this is here but it's done in the labview. In labview it's added to the 
