@@ -1,12 +1,12 @@
-from ctypes import c_uint32
-import xml.etree.ElementTree as ET
-
 """
 Trigger class for the PXI Server
 SaffmanLab, University of Wisconsin - Madison
-
-Author(s): Preston Huft
 """
+
+from ctypes import c_uint32
+import xml.etree.ElementTree as ET
+from nidaqmx.constants import Edge
+
 
 class Trigger:
     """ Trigger data type for PXI server """
@@ -79,9 +79,9 @@ class StartTrigger:
     edges = {"Rising Edge": 12,
              "Falling Edge": 13}
 
-    ao_edges = {"Rising" : 10280,
-                "Falling": 10171,
-                "Default": "Rising"}
+    nidaqmx_edges = {"Rising" : Edge.RISING,
+                     "Falling": Edge.FALLING,
+                     "Default": "Rising"}
 
     def __init__(self, waitForStartTrigger=False, source="", description="", 
                     edge=edges["Rising Edge"]):
