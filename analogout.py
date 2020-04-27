@@ -7,16 +7,22 @@ SaffmanLab, University of Wisconsin - Madison
 # maybe call a function in pxi when the connection is stopped or reset, which
 # then in turn sets stop/reset attributes in each of the device classes
 
-
+## modules 
 import nidaqmx
 from nidaqmx.constants import Edge, AcquisitionType, Signal
 import numpy as np
 import xml.etree.ElementTree as ET
 import csv
 from io import StringIO
+from recordclass import recordclass as rc
+
+## local imports
+from trigger import StartTrigger
 
 
 class AnalogOutput:
+
+    ExportTrigger = rc('ExportTrigger', ('exportStartTrigger', 'outputTerminal'))
     
     def __init__(self):
 
@@ -27,14 +33,14 @@ class AnalogOutput:
         #self.minValue = 
         #self.maxValue
 
+        self.exportTrigger = self.ExportTrigger(False, None)
         self.startTrigger = StartTrigger()
         self.isInitialized = False
 
 
-    # TODO: good candidate for a unit test
     def wave_from_str(self, wave_str, delim=' '):
         """
-        Efficiently build waveform from a string
+        Efficiently build return waveform as a numpy ndarray from a string
 
         Args:
             'wave_str': (str) a (possibly multi-line) string of space-delimited
@@ -42,31 +48,28 @@ class AnalogOutput:
             'delim': (str, optional) the value delimiter. ' ' by default
         Returns:
             'wave_arr': (np.ndarray, float) the waveform with one row per line 
-                in wave_str, and one column per value in a line
+                in wave_str, and one column per value in a line. The shape for 
+                of the output is (samples, channels per sample)
         """
 
-        with StringIO(wstr) as f:
+        with StringIO(wave_str) as f:
             reader = csv.reader(f, delimiter=delim)
             cols = len(next(reader))
-            #print(f"cols={cols}") # DEBUG
             try:
                 rows = sum([1 for row in reader]) + 1
             except StopIteration:
                 rows = 1
-                #print(f"rows={rows}") # DEBUG
             wave_arr = np.empty((rows, cols), float)
     
-        with StringIO(wstr) as f:
+        with StringIO(wave_str) as f:
             reader = csv.reader(f, delimiter=delim)
             for i,row in enumerate(reader):
-                #print(row, len(row),'\n') # DEBUG
                 wave_arr[i,:] = row
-        #print(wave) # DEBUG
 
         return wave_arr
 
 
-    def str_to_bool(boolstr):
+    def str_to_bool(self, boolstr):
         """ 
         return True or False case-insensitively for a string 'true' or 'false'
 
@@ -104,7 +107,7 @@ class AnalogOutput:
             if type(child) == ET.Element:
 
                 if child.tag == "enable":
-                    self.enable = str_to_bool(child.text)
+                    self.enable = self.str_to_bool(child.text)
 
                 elif child.tag == "physicalChannels":
                     self.physicalChannels = child.text
@@ -116,16 +119,16 @@ class AnalogOutput:
                     self.maxValue = float(child.text)
 
                 elif child.tag == "clockRate":
-                    self.sampRate = float(child.text) # samples per second in LabVIEW
+                    self.sampleRate = float(child.text) # samples per second in LabVIEW
 
                 elif child.tag == "waveform":
-                    self.waveforms = wave_from_str(child.text)
+                    self.waveforms = self.wave_from_str(child.text)
 
                 elif child.tag == "waitForStartTrigger":
-                    self.waitForStartTrigger = str_to_bool(child.text)
+                    self.waitForStartTrigger = self.str_to_bool(child.text)
 
                 elif child.tag == "exportStartTrigger":
-                    self.exportStartTrigger = str_to_bool(child.text)
+                    self.exportTrigger.exportStartTrigger = self.str_to_bool(child.text)
 
                 elif child.tag == "triggerSource":
                     self.startTrigger.source = child.text
@@ -143,7 +146,7 @@ class AnalogOutput:
 
                 # TODO: external clock could be a class as in LabVIEW. TBD.
                 elif child.tag == "useExternalClock":
-                    self.useExternalClock = str_to_bool(child.text)
+                    self.useExternalClock = self.str_to_bool(child.text)
 
                 elif child.tag == "externalClockSource":
                     self.externalClockSource = child.text
@@ -153,9 +156,10 @@ class AnalogOutput:
 
                 else:
                     # TODO: replace with logger
-                    print(f"Unrecognized XML tag {child.tag} in <AnalogOutput>")
+                    print(f"Unrecognized XML tag \'{child.tag}\' in <AnalogOutput>")
 
 
+    # TODO: test with hardware
     def init(self):
         """
         Create and initialize an nidaqmx Task object
@@ -167,7 +171,7 @@ class AnalogOutput:
             if self.task != None:
                 self.task.close()
 
-            self.task = nidaqmx.Task()
+            self.task = nidaqmx.Task() # can't tell if task.Task() or just Task()
             self.task.ao_channels.add_ao_voltage_chan(
                 self.physicalChannels,
                 min_val = self.minValue,
@@ -194,19 +198,27 @@ class AnalogOutput:
             self.isInitialized = True
 
 
+    # TODO: test with hardware
     def update(self):
         """
         Update the Analog Output hardware
         """
         
+        # TODO: check if stop or reset
+        
         if self.enable:
             pass
             
-            # TODO: Timing (Sample clock) VI
             channels, samples = self.waveforms.shape
             sample_mode = AcquisitionType.FINITE 
-            # args: samples per channel, channels, rate, source, active edge: 12522
-            #
+            self.task.timing.cfg_samp_clk_timing(
+                    rate=self.sampleRate, 
+                    active_edge=Edge.RISING, # default
+                    sample_mode=AcquisitionType.FINITE, # default
+                    samps_per_chan=samples)
         
-            # TODO: DAQ Write
- 
+            # Auto-start is false by default when the data passed in contains
+            # more than one sample per channel
+            self.task.write(self.waveforms)
+            
+            
