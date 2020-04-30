@@ -73,10 +73,21 @@ class Hamamatsu:
         self.cameraTemp = 0.0
         self.lastFrameAcquired = -1
         
-        # TODO: these things are implemented with their own classes in labview, 
-        # could do that here too. 
-        self.cameraSubArrayAcquistionRegion = CameraSubArrayAcquistionRegion()
-        self.frameGrabberAcquisitionRegion = FrameGrabberAcquistionRegion()
+        # Dicts instead of classes to reduce complexity
+        # Uses uint16 in labview, use ints here, cast where necessary
+        self.cameraSubArrayAcquistionRegion = {
+            "Left": 0,
+            "Top": 0,
+            "Width": 0,
+            "Height": 0
+        }
+        # Uses int32 in labview, use ints here, cast where necessary
+        self.frameGrabberAcquisitionRegion = {
+            "Left":0,
+            "Top":0,
+            "Right":0,
+            "Bottom":0
+        }
 
         self.session = NiImaqSession()
        
@@ -206,7 +217,7 @@ class Hamamatsu:
                     
                 elif child.tag == "subArrayLeft":
                     try:
-                        self.cameraSubArrayAcquistionRegion.left = float(child.text)
+                        self.cameraSubArrayAcquistionRegion["Left"] = int(child.text)
                     except ValueError as e: #
                         # TODO replace with logger
                         print(f"{e}\n{child.tag} value {child.text} is non-numeric!")
@@ -214,7 +225,7 @@ class Hamamatsu:
 
                 elif child.tag == "subArrayTop":
                     try:
-                        self.cameraSubArrayAcquistionRegion.top = float(child.text)
+                        self.cameraSubArrayAcquistionRegion["Top"] = int(child.text)
                     except ValueError as e:  #
                         # TODO replace with logger
                         print(f"{e}\n{child.tag} value {child.text} is non-numeric!")
@@ -222,7 +233,7 @@ class Hamamatsu:
                         
                 elif child.tag == "subArrayWidth":
                     try:
-                        self.cameraSubArrayAcquistionRegion.width = float(child.text)
+                        self.cameraSubArrayAcquistionRegion["Width"] = int(child.text)
                     except ValueError as e:  #
                         # TODO replace with logger
                         print(f"{e}\n{child.tag} value {child.text} is non-numeric!")
@@ -230,7 +241,7 @@ class Hamamatsu:
                         
                 elif child.tag == "subArrayHeight":
                     try:
-                        self.cameraSubArrayAcquistionRegion.height = float(child.text)
+                        self.cameraSubArrayAcquistionRegion["Height"] = int(child.text)
                     except ValueError as e:  #
                         # TODO replace with logger
                         print(f"{e}\n{child.tag} value {child.text} is non-numeric!")
@@ -238,7 +249,7 @@ class Hamamatsu:
                         
                 elif child.tag == "frameGrabberAcquisitionRegionLeft":
                     try:
-                        self.frameGrabberAcquisitionRegion.left = float(child.text)
+                        self.frameGrabberAcquisitionRegion["Left"] = int(child.text)
                     except ValueError as e:  #
                         # TODO replace with logger
                         print(f"{e}\n{child.tag} value {child.text} is non-numeric!")
@@ -246,7 +257,7 @@ class Hamamatsu:
                     
                 elif child.tag == "frameGrabberAcquisitionRegionTop":
                     try:
-                        self.frameGrabberAcquisitionRegion.top = float(child.text)
+                        self.frameGrabberAcquisitionRegion["Top"] = int(child.text)
                     except ValueError as e:  #
                         # TODO replace with logger
                         print(f"{e}\n{child.tag} value {child.text} is non-numeric!")
@@ -254,7 +265,7 @@ class Hamamatsu:
                         
                 elif child.tag == "frameGrabberAcquisitionRegionRight":
                     try:
-                        self.frameGrabberAcquisitionRegion.right = float(child.text)
+                        self.frameGrabberAcquisitionRegion["Right"] = int(child.text)
                     except ValueError as e:  #
                         # TODO replace with logger
                         print(f"{e}\n{child.tag} value {child.text} is non-numeric!")
@@ -262,7 +273,7 @@ class Hamamatsu:
                         
                 elif child.tag == "frameGrabberAcquisitionRegionBottom":
                     try:
-                        self.frameGrabberAcquisitionRegion.bottom = float(child.text)
+                        self.frameGrabberAcquisitionRegion["Bottom"] = int(child.text)
                     except ValueError as e:  #
                         # TODO replace with logger
                         print(f"{e}\n{child.tag} value {child.text} is non-numeric!")
@@ -270,7 +281,7 @@ class Hamamatsu:
                         
                 elif child.tag == "numImageBuffers":
                     try:
-                        self.numImageBuffers = float(child.text)
+                        self.numImageBuffers = int(child.text)
                     except ValueError as e:  #
                         # TODO replace with logger
                         print(f"{e}\n{child.tag} value {child.text} is non-numeric!")
@@ -305,23 +316,11 @@ class Hamamatsu:
 
         if self.enable:
 
-            if self.imaqSession is not None:
+            if self.session.session_id.value != 0:
                 self.session.close()
 
-                # Not sure what to do here - Juan
-
-                # ^The point of this block is just to close the IMAQ Session
-                # and do general cleanup, like discarding old images in the
-                # dispose call in the comment below - Preston
-                '''
-                This clears all existing image buffers in Labview. There doesn't seem to be an exact
-                mapping to a C function yet. But you can loop through image buffers if you're trying
-                to be clean about this. This functionality will be folded into the close() function.
-                '''
-                # IMAQSession.dispose(destroyOldImages=True) # classmethod
-                # in labview this maps to a class method indep of sessions
-                # TODO : Juan. implement the same in python using a c function
-                pass
+            if self.session.buff_list_init:
+                self.session.dispose_buffer_list()
 
             #  "img0" really shouldn't be hard-coded but it is in labview so we keep for now
             self.session.open_interface("img0")
@@ -388,44 +387,40 @@ class Hamamatsu:
                     
                 elif self.scanMode == "SMD A": # sub-array
 
-                    subArrayLeft = ("SHO\s"+
-                                    str(CameraSubArrayAcquistionRegion.left))
+                    sub_array_left = ("SHO\s"+
+                                    str(self.cameraSubArrayAcquistionRegion["Left"]))
 
                     self.session.hamamatsu_serial(
-                        subArrayLeft,
-                        subArrayLeft
+                        sub_array_left,
+                        sub_array_left
                     )
 
-                    subArrayTop = ("SVO\s"+
-                                   str(CameraSubArrayAcquistionRegion.top))
+                    sub_array_top = ("SVO\s"+
+                                   str(self.cameraSubArrayAcquistionRegion["Top"]))
 
                     self.session.hamamatsu_serial(
-                        subArrayTop,
-                        subArrayTop
+                        sub_array_top,
+                        sub_array_top
                     )
 
-                    subArrayWidth = ("SHW\s"+
-                                    str(CameraSubArrayAcquistionRegion.width))
+                    sub_array_width = ("SHW\s"+
+                                    str(self.cameraSubArrayAcquistionRegion["Width"]))
 
                     self.session.hamamatsu_serial(
-                        subArrayWidth,
-                        subArrayWidth
+                        sub_array_width,
+                        sub_array_width
                     )
 
-                    subArrayHeight = ("SVW\s"+
-                                     str(CameraSubArrayAcquistionRegion.height))
+                    sub_array_height = ("SVW\s"+
+                                     str(self.cameraSubArrayAcquistionRegion["Height"]))
 
                     self.session.hamamatsu_serial(
-                        subArrayHeight,
-                        subArrayHeight
+                        sub_array_height,
+                        sub_array_height
                     )
             # default is to do nothing
 
-            # TODO : make sure all values referenced below are within the camera's acquisition region
-            roi = {"Top": self.frameGrabberAcquistionRegion.Top,
-                   "Left": self.frameGrabberAcquistionRegion.Left,
-                   "Right":self.frameGrabberAcquistionRegion.Right,
-                   "Bottom": self.frameGrabberAcquistionRegion.Bottom}
+            roi = self.frameGrabberAcquisitionRegion
 
             width = roi["Right"]-roi["Left"]
             height = roi["Bottom"]-roi["Top"]
@@ -451,7 +446,7 @@ class Hamamatsu:
                 # Juan's outline based on c ll ring example  -------------------
 
                 self.session.compute_buffer_size()
-                self.session.create_buffer(self.session.buffers[buf_num])
+                erc, self.session.buffers[buf_num] = self.session.create_buffer()
                 self.session.set_buf_element2(
                     buf_num,
                     "Address",
@@ -571,6 +566,22 @@ class Hamamatsu:
     
     
     def start(self):
+        # TODO : Implement this
+        if not self.enable:
+            return
+        self.session.session_acquire(asynchronous=True)
+        err_c, trig_mode = self.session.hamamatsu_serial("?AMD")
+        self.session.status() # TODO : Implement NiImaqSession.status()
+        '''
+        Returns status information about the acquisition, such as the state of the acquisition and 
+        the last valid buffer acquired
+        
+        Returns:
+            Session
+            Acquiring : Boolean
+            Last Valid Buffer Index: Int, buffer list index of last acquired image
+            Last Valid Buffer Number: Int, cumulative number of last acquired image
+        '''
         pass
                 
                 
