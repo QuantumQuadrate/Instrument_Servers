@@ -19,55 +19,7 @@ from recordclass import recordclass as rc
 
 ## local imports
 from trigger import StartTrigger
-
-
-# TODO: there are a number of functions such as this which exist solely to 
-# immitate LabVIEW VIs. Could put all of these in a dedicated module. 
-def int_from_str(numstr): 
-    """ 
-    Returns a signed integer ancored to beginning of a string
-    
-    behaves like LabVIEW Number from String VI (with the VI defaults
-    
-    Args:
-        'numstr': a string which may contain a signed number at the beginning
-    
-    Returns:
-        'num': (int) a signed integer, if found
-    
-        Example input/output pairs:
-        
-            Input     | Output
-            -----------------
-            '-4.50A'  | -4.5
-            '31415q' | 31415
-            'ph7cy'   | None, throws ValueError
-    """
-    try:
-        return int(re.findall("^-?\d+", numstr)[0])
-    except ValueError as e:
-        # TODO: replace with logger
-        print(f'String {numstr} is non-numeric. \n {e}')
-        raise
-        
-        
-def str_to_bool(boolstr):
-        """ 
-        return True or False case-insensitively for a string 'true' or 'false'
-
-        Args: 
-            'boolstr': string to be converted; not case-sensitive
-        Return:
-            'boolean': True or False. 
-        """
-        boolstr = boolstr.lower()
-        if boolstr == "true":
-            return True
-        elif boolstr == "false":
-            return False
-        else:
-            print("Expected a string 'true' or 'false' but received {boolstr}")
-            raise
+from instrumentfuncs import *
 
 
 class AnalogInput:
@@ -132,9 +84,9 @@ class AnalogInput:
                 elif child.tag == "ground_mode":
                     self.groundMode = child.text
                 
-                elif child.tag == "triggerEdge": # TODO: make ao_edges the correct form
+                elif child.tag == "triggerEdge":
                     try:
-                        # TODO: could make dictionary keys in StartTrigger 
+                        # CODO: could make dictionary keys in StartTrigger 
                         # lowercase and then just .lower() the capitalized keys
                         # passed in elsewhere 
                         text = child.text[0].upper() + child.text[1:]
@@ -194,6 +146,3 @@ class AnalogInput:
                 self.start_trigger.cfg_dig_edge_start_trig(
                     trigger_source = self.startTrigger.source,
                     trigger_edge=self.startTrigger.edge)
-    
-    
-        
