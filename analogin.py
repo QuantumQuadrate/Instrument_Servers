@@ -13,6 +13,7 @@ from nidaqmx.constants import Edge, AcquisitionType, Signal, TerminalConfigurati
 import numpy as np
 import xml.etree.ElementTree as ET
 import csv
+import re
 from io import StringIO
 from recordclass import recordclass as rc
 
@@ -48,13 +49,40 @@ def int_from_str(numstr):
         # TODO: replace with logger
         print(f'String {numstr} is non-numeric. \n {e}')
         raise
+        
+        
+def str_to_bool(boolstr):
+        """ 
+        return True or False case-insensitively for a string 'true' or 'false'
+
+        Args: 
+            'boolstr': string to be converted; not case-sensitive
+        Return:
+            'boolean': True or False. 
+        """
+        boolstr = boolstr.lower()
+        if boolstr == "true":
+            return True
+        elif boolstr == "false":
+            return False
+        else:
+            print("Expected a string 'true' or 'false' but received {boolstr}")
+            raise
 
 
 class AnalogInput:
 
     def __init__(self):
+        """
+        Constructor for the AnalogInput class. Not intended for initialization.
+        
+        Instance attributes are set to default values here which are not 
+        necessarily suitable for running measurements with this class. Proper
+        initialization should be done through the load_xml method with xml
+        from CsPy. 
+        """
     
-        self.expectedRoot = "AnalogOutput"
+        self.expectedRoot = "AnalogInput"
         self.enable = False
         self.groundMode = ''
         self.sampleRate = 0
@@ -64,25 +92,6 @@ class AnalogInput:
         self.maxValue = 10.0
         self.startTrigger = StartTrigger()
         self.task = None
-       
-       
-    def str_to_bool(self, boolstr):
-        """ 
-        return True or False case-insensitively for a string 'true' or 'false'
-
-        Args: 
-            'boolstr': string to be converted; not case-sensitive
-        Return:
-            'boolean': True or False. 
-        """
-         boolstr = boolstr.lower()
-        if boolstr == "true":
-            return True
-        elif boolstr == "false":
-            return False
-        else:
-            print("Expected a string 'true' or 'false' but received {boolstr}")
-            raise
             
     
     def load_xml(self, node):
@@ -103,7 +112,7 @@ class AnalogInput:
             if type(child) == ET.Element:
             
                 if child.tag == "enable":
-                    self.enable = self.str_to_bool(child.text)
+                    self.enable = str_to_bool(child.text)
             
                 elif child.tag == "sample_rate":
                     self.sampleRate = float(child.text) # [Hz]
@@ -150,18 +159,27 @@ class AnalogInput:
             if self.task != None:
                 self.task.close()
             
-            try: # configure the output terminal from an NI Enum
+            # configure the output terminal from an NI Enum
+            
+            # in the LabVIEW code, no error handling is done when an invalid
+            # terminal_config is supplied; the default is used. The xml coming 
+            # from Rb's CsPy supplies the channel name for self.source, rather 
+            # than a valid key for TerminalConfiguration, hence the default is 
+            # value is what gets used. This seems like a bug on the CsPy side,
+            # even if the default here is desired.
+            try: 
                 inputTerminalConfig = TerminalConfiguration[self.source]
             except KeyError as e:
                 # TODO replace with logger
-                print("Invalid output terminal setting \'{self.source}\' \n {e}")
-                raise
+                print(f"Invalid output terminal setting \'{self.source}\' \n"+
+                         "Using default, 'NRSE' , instead")
+                inputTerminalConfig = TerminalConfiguration['NRSE']
                 
             self.task = nidaqmx.Task() # can't tell if task.Task() or just Task()
             self.task.ai_channels.add_ai_voltage_chan(
                 self.physicalChannels,
                 min_val = self.minValue,
-                max_val = self.maxValue
+                max_val = self.maxValue,
                 terminal_config=inputTerminalConfig)
             
             # Setup timing. Use the onboard clock
@@ -174,7 +192,7 @@ class AnalogInput:
             # Setup start trigger if configured to wait for one
             if self.startTrigger.waitForStartTrigger:
                 self.start_trigger.cfg_dig_edge_start_trig(
-                    trigger_source = self.startTrigger.source
+                    trigger_source = self.startTrigger.source,
                     trigger_edge=self.startTrigger.edge)
     
     
