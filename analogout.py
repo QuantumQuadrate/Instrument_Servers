@@ -23,6 +23,7 @@ from trigger import StartTrigger
 class AnalogOutput:
 
     ExportTrigger = rc('ExportTrigger', ('exportStartTrigger', 'outputTerminal'))
+    ExternalClock = rc('ExternalClock', ('useExternalClock', 'source', 'maxClockRate'))
     
     def __init__(self):
 
@@ -34,6 +35,7 @@ class AnalogOutput:
         #self.maxValue
 
         self.exportTrigger = self.ExportTrigger(False, None)
+        self.externalClock = self.ExportTrigger(False, '', 0)
         self.startTrigger = StartTrigger()
         self.isInitialized = False
 
@@ -134,9 +136,9 @@ class AnalogOutput:
                     self.startTrigger.source = child.text
 
                 elif child.tag == "exportStartTriggerDestination":
-                    self.exportTrigger.outputTerminal = child.text # TODO implement the exportTrigger
+                    self.exportTrigger.outputTerminal = child.text
 
-                elif child.tag == "triggerEdge": # TODO: make ao_edges the correct form
+                elif child.tag == "triggerEdge":
                     try:
                         self.startTrigger.edge = StartTrigger.nidaqmx_edges[child.text]
                     except KeyError as e:
@@ -144,15 +146,14 @@ class AnalogOutput:
                         print(f"Not a valid {child.tag} value {child.text} \n {e}")
                         raise
 
-                # TODO: external clock could be a class as in LabVIEW. TBD.
                 elif child.tag == "useExternalClock":
-                    self.useExternalClock = self.str_to_bool(child.text)
+                    self.externalClock.useExternalClock = self.str_to_bool(child.text)
 
                 elif child.tag == "externalClockSource":
-                    self.externalClockSource = child.text
+                    self.externalClock.source = child.text
 
                 elif child.tag == "maxExternalClockRate":
-                    self.externalClockRateMax = float(child.text)
+                    self.externalClock.maxClockRate = float(child.text)
 
                 else:
                     # TODO: replace with logger
