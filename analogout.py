@@ -18,7 +18,7 @@ from recordclass import recordclass as rc
 
 ## local imports
 from trigger import StartTrigger
-
+from instrumentfuncs import *
 
 class AnalogOutput:
 
@@ -71,26 +71,6 @@ class AnalogOutput:
         return wave_arr
 
 
-    def str_to_bool(self, boolstr):
-        """ 
-        return True or False case-insensitively for a string 'true' or 'false'
-
-        Args: 
-            'boolstr': string to be converted; not case-sensitive
-        Return:
-            'boolean': True or False. 
-        """
-
-        boolstr = boolstr.lower()
-        if boolstr == "true":
-            return True
-        elif boolstr == "false":
-            return False
-        else:
-            print("Expected a string 'true' or 'false' but received {boolstr}")
-            raise
-
-
     def load_xml(self, node):
         """
         Initialize AnalogOutput instance attributes with xml from CsPy
@@ -109,7 +89,7 @@ class AnalogOutput:
             if type(child) == ET.Element:
 
                 if child.tag == "enable":
-                    self.enable = self.str_to_bool(child.text)
+                    self.enable = str_to_bool(child.text)
 
                 elif child.tag == "physicalChannels":
                     self.physicalChannels = child.text
@@ -127,10 +107,10 @@ class AnalogOutput:
                     self.waveforms = self.wave_from_str(child.text)
 
                 elif child.tag == "waitForStartTrigger":
-                    self.startTrigger.waitForStartTrigger = self.str_to_bool(child.text)
+                    self.startTrigger.waitForStartTrigger = str_to_bool(child.text)
 
                 elif child.tag == "exportStartTrigger":
-                    self.exportTrigger.exportStartTrigger = self.str_to_bool(child.text)
+                    self.exportTrigger.exportStartTrigger = str_to_bool(child.text)
 
                 elif child.tag == "triggerSource":
                     self.startTrigger.source = child.text
@@ -147,7 +127,7 @@ class AnalogOutput:
                         raise
 
                 elif child.tag == "useExternalClock":
-                    self.externalClock.useExternalClock = self.str_to_bool(child.text)
+                    self.externalClock.useExternalClock = str_to_bool(child.text)
 
                 elif child.tag == "externalClockSource":
                     self.externalClock.source = child.text
