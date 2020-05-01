@@ -28,15 +28,15 @@ class AnalogOutput:
     def __init__(self):
 
         self.enable = False
-        
-        # probably don't need to initialize unused variables here
-        #self.physicalChannels = ""
-        #self.minValue = 
-        #self.maxValue
-
+        self.physicalChannels = ""
+        self.minValue = -10
+        self.maxValue = 10
+        self.sampleRate = 0
+        self.waveforms = None
         self.exportTrigger = self.ExportTrigger(False, None)
         self.externalClock = self.ExportTrigger(False, '', 0)
         self.startTrigger = StartTrigger()
+        self.task = None
         self.isInitialized = False
 
 
@@ -178,10 +178,10 @@ class AnalogOutput:
                 min_val = self.minValue,
                 max_val = self.maxValue)
             
-            if self.useExternalClock:
+            if self.externalClock.useExternalClock:
                 self.task.timing.cfg_samp_clk_timing(
-                    rate=self.externalClockRateMax, 
-                    source=self.externalClockSource, 
+                    rate=self.externalClock.maxClockRate, 
+                    source=self.externalClock.source, 
                     active_edge=Edge.RISING, # default
                     sample_mode=AcquisitionType.FINITE, # default
                     samps_per_chan=1000) # default
