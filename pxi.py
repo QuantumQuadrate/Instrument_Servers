@@ -31,7 +31,8 @@ from keylistener import KeyListener
 
 #### local device classes
 from hsdio import HSDIO
-from hamamatsu import Hamamatsu
+#from hamamatsu import Hamamatsu
+from tcp import TCP
 
 
 class PXI:
@@ -43,18 +44,11 @@ class PXI:
 
     def __init__(self, address: Tuple[str, int]):
         self.logger = logging.getLogger(str(self.__class__))
-        self.listening_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-        self.listening_socket.bind(address)
-        self.listening_socket.listen()
-
-        self.stop_connections = False
-        self.reset_connection = False
-        self.current_connection = None
+        self._stop_connections = False
+        self._reset_connection = False
         self.cycle_continuously = True
         self.exit_measurement = False
-        self.last_received_xml = ""
 
-        self.network_thread = None
         self.keylisten_thread = None
         
         # queues. 0 indicates no maximum queue length enforced.
@@ -67,12 +61,36 @@ class PXI:
         
         # instantiate the device objects
         self.hsdio = HSDIO()
-        self.hamamatsu = Hamamatsu()
+        self.tcp = TCP(self, address)
+        #self.hamamatsu = Hamamatsu()
         # TODO: implement these classes
-        #self.counters = Counters()
-        #self.analog_input = AnalogOutput()
-        #self.analog_output = AnalogInput()
-        #self.ttl = TTL()
+        self.counters = None#Counters()
+        self.analog_input = None#AnalogOutput()
+        self.analog_output = None#AnalogInput()
+        self.ttl = None#TTL()
+
+
+    @property
+    def stop_connections(self) -> bool:
+        return self._stop_connections
+
+    @stop_connections.setter
+    def stop_connections(self, value):
+        self._stop_connections = value
+
+    @property
+    def reset_connection(self) -> bool:
+        return self._reset_connection
+
+    @reset_connection.setter
+    def reset_connection(self, value):
+        self._reset_connection = value
+
+    def queue_command(self, command):
+        self.command_queue.put(command)
+
+    def launch_network_thread(self):
+        self.tcp.launch_network_thread()
 
     def launch_experiment_thread(self):
         """
@@ -81,22 +99,45 @@ class PXI:
         Thread target method = self.command_loop
         """
         self.experiment_thread = threading.Thread(
-            target=self.commmand_loop,
+            target=self.command_loop,
             name='Experiment Thread'
         )
         self.experiment_thread.setDaemon(False)
         self.experiment_thread.start()
 
+    def command_loop(self):
+        """
+        Update devices with xml from CsPy and, get and return data from devices
 
-    def launch_network_thread(self):
-        self.network_thread = threading.Thread(
-            target=self.network_loop,
-            name='Network Thread'
-        )
-        self.network_thread.setDaemon(False)
-        self.network_thread.start()
+        Pop a command from self.command_queue on each iteration, parse the xml
+        in that command, and update the instruments accordingly. When th queue
+        is empty, try to receive measurements from the data if cycling
+        continuously.
 
-    
+        This function handles the switching between updating devices and
+        getting data from them, while the bulk of the work is done in the
+        hierarchy of methods in self.parse_xml and self.measurment.
+        """
+
+        while not self.stop_connections:
+
+            try:
+                # dequeue xml; non-blocking
+                xml_str = self.command_queue.get(block=False, timeout=0)
+                self.parse_xml(xml_str)
+
+            except Empty:
+
+                # TODO add these variables to constructor
+                self.exit_measurement = False
+                self.return_data_str = ""  # reset the list
+
+                if self.cycle_continuously:
+                    # This method returns the data as well as updates
+                    # 'return_data_str', so having a return in this method
+                    # seems uneccesary
+                    return_data_str = self.measurement()
+
     def launch_keylisten_thread(self):
         """
         Launch a KeyListener thread to get key pressses in the command line
@@ -107,63 +148,6 @@ class PXI:
         self.keylisten_thread.start()
 
 
-    def network_loop(self):
-        """
-        Check for incoming connections and messages on those connections
-        """
-
-        self.logger.info("Entering Network Loop")
-        while not self.stop_connections:
-            self.reset_connection = False
-            
-            #TODO: entering q in cmd line should terminate this process
-            self.current_connection, client_address = self.listening_socket.accept()
-            self.logger.info(f"Started connection with {client_address}")
-            while not (self.reset_connection or self.stop_connections):
-                try:
-                    self.receive_message()
-                except socket.timeout:
-                    pass
-            self.logger.info(f"Closing connection with {client_address}")
-            self.current_connection.close()
-            self.current_connection.shutdown()
-        
-
-    def command_loop(self):
-        """
-        Update devices with xml from CsPy and, get and return data from devices
-        
-        Pop a command from self.command_queue on each iteration, parse the xml
-        in that command, and update the instruments accordingly. When th queue
-        is empty, try to receive measurements from the data if cycling
-        continuously. 
-
-        This function handles the switching between updating devices and 
-        getting data from them, while the bulk of the work is done in the
-        hierarchy of methods in self.parse_xml and self.measurment.
-        """
-        
-        while not self.stop_connections:
-
-            try:
-                # dequeue xml; non-blocking
-                xml_str = self.command_queue.get(block=False, timeout=0)
-                self.parse_xml(xml_str)
-                
-            except Empty:
-
-                #TODO add these variables to constructor
-                self.exit_measurement = False
-                self.return_data_str = "" # reset the list 
-                
-                if self.cycle_continuously:
-
-                    # This method returns the data as well as updates 
-                    # 'return_data_str', so having a return in this method
-                    # seems uneccesary
-                    return_data_str = self.measurement()
-        
-    
     def parse_xml(self, xml_str):
         """
         Initialize the device instances and other settings from queued xml
@@ -219,10 +203,10 @@ class PXI:
                     
                 elif child.tag == "HSDIO":
                     # set up the HSDIO
-                    self.hsdio.load_xml(child)
-                    self.hsdio.init()
-                    self.hsdio.update()
-                    
+                    #self.hsdio.load_xml(child)
+                    #self.hsdio.init()
+                    #self.hsdio.update()
+                    pass
                 elif child.tag == "TTL":
                     # TODO: implement TTL class
                     #self.ttl.load_xml(child)
@@ -248,9 +232,10 @@ class PXI:
                     self.cycle_continuously = cycle
                     
                 elif child.tag == "camera":
+                    pass
                     # set up the Hamamatsu camera
-                    self.hamamatsu.load_xml(child)
-                    self.hamamatsu.init()
+                    #self.hamamatsu.load_xml(child)
+                    #self.hamamatsu.init()
                     
                 elif child.tag == "AnalogOutput":
                     # TODO: implement analog_output class
@@ -280,7 +265,7 @@ class PXI:
                     pass
                     
                 else:
-                    logger.warning(f"Node {child.tag} received is not a valid"+
+                    self.logger.warning(f"Node {child.tag} received is not a valid"+
                                    f"child tag under root <{root.tag}>")
                  
         # TODO: some sort of error handling. could have several try/except 
@@ -288,64 +273,13 @@ class PXI:
         
         # TODO: implement send message
         # send a message back to CsPy
-        self.send_message()
+        self.tcp.send_message()
         
         # clear the return data
         self.return_data_str = ""
         self.return_data_queue = Queue(0)
-        
-    def receive_message(self):
-        """
-        listens for a message from cspy over the network.
 
-        messages from cspy are encoded in the following way:
-            message = 'MESG' + str(len(body)) + body
 
-        """
-        # Read first 4 bytes looking for a specific message header
-        self.current_connection.settimeout(0.3)
-        header = self.current_connection.recv(4)
-        self.logger.info(f"header was read as {header}")
-        if header == b'MESG':
-            self.logger.info("We got a message! now to handle it.")
-            # Assume next 4 bytes contains the length of the remaining message
-            length_bytes = self.current_connection.recv(4)
-            length = int.from_bytes(length_bytes, byteorder='big')
-            self.logger.info(f"I think the message is {length} bytes long.")
-            self.current_connection.settimeout(20)
-            message = self.current_connection.recv(length)
-            if len(message) == length:
-                self.logger.info("message received with expected length.")
-                self.last_received_xml = message
-                
-                # add message to queue; blocking if queue full, but max queue
-                # size set to infinite so blocking shouldn't ever occur
-                self.command_queue.put(message)
-
-            else:
-                self.logger.info(f"Something went wrong,"
-                                 f" I only found {len(message)} bytes to read!")
-        else:
-            self.logger.info("We appear to have received junk. Clearing buffer.")
-            self.current_connection.settimeout(0.01)
-            try:
-                while not (self.reset_connection or self.stop_connections):
-                    if self.current_connection.recv(4096) == "":
-                        break
-            except socket.timeout:
-                pass
-            finally:
-                self.reset_connection = True
-                
-        
-    def send_message(self, msg_str=None):
-        # if msg_str is none, just send the return data?        
-        pass
-
-    # This method returns the data as well as updates 
-    # 'return_data_str', so having a return seems 
-    # uneccesary
-    @master_timeout()
     def data_to_xml(self):
         """
         Convert responses from devices to xml and append to self.return_data_str
@@ -361,8 +295,7 @@ class PXI:
         return_data_str = ""
 
         # the devices that have a data_out method
-        data_spawns = [self.hamamatsu, self.counter, self.ttl, 
-                       self.analog_input]
+        data_spawns = []
 
         for spawn in data_spawns:
             # TODO: implement data_out methods in the relevant classes
@@ -371,7 +304,7 @@ class PXI:
         return return_data_str
 
             
-    @master_timeout()
+
     def measurement(self):
         """
         Return a queue of the acquired responses queried from device hardware
@@ -403,6 +336,11 @@ class PXI:
             self.stop_tasks() # TODO: implement 
             self.data_to_xml()
 
+    def system_checks(self):
+        pass
+
+    def stop_tasks(self):
+        pass
     
     def get_data(self):
         pass
@@ -420,7 +358,7 @@ class PXI:
         pass
 
 
-    @master_timeout()
+
     def is_done(self):
         """
         Check if devices running processes are done yet
@@ -436,7 +374,7 @@ class PXI:
         done = True
         if not (self.stop_connections or self.exit_measurement):
 
-            devices = [self.hsdio, self.analog_ouput, self.analog_input]#, 
+            devices = [self.hsdio, self.analog_output, self.analog_input]#,
                        #self.daqmx_pulseout] # in labview daqmx_pulseout is 
                                              # distinct from the DAQmxDO class
             
@@ -448,7 +386,7 @@ class PXI:
                 #if not dev.is_done():
                 #    done = False
                 #    break
-        return done
+        return done, 0
 
    
     def on_key_press(self, key):
