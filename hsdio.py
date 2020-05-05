@@ -19,7 +19,6 @@ from ni_hsdio import HsdioSession
 ## local class imports
 from trigger import Trigger, StartTrigger
 from waveform import Waveform
-from instrumentfuncs import str_to_bool
 
 
 class HSDIO: # could inherit from an Instrument class if helpful
@@ -92,7 +91,11 @@ class HSDIO: # could inherit from an Instrument class if helpful
 				
 				# handle each tag by name:
 				if child.tag == "enable":
-					self.enablePulses = str_to_bool(child.text)
+					self.print_txt(child) # DEBUGGING
+                    res = False
+                    if child.text.lower() == "true":
+                        res = True
+					self.enablePulses = res
 				
 				elif child.tag == "description":
 					self.print_txt(child) # DEBUGGING
