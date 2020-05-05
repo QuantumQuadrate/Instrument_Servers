@@ -99,11 +99,11 @@ class Hamamatsu:
 
     def load_xml(self, node):
         """
-		parse xml by tag to initialize Hamamatsu class attributes
-		
+        parse xml by tag to initialize Hamamatsu class attributes
+
         Args:
             'node': xml.etree.ElementTree.Element node with tag="camera"
-		"""
+        """
         
         def set_by_dict(attr, node_text, values):
             """

@@ -148,6 +148,9 @@ static
 # pycache
 *.pyc
 
+# Visual Studio
+.vs/
+
 # local test files
 thread_test.py
 local_test.py
