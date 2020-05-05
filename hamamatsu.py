@@ -21,7 +21,7 @@ class Hamamatsu: '''could inherit from a Camera class if we choose to move
     # 'Default' has a value which is the key for the default value to be used
     # in the dictionary
     scanModeValues = {"Super Pixel": "SMD S","Sub-array", "SMD A", 
-                      "Normal": "SMD N", "Default": "Normal"}
+                      "Normal": "SMD N", "Default": 'Normal'}
     fanValues = {"On": "FAN O", "Off": "FAN F", "Default": "Off"}
     coolingValues = {"On": "CSW O", "Off": "CSW F", "Default": "Off"}
     externalTriggerSourceValues = {"CameraLink Interface": "ESC I", 
@@ -71,11 +71,11 @@ class Hamamatsu: '''could inherit from a Camera class if we choose to move
        
     def load_xml(self, node):
         """
-		parse xml by tag to initialize Hamamatsu class attributes
-		
+        parse xml by tag to initialize Hamamatsu class attributes
+
         Args:
             'node': xml.etree.ElementTree.Element node with tag="camera"
-		"""
+        """
         
         def set_by_dict(attr, node_text, values):
             """
@@ -110,18 +110,18 @@ class Hamamatsu: '''could inherit from a Camera class if we choose to move
                       f"({values[default]}) instead.")
                 setattr(self, attr, values[default])
                 
-		
-		assert node.tag == "camera", "This XML is not tagged for the camera"
-		
+
+        assert node.tag == "camera", "This XML is not tagged for the camera"
+
         # in the labview class, all of the settings that get updated here are
         # appended to a settings array. the only purpose of that array is for
         # viewing the settings on the front panel by reading out the array, 
         # so i have opted to not include said array. 
-		for child in node:
+        for child in node:
 
-			if type(child) == ET.Element:
-				
-				# handle each tag by name:
+            if type(child) == ET.Element:
+
+                # handle each tag by name:
                 if child.tag == "version":
                     # TODO: labview code checks if camera settings are from 
                     # "2015.05.24", which is hardcoded. probably don't need
@@ -131,7 +131,7 @@ class Hamamatsu: '''could inherit from a Camera class if we choose to move
                     enable = False
                     if child.text.lower() == "true":
                         enable = True
-					self.enable = enable
+                    self.enable = enable
                     
                 elif child.tag == "analogGain":
                     try: 
@@ -263,7 +263,7 @@ class Hamamatsu: '''could inherit from a Camera class if we choose to move
                     force = False
                     if child.text.lower() == "true":
                         force = True
-					self.forceImagesToU16 = force
+                    self.forceImagesToU16 = force
                     
                 else:
                     # TODO: replace with logger

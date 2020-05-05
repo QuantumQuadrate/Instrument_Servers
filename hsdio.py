@@ -19,263 +19,266 @@ from ni_hsdio import HsdioSession
 ## local class imports
 from trigger import Trigger, StartTrigger
 from waveform import Waveform
-from instrumentfuncs import str_to_bool
 
 
 class HSDIO: # could inherit from an Instrument class if helpful
-	
-	if platform.machine().endswith("64"):
-		programsDir32 = "Program Files (x86)"
-	else:
-		programsDir32 = "Program Files"
 
-	dllpath32 = os.path.join(f"C:\{programsDir32}\IVI Foundation\IVI\Bin", "niHSDIO.dll")
-	dllpath64 = os.path.join("C:\Program Files\IVI Foundation\IVI\Bin", "niHSDIO_64.dll")
+    if platform.machine().endswith("64"):
+        programsDir32 = "Program Files (x86)"
+    else:
+        programsDir32 = "Program Files"
 
-	def __init__(self):
+    dllpath32 = os.path.join(f"C:\{programsDir32}\IVI Foundation\IVI\Bin", "niHSDIO.dll")
+    dllpath64 = os.path.join("C:\Program Files\IVI Foundation\IVI\Bin", "niHSDIO_64.dll")
 
-		'''
-		This is taken care of inside of ni_hsdio now
-		# Quick test for bitness
-		self.bitness = struct.calcsize("P") * 8
-		if self.bitness == 32:
-			# Default location of the 32 bit dll
-			self.hsdio = CDLL(self.dllpath32)
-		else:
-			# Default location of the 64 bit dll
-			self.hsdio = CDLL(self.dllpath64)
-		'''
+    def __init__(self):
 
-		## device settings
-		# TODO: could make an attribute with these settings in a dictionary
-		# and then settings can be updated by calling a settings function with
-		# kwargs
-		self.enablePulses = False
-		self.resourceNames = np.array([], dtype=str)
-		self.clockRate = 2*10**7 # 20 MHz
-		self.hardwareAlignmentQuantum = 1 # (in samples)
-		self.activeChannels = np.array([], dtype=c_int32)
-		self.initialStates = np.array([], dtype=str)
-		self.idleStates = np.array([], dtype=str)
-		self.pulseGenScript = """script script 1
-								      wait 1
-								   end script"""
-		self.scriptTriggers = []
-		self.startTrigger = StartTrigger()
+        '''
+        This is taken care of inside of ni_hsdio now
+        # Quick test for bitness
+        self.bitness = struct.calcsize("P") * 8
+        if self.bitness == 32:
+            # Default location of the 32 bit dll
+            self.hsdio = CDLL(self.dllpath32)
+        else:
+            # Default location of the 64 bit dll
+            self.hsdio = CDLL(self.dllpath64)
+        '''
+
+        ## device settings
+        # TODO: could make an attribute with these settings in a dictionary
+        # and then settings can be updated by calling a settings function with
+        # kwargs
+        self.enablePulses = False
+        self.resourceNames = np.array([], dtype=str)
+        self.clockRate = 2*10**7 # 20 MHz
+        self.hardwareAlignmentQuantum = 1 # (in samples)
+        self.activeChannels = np.array([], dtype=c_int32)
+        self.initialStates = np.array([], dtype=str)
+        self.idleStates = np.array([], dtype=str)
+        self.pulseGenScript = """script script 1
+                                      wait 1
+                                   end script"""
+        self.scriptTriggers = []
+        self.startTrigger = StartTrigger()
 
 
-		# These two have are related to one another, each session is attached to a handle, each handle can support man
-		# sessions. Sessions now have an attribute HsdioSession.handle (a python string)
-		self.instrumentHandles = []  # array to hold instrument handles
-		self.sessions = []  # array to hold HsdioSession objects
+        # These two have are related to one another, each session is attached to a handle, each handle can support man
+        # sessions. Sessions now have an attribute HsdioSession.handle (a python string)
+        self.instrumentHandles = []  # array to hold instrument handles
+        self.sessions = []  # array to hold HsdioSession objects
 
-		self.waveformArr = []
+        self.waveformArr = []
 
-		
-		# whether or not we've actually populated the attributes above
-		self.isInitialized = False 
-		
-	def load_xml(self, node):
-		"""
-		iterate through node's children and parse xml by tag to update HSDIO
-		device settings
-		'node': type is ET.Element. tag should be "HSDIO"
-		"""
-		
-		assert node.tag == "HSDIO", "This XML is not tagged for the HSDIO"
-		
-		for child in node:
-			
-			# the LabView code ignores non-element nodes. not sure if this 
-			# equivalent
-			if type(child) == ET.Element:
-				
-				# handle each tag by name:
-				if child.tag == "enable":
-					self.enablePulses = str_to_bool(child.text)
-				
-				elif child.tag == "description":
-					self.print_txt(child) # DEBUGGING
-					self.description = child.text
-				
-				elif child.tag == "resourceName":
-					self.print_txt(child) # DEBUGGING
-					resources = np.array(child.text.split(","))
-					self.resourceNames = resources
-					
-				elif child.tag == "clockRate":
-					clockRate = float(child.text)
-					self.print_txt(child) # DEBUGGING
-					self.clockRate = clockRate
-					
-				elif child.tag == "hardwareAlignmentQuantum":
-					self.print_txt(child) # DEBUGGING
-					self.hardwareAlignmentQuantum = child.text
-				
-				elif child.tag == "triggers":
-					self.print_txt(child) # DEBUGGING
-					
-					if type(child) == ET.Element:
-						
-						trigger_node = child
-												
-						# for each line of script triggers
-						for child in trigger_node:
-							
-							if type(child) == ET.Element:
-								
-								trig = Trigger()
-								trig.init_from_xml(child)
-								self.scriptTriggers.append(trig)
-					  
-				elif child.tag == "waveforms":
 
-					#self.print_txt(child) #HUGE WAVEFORM STRING PLZ BE CAREFUL
-					print("found a waveform") #TODO: change to logger
-	
-					# TODO: wrap in load waveform xml
-					wvforms_node = child
-	
-					# for each waveform
-					for wvf_child in wvforms_node:
-				
-						if type(wvf_child) == ET.Element:
-																					
-							if wvf_child.tag == "waveform":
+        # whether or not we've actually populated the attributes above
+        self.isInitialized = False
 
-								wvform = Waveform()
-								wvform.init_from_xml(wvf_child)
-								self.waveformArr.append(wvform)
-								
-				elif child.tag == "script":
-					self.print_txt(child) # DEBUGGING
-					self.pulseGenScript
-					
-				elif child.tag == "startTrigger":
-					self.startTrigger = StartTrigger()
-					self.startTrigger.init_from_xml(child)
-									
-				elif child.tag == "InitialState":
-					self.print_txt(child) # DEBUGGING
-					self.initialStates = np.array(child.text.split(","))
-				
-				elif child.tag == "IdleState":
-					self.print_txt(child) # DEBUGGING
-					self.idleStates = np.array(child.text.split(",")) 
-				
-				elif child.tag == "ActiveChannels":
-					self.print_txt(child) # DEBUGGING
-					self.activeChannels = np.array(child.text.split("\n")) 
-				
-				else:
-					# TODO: replace with logging
-					print("Not a valid XML tag for HSDIO initialization")
+    def load_xml(self, node):
+        """
+        iterate through node's children and parse xml by tag to update HSDIO
+        device settings
+        'node': type is ET.Element. tag should be "HSDIO"
+        """
 
-	def init(self):
-		"""
-		set up the triggering, initial states, script triggers, etc
-		"""
-		
-		if self.isInitialized:
-			
-			for session in self.sessions:
-				session.abort()
-				session.close()
-				pass
+        assert node.tag == "HSDIO", "This XML is not tagged for the HSDIO"
 
-				# i think this should clear the list of instrumentHandles too.
-				# in LabView the handle gets passed in/out of the above VIs.
-				# maybe just reset the array after the loop:
-				# Its worth considering how these handles are being populated - Juan
+        for child in node:
 
-			self.sessions = []  # reset
-							
-		# self.instrumentHandles.append("")  # Not sure why this is here
-		
-		if self.enablePulses:
-				
-			iterables = zip(self.idleStates, self.initialStates,
-							self.activeChannels, self.resourceNames)
-			for idle_state,init_state,chan_list,resource in iterables:
-				self.sessions.append(HsdioSession(resource))
-				session = self.sessions[-1]
+            # the LabView code ignores non-element nodes. not sure if this
+            # equivalent
+            if type(child) == ET.Element:
 
-				session.init_generation_sess()
+                # handle each tag by name:
+                if child.tag == "enable":
+                    self.print_txt(child) # DEBUGGING
+                    res = False
+                    if child.text.lower() == "true":
+                        res = True
+                    self.enablePulses = res
 
-				session.assign_dynamic_channels(chan_list)
+                elif child.tag == "description":
+                    self.print_txt(child) # DEBUGGING
+                    self.description = child.text
 
-				session.configure_sample_clock(self.clockRate)
+                elif child.tag == "resourceName":
+                    self.print_txt(child) # DEBUGGING
+                    resources = np.array(child.text.split(","))
+                    self.resourceNames = resources
 
-				session.configure_generation_mode(generation_mode=15)
+                elif child.tag == "clockRate":
+                    clockRate = float(child.text)
+                    self.print_txt(child) # DEBUGGING
+                    self.clockRate = clockRate
 
-				session.configure_initial_state(chan_list, init_state)
+                elif child.tag == "hardwareAlignmentQuantum":
+                    self.print_txt(child) # DEBUGGING
+                    self.hardwareAlignmentQuantum = child.text
 
-				session.configure_idle_state(chan_list,idle_state)
-				
-				for trig in self.scriptTriggers:
-					
-					# implement this in a better way so not hardcoding the numeric code
-					if trig.type == trig.types["Level"]:  # Level type
+                elif child.tag == "triggers":
+                    self.print_txt(child) # DEBUGGING
 
-						session.configure_digital_level_script_trigger(
-							trig.trigID,  # str
-							trig.source,  # str
-							trig.level    # int
-						)
+                    if type(child) == ET.Element:
 
-					else:  # Edge type is default when initialized
+                        trigger_node = child
 
-						session.configure_digital_edge_script_trigger(
-							trig.trigID,
-							trig.source,
-							trig.edge
-						)
-			
-				if self.startTrigger.waitForStartTrigger:
-					session.configure_digital_edge_start_trigger(
-						self.startTrigger.source,
-						self.startTrigger.edge
-					)
+                        # for each line of script triggers
+                        for child in trigger_node:
 
-		self.isInitialized = True
-	
-	def update(self):
-		""" 
-		write waveforms to the PC memory 
-		"""
-		
-		if self.enablePulses:
+                            if type(child) == ET.Element:
 
-			for wf in self.waveformArr:
+                                trig = Trigger()
+                                trig.init_from_xml(child)
+                                self.scriptTriggers.append(trig)
 
-				wv_arr = wf.wave_split()
-				# for each HSDIO card (e.g., Rb experiment has two cards)
-				for i, session in enumerate(self.sessions):
+                elif child.tag == "waveforms":
 
-					wave = wv_arr[i]
-					fmt, data = wave.decompress()
+                    #self.print_txt(child) #HUGE WAVEFORM STRING PLZ BE CAREFUL
+                    print("found a waveform") #TODO: change to logger
 
-					if format == "WDT":
-						session.write_waveform_wdt(
-							wave.name,
-							max(wave.transitions),
-							71,  # Group by sample for group by channel use 72
-							data
-						)
-					elif format == "uInt32":
-						session.write_waveform_uint32(
-							wave.name,
-							max(wave.transitions),
-							data
-						)
+                    # TODO: wrap in load waveform xml
+                    wvforms_node = child
 
-	def settings(self, wf_arr, wf_names):
-		pass
-		# the labview code has HSDIO.settings specifically for reading out the 
-		# settings on the front panel. for debugging, we could just have this
-		# log certain HSDIO attributes 
-		
-		# log stuff, call settings in the server code for debugging?
-		
-	def print_txt(self, node): # for debugging
-		print(f"{node.tag} = {node.text}") # TODO replace with logging
+                    # for each waveform
+                    for wvf_child in wvforms_node:
+
+                        if type(wvf_child) == ET.Element:
+
+                            if wvf_child.tag == "waveform":
+
+                                wvform = Waveform()
+                                wvform.init_from_xml(wvf_child)
+                                self.waveformArr.append(wvform)
+
+                elif child.tag == "script":
+                    self.print_txt(child) # DEBUGGING
+                    self.pulseGenScript
+
+                elif child.tag == "startTrigger":
+                    self.startTrigger = StartTrigger()
+                    self.startTrigger.init_from_xml(child)
+
+                elif child.tag == "InitialState":
+                    self.print_txt(child) # DEBUGGING
+                    self.initialStates = np.array(child.text.split(","))
+
+                elif child.tag == "IdleState":
+                    self.print_txt(child) # DEBUGGING
+                    self.idleStates = np.array(child.text.split(","))
+
+                elif child.tag == "ActiveChannels":
+                    self.print_txt(child) # DEBUGGING
+                    self.activeChannels = np.array(child.text.split("\n"))
+
+                else:
+                    # TODO: replace with logging
+                    print("Not a valid XML tag for HSDIO initialization")
+
+    def init(self):
+        """
+        set up the triggering, initial states, script triggers, etc
+        """
+
+        if self.isInitialized:
+
+            for session in self.sessions:
+                session.abort()
+                session.close()
+                pass
+
+                # i think this should clear the list of instrumentHandles too.
+                # in LabView the handle gets passed in/out of the above VIs.
+                # maybe just reset the array after the loop:
+                # Its worth considering how these handles are being populated - Juan
+
+            self.sessions = []  # reset
+
+        # self.instrumentHandles.append("")  # Not sure why this is here
+
+        if self.enablePulses:
+
+            iterables = zip(self.idleStates, self.initialStates,
+                            self.activeChannels, self.resourceNames)
+            for idle_state,init_state,chan_list,resource in iterables:
+                self.sessions.append(HsdioSession(resource))
+                session = self.sessions[-1]
+
+                session.init_generation_sess()
+
+                session.assign_dynamic_channels(chan_list)
+
+                session.configure_sample_clock(self.clockRate)
+
+                session.configure_generation_mode(generation_mode=15)
+
+                session.configure_initial_state(chan_list, init_state)
+
+                session.configure_idle_state(chan_list,idle_state)
+
+                for trig in self.scriptTriggers:
+
+                    # implement this in a better way so not hardcoding the numeric code
+                    if trig.type == trig.types["Level"]:  # Level type
+
+                        session.configure_digital_level_script_trigger(
+                            trig.trigID,  # str
+                            trig.source,  # str
+                            trig.level    # int
+                        )
+
+                    else:  # Edge type is default when initialized
+
+                        session.configure_digital_edge_script_trigger(
+                            trig.trigID,
+                            trig.source,
+                            trig.edge
+                        )
+
+                if self.startTrigger.waitForStartTrigger:
+                    session.configure_digital_edge_start_trigger(
+                        self.startTrigger.source,
+                        self.startTrigger.edge
+                    )
+
+        self.isInitialized = True
+
+    def update(self):
+        """
+        write waveforms to the PC memory
+        """
+
+        if self.enablePulses:
+
+            for wf in self.waveformArr:
+
+                wv_arr = wf.wave_split()
+                # for each HSDIO card (e.g., Rb experiment has two cards)
+                for i, session in enumerate(self.sessions):
+
+                    wave = wv_arr[i]
+                    fmt, data = wave.decompress()
+
+                    if format == "WDT":
+                        session.write_waveform_wdt(
+                            wave.name,
+                            max(wave.transitions),
+                            71,  # Group by sample for group by channel use 72
+                            data
+                        )
+                    elif format == "uInt32":
+                        session.write_waveform_uint32(
+                            wave.name,
+                            max(wave.transitions),
+                            data
+                        )
+
+    def settings(self, wf_arr, wf_names):
+        pass
+        # the labview code has HSDIO.settings specifically for reading out the
+        # settings on the front panel. for debugging, we could just have this
+        # log certain HSDIO attributes
+
+        # log stuff, call settings in the server code for debugging?
+
+    def print_txt(self, node): # for debugging
+        print(f"{node.tag} = {node.text}") # TODO replace with logging
