@@ -44,6 +44,13 @@ class Hamamatsu:
                    
     def __init__(self):
 
+        # Labview Camera variables
+        self.is_initialized = False
+        self.num_images = 0
+        self.use_camera = False
+        self.shots_per_measurement = 0
+        self.camera_roi_file_refnum = 0
+        # Laview Hamamatsu variables
         # TODO : @Juan create static class variables to map settings to Hamamatsu-Compatible settings
         # TODO : @Juan compile descriptions of settings set bellow for ease of use later
         self.enable = False # called "use camera?" in labview
@@ -57,22 +64,11 @@ class Hamamatsu:
             self.externalTriggerModeValues["Default"]
         ]  #level by default
         self.scanSpeed = self.scanSpeedValues[self.scanSpeedValues["Default"]]  # high by default
-        self.lowLightSensitivity = self.lowLightSensitivityValues[
-            self.lowLightSensitivityValues["Default"]
-        ]
         self.externalTriggerSource = self.externalTriggerSourceValues[
             self.externalTriggerModeValues["Default"]
         ]
-        self.cooling = self.coolingValues[self.coolingValues["Default"]] #Find default value
-        self.fan = self.fanValues[self.fanValues["Default"]]
         self.scanMode = self.scanModeValues[self.scanModeValues["Default"]]
         self.superPixelBinning = # WHERES. MY. SUPER. SUIT?
-        self.numImageBuffers = 0 # imageBuffers in labview; renamed by tag name.
-        self.shotsPerMeasurement = 2
-        self.forceImagesToU16 = False
-        self.cameraTemp = 0.0
-        self.lastFrameAcquired = -1
-        
         # Dicts instead of classes to reduce complexity
         # Uses uint16 in labview, use ints here, cast where necessary
         self.cameraSubArrayAcquistionRegion = {
@@ -81,6 +77,14 @@ class Hamamatsu:
             "Width": 0,
             "Height": 0
         }
+        self.numImageBuffers = 0 # imageBuffers in labview; renamed by tag name.
+        self.shotsPerMeasurement = 2
+        self.forceImagesToU16 = False
+        self.lowLightSensitivity = self.lowLightSensitivityValues[
+            self.lowLightSensitivityValues["Default"]
+        ]
+        self.cooling = self.coolingValues[self.coolingValues["Default"]] #Find default value
+        self.fan = self.fanValues[self.fanValues["Default"]]
         # Uses int32 in labview, use ints here, cast where necessary
         self.frameGrabberAcquisitionRegion = {
             "Left":0,
@@ -88,9 +92,10 @@ class Hamamatsu:
             "Right":0,
             "Bottom":0
         }
-
         self.session = NiImaqSession()
-       
+        self.lastFrameAcquired = -1
+        self.cameraTemp = 0.0
+        self.last_measurement = np.array([])  # Holds data from previous measurement in 3D array (shots,x,y)
 
     def load_xml(self, node):
         """
@@ -420,168 +425,29 @@ class Hamamatsu:
                     )
             # default is to do nothing
 
-            roi = self.frameGrabberAcquisitionRegion
+            self.session.set_roi(self.frameGrabberAcquisitionRegion)
 
-            width = roi["Right"]-roi["Left"]
-            height = roi["Bottom"]-roi["Top"]
+            self.session.setup_buffers(num_buffers=self.numImageBuffers)
+            if not self.session.get_buff_list_init():  # TODO : implement
+                pass  # TODO : deal with this error case
 
-            self.session.get_attribute("ROI Width")
-            acq_width = self.session.attributes["ROI Width"]
-            self.session.get_attribute("ROI Height")
-            acq_height = self.session.attributes["ROI Height"]
+            self.is_initialized = True
+            self.num_images = 0
+            self.use_camera = True
+            self.start()
 
-            if width < acq_width:
-                self.session.set_attribute2("ROI Width",c_uint32(width))
-            if height < acq_height:
-                self.session.set_attribute2("ROI Height",c_uint32(height))
-            self.session.set_attribute2("ROI Left",roi["Left"])
-            self.session.set_attribute2("ROI Top",roi["Top"])
-
-
-            self.session.create_buffer_list(self.numImageBuffers)
-
-            # set up the image buffers
-            for buf_num in range(self.numImageBuffers):
-
-                # Juan's outline based on c ll ring example  -------------------
-
-                self.session.compute_buffer_size()
-                erc, self.session.buffers[buf_num] = self.session.create_buffer()
-                self.session.set_buf_element2(
-                    buf_num,
-                    "Address",
-                    self.session.buffers[buf_num]
-                )
-                self.session.set_buf_element2(
-                    buf_num,
-                    "Size",
-                    self.session.buffer_size
-                )
-                if buf_num == self.numImageBuffers-1:
-                    buf_cmd = self.session.BUFFER_COMMANDS["Loop"]
-                else:
-                    buf_cmd = self.session.BUFFER_COMMANDS["Next"]
-                self.session.set_buf_element2(
-                    buf_num,
-                    "Command",
-                    c_uint32(buf_cmd)
-                )
-            self.session.buff_list_init = True
-
-
-
-            '''
-            This stuff below was expected to be in the for loop. It shadows the functionality of the
-            corresponding for loop in the labview code, but the c code example deviates 
-            significantly from this!
-            TODO : @Juan - Take a closer look at the labview code and see if there's something your 
-                copying of the c-loop missed!
-                # labview formats i as a signed decimal integer here, but
-                # ints formatted with d qualifier should just be ints.
-                ringNum = f"LL Ring num {buf_num}" 
-                
-                # TODO: Juan - "IMAQ Create VI"
-                # http://zone.ni.com/reference/en-XX/help/370281AG-01/imaqvision/imaq_create/
-                """
-                Creates a temporary memory location for an image
-                
-                Use IMAQ Create in conjunction with the IMAQ Dispose VI to 
-                create or dispose of NI Vision images in LabVIEW.
-                
-                Args:
-                    'Border size': (int32)  **this isn't wired in the labview
-                        code, and a default value isn't specified, but i would
-                        think it should default to 0** 
-                        
-                        determines the width, in pixels,
-                        of the border to create around an image. These pixels
-                        are used only for specific VIs. Create a border at the 
-                        beginning of your application if an image is to be 
-                        processed later using functions that require a border 
-                        (for example, labeling and morphology). The default 
-                        border value is 3. With a border of three pixels, you
-                        can use kernels up to 7 × 7 with no change. If you plan
-                        to use kernels larger than 7 × 7 in your process, 
-                        specify a larger border when creating your image.
-                        
-                    'Image name': (str) is the name associated with the created 
-                        image. Each image created must have a unique name.
-                    'Error in': 
-                    'Image Type': (u32), e.g. from enum like this:
-                        {'Grayscale (U8)': 0, 'Grayscale (I16)': 1, 
-                         'Grayscale' (SGL): 2, 'Complex (CSG)': 3,
-                         'RGB (U32)': 4 ... ,
-                         'Grayscale (U16)': 7}
-                    
-                Returns:
-                    'New Image': the Image reference that is supplied as input
-                        to all subsequent (downstream) functions used by NI 
-                        Vision. Multiple images can be created in a LabVIEW 
-                        application.
-                    'Error out':
-                """
-                
-                # border size = 0 (i'm guessing; see above)
-                # image type is grayscale u16, or 7
-                # TODO: could create dicts of possible values rather hardcode
-                # these. in labview each returned image ref is appended to an
-                # array and passed out, but it doesn't look like that array
-                # is used anywhere. 
-                image_ref = IMAQSession.create(0, ringNum, 7, error_in)
-                
-                # TODO: Juan - "IMAQ Configure Buffer VI"
-                # https://documentation.help/NI-IMAQ-VI/IMAQ_Configure_Buffer.html
-                """
-                Configures individual buffers in the buffer list.
-                
-                Args: 
-                    'channel' (int32 )
-                    'skipcount' (u32)
-                    'IMAQSession in'
-                    'image in'
-                    'buffer number' (u32)
-                    'error in'
-                    
-                Returns: 
-                    'IMAQSession out'
-                    'error out'
-                """
-                # other params unused
-                self.session.configureBuffer(image_ref, buf_num, error_in)
-                
-                self.cameraInit() # in labview this belongs to a camera class, 
-                                  # and is Camera.initialize. the input is the
-                                  # Hamamatsu instance. again, if we decide to
-                                  # control other cameras here we could make an
-                                  # a Camera base class. for now i'll just make
-                                  # this a hamamatsu method.
-
-                self.start()
-            '''
-           
-    def serial(self):
-
-    def cameraInit(self)
-        pass
-    
-    
     def start(self):
         # TODO : Implement this
+        # Starts with check for global "Exit Measurement". If Exit Measurement : return
         if not self.enable:
             return
         self.session.session_acquire(asynchronous=True)
         err_c, trig_mode = self.session.hamamatsu_serial("?AMD")
-        self.session.status() # TODO : Implement NiImaqSession.status()
         '''
-        Returns status information about the acquisition, such as the state of the acquisition and 
-        the last valid buffer acquired
-        
-        Returns:
-            Session
-            Acquiring : Boolean
-            Last Valid Buffer Index: Int, buffer list index of last acquired image
-            Last Valid Buffer Number: Int, cumulative number of last acquired image
+        This function is called in labview and these variables are set (locally?) but they're not used in the scope, 
+        just broken out as indicators. I wonder if scope in labview is somehow different from what I imagine
         '''
+        err_c, acquiring, last_buffer_index, last_buffer_number = self.session.status()
         pass
                 
                 

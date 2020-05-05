@@ -14,8 +14,6 @@ from ctypes import c_uint32
 from typing import Tuple, Callable, TypeVar
 import numpy as np
 
-BufVal = TypeVar('BufVal', c_uint32, c_void_p)
-BfSize = TypeVar('BfSize', c_uint32, int)
 '''
 Not Sure this will be useful. Might be a decent place to start
 class HamamatsuSerialError(Exception):
@@ -301,6 +299,89 @@ class NiImaqSession:
 
         return error_code
 
+    def session_configure(
+            self,
+            check_error: bool = True
+    ):
+        """
+        Configures hardware in preparation for an acquisision using self.buflist_id.
+
+        Upon successfull completion of this call, you can call self.session_aquire()
+
+        wraps imgSessionConfigure()
+        Args:
+            check_error : should the check() function be called once operation has completed
+
+        Returns:
+            error code which reports status of operation.
+
+                0 = Success, positive values = Warnings,
+                negative values = Errors
+        """
+
+        error_code = self.imaq.imgSessionConfigure(
+            self.session_id,  # SESSION_ID
+            self.buflist_id   # BUFLIST_ID
+        )
+
+        if error_code != 0 and check_error:
+            self.check(
+                error_code,
+                traceback_msg=f"session configure"
+            )
+
+        return error_code
+
+    def session_acquire(
+            self,
+            asynchronous: bool,
+            callback: Callable[[c_uint32, c_int32, c_uint32, c_void_p], c_uint32] = None,
+            check_error: bool = True
+    ):
+        """
+        Starts an acquisition to the buffers in self.buflist_id.
+
+        Acquisition can be started synchronously or asynchronously.
+
+        wraps imgSessionAcquire
+
+        Args:
+            asynchronous : asynchronous flag. If False, this function does not return until the
+                acquisition completes
+            callback : A pointer to a c function that serves as a callback function. If asynchronous
+                is True, the callback functiono is called under one of the following two conditions:
+                    * If the acquisition is non-continuous, the callback is called when all buffers
+                        acquired
+                    * If the acquisition is continuous, the callback is called after each buffer
+                        becomes available.
+                    If None is passed Null will be passed to imgSessionAcquire and no function will
+                        be called (and that's very ok)
+                    Note : For non-continuous acquisitions, the callback function must return zero.
+                    For continuous acquisitions, the return value of the callback function
+                    determines the behavior of the driver for subsequent buffer completions. Return
+                    zero to disregard future buffer complete notifications. Return a non-zero value
+                    to continue to receive callbacks.
+            check_error : should the check() function be called once operation has completed
+
+        Returns:
+            error code which reports status of operation.
+
+                0 = Success, positive values = Warnings,
+                negative values = Errors
+        """
+
+        error_code = self.imaq.imgSessionAcquire(
+            self.session_id,
+            c_uint32(asynchronous),
+            callback
+        )
+
+        if error_code != 0 and check_error:
+            self.check(
+                error_code,
+                traceback_msg=f"session acquire"
+            )
+
     def get_attribute(
             self,
             attribute: str,
@@ -397,34 +478,7 @@ class NiImaqSession:
 
         return error_code
 
-# Buffer Management functions ----------------------------------------------------------------------
-
-    def compute_buffer_size(self) -> BfSize:
-        """
-        Sets self.buffer_size to the required size and returns self.buffer_size
-
-        Returns:
-            c_uint32 - size of the image buffer required for acquisition in this session
-                or int - error thrown by one of the self.get_attribute calls
-
-        """
-
-        er_1 = self.get_attribute("Bytes Per Pixel")
-        if er_1 != 0:
-            return er_1
-        er_2 = self.get_attribute("ROI Width")
-        if er_2 != 0:
-            return er_2
-        er_3 = self.get_attribute("ROI Height")
-        if er_3 != 0:
-            return er_3
-
-        width = self.attributes["ROI Width"]
-        height = self.attributes["ROI Height"]
-        bytes_per_pix = self.attributes["Bytes Per Pixel"]
-
-        self.buffer_size = width*height*bytes_per_pix
-        return self.buffer_size
+# Buffer Management function Wrappers --------------------------------------------------------------
 
     def dispose_buffer(
             self,
@@ -592,12 +646,11 @@ class NiImaqSession:
 
         return error_code, buffer_pt
 
-
     def set_buf_element2(
             self,
             element: int,
             item_type: str,
-            value: BufVal,
+            value: c_uint32,
             check_error: bool = True
     ):
         """
@@ -731,116 +784,172 @@ class NiImaqSession:
             )
         return error_code, img_array
 
-    def session_configure(
-            self,
-            check_error: bool = True
-    ):
-        """
-        Configures hardware in preparation for an acquisision using self.buflist_id.
+# Non-Wrapper functions ----------------------------------------------------------------------------
 
-        Upon successfull completion of this call, you can call self.session_aquire()
-
-        wraps imgSessionConfigure()
-        Args:
-            check_error : should the check() function be called once operation has completed
-
-        Returns:
-            error code which reports status of operation.
-
-                0 = Success, positive values = Warnings,
-                negative values = Errors
-        """
-
-        error_code = self.imaq.imgSessionConfigure(
-            self.session_id,  # SESSION_ID
-            self.buflist_id   # BUFLIST_ID
-        )
-
-        if error_code != 0 and check_error:
-            self.check(
-                error_code,
-                traceback_msg=f"session configure"
-            )
-
-        return error_code
-
-    def session_acquire(
-            self,
-            asynchronous: bool,
-            callback: Callable[[c_uint32, c_int32, c_uint32, c_void_p], c_uint32] = None,
-            check_error: bool = True
-    ):
-        """
-        Starts an acquisition to the buffers in self.buflist_id.
-
-        Acquisition can be started synchronously or asynchronously.
-
-        wraps imgSessionAcquire
-
-        Args:
-            asynchronous : asynchronous flag. If False, this function does not return until the
-                acquisition completes
-            callback : A pointer to a c function that serves as a callback function. If asynchronous
-                is True, the callback functiono is called under one of the following two conditions:
-                    * If the acquisition is non-continuous, the callback is called when all buffers
-                        acquired
-                    * If the acquisition is continuous, the callback is called after each buffer
-                        becomes available.
-                    If None is passed Null will be passed to imgSessionAcquire and no function will
-                        be called (and that's very ok)
-                    Note : For non-continuous acquisitions, the callback function must return zero.
-                    For continuous acquisitions, the return value of the callback function
-                    determines the behavior of the driver for subsequent buffer completions. Return
-                    zero to disregard future buffer complete notifications. Return a non-zero value
-                    to continue to receive callbacks.
-            check_error : should the check() function be called once operation has completed
-
-        Returns:
-            error code which reports status of operation.
-
-                0 = Success, positive values = Warnings,
-                negative values = Errors
-        """
-
-        error_code = self.imaq.imgSessionAcquire(
-            self.session_id,
-            c_uint32(asynchronous),
-            callback
-        )
-
-        if error_code != 0 and check_error:
-            self.check(
-                error_code,
-                traceback_msg=f"session acquire"
-            )
-
-    def status(self) -> Tuple[bool, int, int]:
+    def status(self) -> Tuple[int, bool, int, int]:
         """
         Returns status information about the acquisition, such as the state of the acquisition and
         the last valid buffer acquired
 
         Returns:
-            Session
-            Acquiring : Boolean
+            error_code : int
+            Session Acquiring : Boolean
             Last Valid Buffer Index: Int, buffer list index of last acquired image
             Last Valid Buffer Number: Int, cumulative number of last acquired image
         """
 
+        er_ret = (True, -1, -1)  # Useless data returned in case of an error when getting attributes
         er_1 = self.get_attribute("Acquiring")
-        if er_1 != 0 :
-            return er_1
+        if er_1 != 0:
+            return (er_1,) + er_ret
         er_2 = self.get_attribute("Last Frame")
         if er_2 != 0:
-            return er_2
+            return (er_2,) + er_ret
         er_3 = self.get_attribute("Last Buffer Index")
         if er_3 != 0:
-            return er_3
+            return (er_3,) + er_ret
 
         acquiring = bool(self.attributes["Acquiring"].value)
         last_buffer_index = self.attributes["Last Buffer Index"].value
         last_buffer_number = self.attributes["Last Frame"].value
 
-        return acquiring, last_buffer_index, last_buffer_number
+        return 0, acquiring, last_buffer_index, last_buffer_number
+
+    def compute_buffer_size(self) -> Tuple[int,c_uint32]:
+        """
+        Sets self.buffer_size to the required size and returns self.buffer_size
+
+        Returns:
+            (error_code,bf_size)
+            error_code : error code which reports status of operation.
+
+                0 = Success, positive values = Warnings,
+                negative values = Errors
+            bf_size :  size of the image buffer required for acquisition in this session
+                in number of bytes needed.
+
+        """
+
+        er_1 = self.get_attribute("Bytes Per Pixel")
+        if er_1 != 0:
+            return er_1, c_uint32(-1)
+        er_2 = self.get_attribute("ROI Width")
+        if er_2 != 0:
+            return er_2, c_uint32(-1)
+        er_3 = self.get_attribute("ROI Height")
+        if er_3 != 0:
+            return er_3, c_uint32(-1)
+
+        width = self.attributes["ROI Width"]
+        height = self.attributes["ROI Height"]
+        bytes_per_pix = self.attributes["Bytes Per Pixel"]
+
+        self.buffer_size = width*height*bytes_per_pix
+        return 0, self.buffer_size
+
+    def setup_buffers(
+            self,
+            num_buffers: int
+    ):
+        """
+        Initializes buffer array and buffer list for acquisition
+        If all calls to imaq are successful self.buf_list_init should be True, otherwise
+        it will be false
+        """
+
+        if self.create_buffer_list(num_buffers):
+            return
+        for buf_num in range(self.num_buffers):
+            # Juan's outline based on c ll ring example  -------------------
+
+            if self.compute_buffer_size():
+                return
+            erc, self.buffers[buf_num] = self.create_buffer()
+            if erc:
+                return
+            if self.set_buf_element2(
+                    buf_num,
+                    "Address",
+                    self.buffers[buf_num]
+                ):
+                return
+            if self.set_buf_element2(
+                    buf_num,
+                    "Size",
+                    c_uint32(self.buffer_size)
+                ):
+                return
+            if buf_num == self.num_buffers - 1:
+                buf_cmd = self.BUFFER_COMMANDS["Loop"]
+            else:
+                buf_cmd = self.BUFFER_COMMANDS["Next"]
+            if self.set_buf_element2(
+                    buf_num,
+                    "Command",
+                    c_uint32(buf_cmd)
+                ):
+                return
+        self.buff_list_init = True
+
+    def set_roi(
+            self,
+            roi: dict[str: int],
+    ) -> int:
+        """
+        Sets the session roi based on the aquisition_region dict
+        Args:
+            roi : should map the either of the following four sets of keys to their
+                respective values
+                "Right"
+                "Left"
+                "Bottom"
+                "Top"
+                or
+                "Left"
+                "Top"
+                "Width"
+                "Height"
+        Returns:
+            error_code : error code which reports status of operation.
+
+                0 = Success, positive values = Warnings,
+                negative values = Errors
+        """
+
+        if set(roi.keys()) == {"Right","Left","Bottom","Top"}:
+            width = roi["Right"] - roi["Left"]
+            height = roi["Bottom"] - roi["Top"]
+        elif set(roi.keys()) == {"Bottom","Top","Width","Height"}:
+            width = roi["Width"]
+            height = roi["Height"]
+        else: raise KeyError("Read the docstring, wrong keys in the dict!")
+        top = roi["Top"]
+        left = roi["Left"]
+        er = self.get_attribute("ROI Width")
+        if er != 0:
+            return er
+        acq_width = self.attributes["ROI Width"]
+        er = self.get_attribute("ROI Height")
+        if er != 0:
+            return er
+        acq_height = self.attributes["ROI Height"]
+
+        if width < acq_width:
+            er = self.set_attribute2("ROI Width", c_uint32(width))
+            if er != 0:
+                return er
+        if height < acq_height:
+            er = self.set_attribute2("ROI Height", c_uint32(height))
+            if er != 0:
+                return er
+        er = self.set_attribute2("ROI Left", left)
+        if er != 0:
+            return er
+        er = self.set_attribute2("ROI Top", top)
+        if er != 0:
+            return er
+
+        return 0
 
     def hamamatsu_serial(
             self,
@@ -911,7 +1020,7 @@ class NiImaqSession:
         error instead. It should be treated consistently with check() at least
         '''
         enc_rsp = str_bf.value
-        if expected_response == "Nothing" and enc_exp_rsp == enc_rsp:
+        if expected_response == "Nothing" or enc_exp_rsp == enc_rsp:
             return error_code, enc_rsp
         er_msg = f"Serial write {command}. Expected Response {enc_exp_rsp}\n Got {enc_rsp}\n"
         print(er_msg)  # TODO : use logging
