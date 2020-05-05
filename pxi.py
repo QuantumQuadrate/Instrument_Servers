@@ -2,8 +2,6 @@
 PXI class for the PXI Server
 SaffmanLab, University of Wisconsin - Madison
 
-Author(s): Cody Poole, Preston Huft
-
 For receiving xml-wrapped messages from CsPy over a TCP/IP connection, 
 updating the relevant PXI device classes with the parsed xml, and returning
 responses from hardware to CsPy. 
@@ -60,13 +58,13 @@ class PXI:
         self.element_tags = [] # for debugging
         
         # instantiate the device objects
-        self.hsdio = HSDIO()
+        self.hsdio = HSDIO(self)
         self.tcp = TCP(self, address)
         #self.hamamatsu = Hamamatsu()
         # TODO: implement these classes
         self.counters = None#Counters()
-        self.analog_input = None#AnalogOutput()
-        self.analog_output = None#AnalogInput()
+        self.analog_input = None#AnalogOutput(self)
+        self.analog_output = None#AnalogInput(self)
         self.ttl = None#TTL()
 
 
