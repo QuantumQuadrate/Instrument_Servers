@@ -147,7 +147,7 @@ class HSDIO: # could inherit from an Instrument class if helpful
                 elif child.tag == "waveforms":
 
                     self.logger.info("found a waveform")
-
+                    
                     wvforms_node = child
 
                     # for each waveform
@@ -179,6 +179,7 @@ class HSDIO: # could inherit from an Instrument class if helpful
 
                 else:
                     self.logger.warning("Not a valid XML tag for HSDIO initialization")
+                    
 
     def init(self):
         """
@@ -250,6 +251,7 @@ class HSDIO: # could inherit from an Instrument class if helpful
 
             self.isInitialized = True
 
+
     def update(self):
         """
         write waveforms to the PC memory
@@ -281,6 +283,7 @@ class HSDIO: # could inherit from an Instrument class if helpful
                                 max(wave.transitions),
                                 data
                             )
+
 
     def settings(self, wf_arr, wf_names):
         pass
