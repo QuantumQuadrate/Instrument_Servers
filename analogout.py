@@ -3,10 +3,6 @@ AnalogOutput class for the PXI Server
 SaffmanLab, University of Wisconsin - Madison
 """
 
-# TODO: need to handle what happens if server is stopped or reset;
-# maybe call a function in pxi when the connection is stopped or reset, which
-# then in turn sets stop/reset attributes in each of the device classes
-
 ## modules 
 import nidaqmx
 from nidaqmx.constants import Edge, AcquisitionType, Signal
@@ -14,31 +10,48 @@ import numpy as np
 import xml.etree.ElementTree as ET
 import csv
 from io import StringIO
+import logging
 from recordclass import recordclass as rc
 
 ## local imports
 from trigger import StartTrigger
-
+from instrumentfuncs import *
 
 class AnalogOutput:
 
     ExportTrigger = rc('ExportTrigger', ('exportStartTrigger', 'outputTerminal'))
     ExternalClock = rc('ExternalClock', ('useExternalClock', 'source', 'maxClockRate'))
     
-    def __init__(self):
-
+    def __init__(self, pxi):
+        self.logger = logging.getLogger(str(self.__class__))
+        self.pxi = pxi
         self.enable = False
-        
-        # probably don't need to initialize unused variables here
-        #self.physicalChannels = ""
-        #self.minValue = 
-        #self.maxValue
-
+        self.physicalChannels = ""
+        self.minValue = -10
+        self.maxValue = 10
+        self.sampleRate = 0
+        self.waveforms = None
         self.exportTrigger = self.ExportTrigger(False, None)
         self.externalClock = self.ExportTrigger(False, '', 0)
         self.startTrigger = StartTrigger()
+        self.task = None
         self.isInitialized = False
 
+    @property
+    def reset_connection(self) -> bool:
+        return self.pxi.reset_connection
+
+    @reset_connection.setter
+    def reset_connection(self, value):
+        self.pxi.reset_connection = value
+
+    @property
+    def stop_connections(self) ->bool:
+        return self.pxi.stop_connections
+
+    @stop_connections.setter
+    def stop_connections(self, value):
+        self.pxi.stop_connections = value
 
     def wave_from_str(self, wave_str, delim=' '):
         """
@@ -71,34 +84,13 @@ class AnalogOutput:
         return wave_arr
 
 
-    def str_to_bool(self, boolstr):
-        """ 
-        return True or False case-insensitively for a string 'true' or 'false'
-
-        Args: 
-            'boolstr': string to be converted; not case-sensitive
-        Return:
-            'boolean': True or False. 
-        """
-
-        boolstr = boolstr.lower()
-        if boolstr == "true":
-            return True
-        elif boolstr == "false":
-            return False
-        else:
-            print("Expected a string 'true' or 'false' but received {boolstr}")
-            raise
-
-
     def load_xml(self, node):
         """
         Initialize AnalogOutput instance attributes with xml from CsPy
 
-        Expects node.tag == "AnalogOutput"
-
         Args:
-            'node': type is ET.Element. tag should be "HSDIO"
+            'node': type is ET.Element. tag should be "HSDIO". Expects 
+            node.tag == "AnalogOutput"
         """
         
         assert node.tag == "AnalogOutput"
@@ -109,7 +101,7 @@ class AnalogOutput:
             if type(child) == ET.Element:
 
                 if child.tag == "enable":
-                    self.enable = self.str_to_bool(child.text)
+                    self.enable = str_to_bool(child.text)
 
                 elif child.tag == "physicalChannels":
                     self.physicalChannels = child.text
@@ -127,10 +119,10 @@ class AnalogOutput:
                     self.waveforms = self.wave_from_str(child.text)
 
                 elif child.tag == "waitForStartTrigger":
-                    self.startTrigger.waitForStartTrigger = self.str_to_bool(child.text)
+                    self.startTrigger.waitForStartTrigger = str_to_bool(child.text)
 
                 elif child.tag == "exportStartTrigger":
-                    self.exportTrigger.exportStartTrigger = self.str_to_bool(child.text)
+                    self.exportTrigger.exportStartTrigger = str_to_bool(child.text)
 
                 elif child.tag == "triggerSource":
                     self.startTrigger.source = child.text
@@ -142,12 +134,11 @@ class AnalogOutput:
                     try:
                         self.startTrigger.edge = StartTrigger.nidaqmx_edges[child.text]
                     except KeyError as e:
-                        # TODO: replace with logger
-                        print(f"Not a valid {child.tag} value {child.text} \n {e}")
+                        self.logger.error(f"Not a valid {child.tag} value {child.text} \n {e}")
                         raise
 
                 elif child.tag == "useExternalClock":
-                    self.externalClock.useExternalClock = self.str_to_bool(child.text)
+                    self.externalClock.useExternalClock = str_to_bool(child.text)
 
                 elif child.tag == "externalClockSource":
                     self.externalClock.source = child.text
@@ -156,8 +147,7 @@ class AnalogOutput:
                     self.externalClock.maxClockRate = float(child.text)
 
                 else:
-                    # TODO: replace with logger
-                    print(f"Unrecognized XML tag \'{child.tag}\' in <AnalogOutput>")
+                    self.logger.warning(f"Unrecognized XML tag \'{child.tag}\' in <AnalogOutput>")
 
 
     # TODO: test with hardware
@@ -166,37 +156,39 @@ class AnalogOutput:
         Create and initialize an nidaqmx Task object
         """
         
-        if self.enable:
+        if not (self.stop_connections or self.reset_connection):
+        
+            if self.enable:
 
-            # Clear old task
-            if self.task != None:
-                self.task.close()
+                # Clear old task
+                if self.task != None:
+                    self.task.close()
 
-            self.task = nidaqmx.Task() # can't tell if task.Task() or just Task()
-            self.task.ao_channels.add_ao_voltage_chan(
-                self.physicalChannels,
-                min_val = self.minValue,
-                max_val = self.maxValue)
-            
-            if self.useExternalClock:
-                self.task.timing.cfg_samp_clk_timing(
-                    rate=self.externalClockRateMax, 
-                    source=self.externalClockSource, 
-                    active_edge=Edge.RISING, # default
-                    sample_mode=AcquisitionType.FINITE, # default
-                    samps_per_chan=1000) # default
+                self.task = nidaqmx.Task() # might be task.Task()
+                self.task.ao_channels.add_ao_voltage_chan(
+                    self.physicalChannels,
+                    min_val = self.minValue,
+                    max_val = self.maxValue)
                 
-            if self.startTrigger.waitForStartTrigger:
-                self.task.start_trigger.cfg_dig_edge_start_trig(
-                    trigger_source=self.startTrigger.source,
-                    trigger_edge=self.startTrigger.edge) # default
-                                
-            if self.exportStartTrigger:
-                self.task.export_signals.export_signal(
-                    Signal.START_TRIGGER,
-                    self.exportTrigger.outputTerminal)
-                
-            self.isInitialized = True
+                if self.externalClock.useExternalClock:
+                    self.task.timing.cfg_samp_clk_timing(
+                        rate=self.externalClock.maxClockRate, 
+                        source=self.externalClock.source, 
+                        active_edge=Edge.RISING, # default
+                        sample_mode=AcquisitionType.FINITE, # default
+                        samps_per_chan=1000) # default
+                    
+                if self.startTrigger.waitForStartTrigger:
+                    self.task.start_trigger.cfg_dig_edge_start_trig(
+                        trigger_source=self.startTrigger.source,
+                        trigger_edge=self.startTrigger.edge) # default
+                                    
+                if self.exportStartTrigger:
+                    self.task.export_signals.export_signal(
+                        Signal.START_TRIGGER,
+                        self.exportTrigger.outputTerminal)
+                    
+                self.isInitialized = True
 
 
     # TODO: test with hardware
@@ -206,20 +198,21 @@ class AnalogOutput:
         """
         
         # TODO: check if stop or reset
+        if not (self.stop_connections or self.reset_connection):
         
-        if self.enable:
-            pass
+            if self.enable:
+                pass
+                
+                channels, samples = self.waveforms.shape
+                sample_mode = AcquisitionType.FINITE 
+                self.task.timing.cfg_samp_clk_timing(
+                        rate=self.sampleRate, 
+                        active_edge=Edge.RISING, # default
+                        sample_mode=AcquisitionType.FINITE, # default
+                        samps_per_chan=samples)
             
-            channels, samples = self.waveforms.shape
-            sample_mode = AcquisitionType.FINITE 
-            self.task.timing.cfg_samp_clk_timing(
-                    rate=self.sampleRate, 
-                    active_edge=Edge.RISING, # default
-                    sample_mode=AcquisitionType.FINITE, # default
-                    samps_per_chan=samples)
-        
-            # Auto-start is false by default when the data passed in contains
-            # more than one sample per channel
-            self.task.write(self.waveforms)
+                # Auto-start is false by default when the data passed in contains
+                # more than one sample per channel
+                self.task.write(self.waveforms)
             
             

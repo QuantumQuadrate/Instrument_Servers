@@ -2,8 +2,6 @@
 HSDIO class for the PXI Server
 SaffmanLab, University of Wisconsin - Madison
 
-Author(s): Preston Huft, Juan Bohorquez
-
 For parsing XML strings which specify triggers and waveforms to be loaded to National
 Instruments HSDIO hardware. 
 """
@@ -14,6 +12,7 @@ import xml.etree.ElementTree as ET
 import os
 import struct
 import platform # for checking the os bit
+import logger
 from ni_hsdio import HsdioSession
 
 ## local class imports
@@ -31,8 +30,7 @@ class HSDIO: # could inherit from an Instrument class if helpful
     dllpath32 = os.path.join(f"C:\{programsDir32}\IVI Foundation\IVI\Bin", "niHSDIO.dll")
     dllpath64 = os.path.join("C:\Program Files\IVI Foundation\IVI\Bin", "niHSDIO_64.dll")
 
-    def __init__(self):
-
+    def __init__(self, pxi):
         '''
         This is taken care of inside of ni_hsdio now
         # Quick test for bitness
@@ -46,9 +44,8 @@ class HSDIO: # could inherit from an Instrument class if helpful
         '''
 
         ## device settings
-        # TODO: could make an attribute with these settings in a dictionary
-        # and then settings can be updated by calling a settings function with
-        # kwargs
+        self.logger = logging.getLogger(str(self.__class__))
+        self.pxi = pxi
         self.enablePulses = False
         self.resourceNames = np.array([], dtype=str)
         self.clockRate = 2*10**7 # 20 MHz
@@ -67,12 +64,28 @@ class HSDIO: # could inherit from an Instrument class if helpful
         # sessions. Sessions now have an attribute HsdioSession.handle (a python string)
         self.instrumentHandles = []  # array to hold instrument handles
         self.sessions = []  # array to hold HsdioSession objects
-
         self.waveformArr = []
-
 
         # whether or not we've actually populated the attributes above
         self.isInitialized = False
+        
+    
+    @property
+    def reset_connection(self) -> bool:
+        return self.pxi.reset_connection
+
+    @reset_connection.setter
+    def reset_connection(self, value):
+        self.pxi.reset_connection = value
+
+    @property
+    def stop_connections(self) ->bool:
+        return self.pxi.stop_connections
+
+    @stop_connections.setter
+    def stop_connections(self, value):
+        self.pxi.stop_connections = value
+        
 
     def load_xml(self, node):
         """
@@ -133,10 +146,8 @@ class HSDIO: # could inherit from an Instrument class if helpful
 
                 elif child.tag == "waveforms":
 
-                    #self.print_txt(child) #HUGE WAVEFORM STRING PLZ BE CAREFUL
-                    print("found a waveform") #TODO: change to logger
-
-                    # TODO: wrap in load waveform xml
+                    self.logger.info("found a waveform")
+                    
                     wvforms_node = child
 
                     # for each waveform
@@ -151,7 +162,6 @@ class HSDIO: # could inherit from an Instrument class if helpful
                                 self.waveformArr.append(wvform)
 
                 elif child.tag == "script":
-                    self.print_txt(child) # DEBUGGING
                     self.pulseGenScript
 
                 elif child.tag == "startTrigger":
@@ -159,118 +169,121 @@ class HSDIO: # could inherit from an Instrument class if helpful
                     self.startTrigger.init_from_xml(child)
 
                 elif child.tag == "InitialState":
-                    self.print_txt(child) # DEBUGGING
                     self.initialStates = np.array(child.text.split(","))
 
                 elif child.tag == "IdleState":
-                    self.print_txt(child) # DEBUGGING
                     self.idleStates = np.array(child.text.split(","))
 
                 elif child.tag == "ActiveChannels":
-                    self.print_txt(child) # DEBUGGING
                     self.activeChannels = np.array(child.text.split("\n"))
 
                 else:
-                    # TODO: replace with logging
-                    print("Not a valid XML tag for HSDIO initialization")
+                    self.logger.warning("Not a valid XML tag for HSDIO initialization")
+                    
 
     def init(self):
         """
         set up the triggering, initial states, script triggers, etc
         """
 
-        if self.isInitialized:
+        if not (self.stop_connections or self.reset_connection):
 
-            for session in self.sessions:
-                session.abort()
-                session.close()
-                pass
+            if self.isInitialized:
 
-                # i think this should clear the list of instrumentHandles too.
-                # in LabView the handle gets passed in/out of the above VIs.
-                # maybe just reset the array after the loop:
-                # Its worth considering how these handles are being populated - Juan
+                for session in self.sessions:
+                    session.abort()
+                    session.close()
+                    pass
 
-            self.sessions = []  # reset
+                    # i think this should clear the list of instrumentHandles too.
+                    # in LabView the handle gets passed in/out of the above VIs.
+                    # maybe just reset the array after the loop:
+                    # Its worth considering how these handles are being populated - Juan
 
-        # self.instrumentHandles.append("")  # Not sure why this is here
+                self.sessions = []  # reset
 
-        if self.enablePulses:
+            # self.instrumentHandles.append("")  # Not sure why this is here
 
-            iterables = zip(self.idleStates, self.initialStates,
-                            self.activeChannels, self.resourceNames)
-            for idle_state,init_state,chan_list,resource in iterables:
-                self.sessions.append(HsdioSession(resource))
-                session = self.sessions[-1]
+            if self.enablePulses:
 
-                session.init_generation_sess()
+                iterables = zip(self.idleStates, self.initialStates,
+                                self.activeChannels, self.resourceNames)
+                for idle_state,init_state,chan_list,resource in iterables:
+                    self.sessions.append(HsdioSession(resource))
+                    session = self.sessions[-1]
 
-                session.assign_dynamic_channels(chan_list)
+                    session.init_generation_sess()
 
-                session.configure_sample_clock(self.clockRate)
+                    session.assign_dynamic_channels(chan_list)
 
-                session.configure_generation_mode(generation_mode=15)
+                    session.configure_sample_clock(self.clockRate)
 
-                session.configure_initial_state(chan_list, init_state)
+                    session.configure_generation_mode(generation_mode=15)
 
-                session.configure_idle_state(chan_list,idle_state)
+                    session.configure_initial_state(chan_list, init_state)
 
-                for trig in self.scriptTriggers:
+                    session.configure_idle_state(chan_list,idle_state)
 
-                    # implement this in a better way so not hardcoding the numeric code
-                    if trig.type == trig.types["Level"]:  # Level type
+                    for trig in self.scriptTriggers:
 
-                        session.configure_digital_level_script_trigger(
-                            trig.trigID,  # str
-                            trig.source,  # str
-                            trig.level    # int
+                        # implement this in a better way so not hardcoding the numeric code
+                        if trig.type == trig.types["Level"]:  # Level type
+
+                            session.configure_digital_level_script_trigger(
+                                trig.trigID,  # str
+                                trig.source,  # str
+                                trig.level    # int
+                            )
+
+                        else:  # Edge type is default when initialized
+
+                            session.configure_digital_edge_script_trigger(
+                                trig.trigID,
+                                trig.source,
+                                trig.edge
+                            )
+
+                    if self.startTrigger.waitForStartTrigger:
+                        session.configure_digital_edge_start_trigger(
+                            self.startTrigger.source,
+                            self.startTrigger.edge
                         )
 
-                    else:  # Edge type is default when initialized
+            self.isInitialized = True
 
-                        session.configure_digital_edge_script_trigger(
-                            trig.trigID,
-                            trig.source,
-                            trig.edge
-                        )
-
-                if self.startTrigger.waitForStartTrigger:
-                    session.configure_digital_edge_start_trigger(
-                        self.startTrigger.source,
-                        self.startTrigger.edge
-                    )
-
-        self.isInitialized = True
 
     def update(self):
         """
         write waveforms to the PC memory
         """
+        
+        if not (self.stop_connections or self.reset_connection):
 
-        if self.enablePulses:
+            if self.enablePulses:
 
-            for wf in self.waveformArr:
+                for wf in self.waveformArr:
 
-                wv_arr = wf.wave_split()
-                # for each HSDIO card (e.g., Rb experiment has two cards)
-                for i, session in enumerate(self.sessions):
+                    wv_arr = wf.wave_split()
+                    # for each HSDIO card (e.g., Rb experiment has two cards)
+                    for i, session in enumerate(self.sessions):
 
-                    wave = wv_arr[i]
-                    fmt, data = wave.decompress()
+                        wave = wv_arr[i]
+                        fmt, data = wave.decompress()
 
-                    if format == "WDT":
-                        session.write_waveform_wdt(
-                            wave.name,
-                            max(wave.transitions),
-                            71,  # Group by sample for group by channel use 72
-                            data
-                        )
-                    elif format == "uInt32":
-                        session.write_waveform_uint32(
-                            wave.name,
-                            max(wave.transitions),
-                            data
-                        )
+                        if format == "WDT":
+                            session.write_waveform_wdt(
+                                wave.name,
+                                max(wave.transitions),
+                                71,  # Group by sample for group by channel use 72
+                                data
+                            )
+                        elif format == "uInt32":
+                            session.write_waveform_uint32(
+                                wave.name,
+                                max(wave.transitions),
+                                data
+                            )
+
 
     def settings(self, wf_arr, wf_names):
         pass
@@ -281,4 +294,4 @@ class HSDIO: # could inherit from an Instrument class if helpful
         # log stuff, call settings in the server code for debugging?
 
     def print_txt(self, node): # for debugging
-        print(f"{node.tag} = {node.text}") # TODO replace with logging
+        self.logger.info(f"{node.tag} = {node.text}")
