@@ -2,11 +2,9 @@
 PXI class for the PXI Server
 SaffmanLab, University of Wisconsin - Madison
 
-Author(s): Cody Poole, Preston Huft
-
 For receiving xml-wrapped messages from CsPy over a TCP/IP connection,
 updating the relevant PXI device classes with the parsed xml, and returning
-responses from hardware to CsPy.
+responses from hardware to CsPy. 
 """
 
 '''
@@ -31,15 +29,16 @@ from keylistener import KeyListener
 
 #### local device classes
 from hsdio import HSDIO
-from hamamatsu import Hamamatsu
+#from hamamatsu import Hamamatsu
 from tcp import TCP
 
 
 class PXI:
-    help_str = ("At any time, type... \n" +
-                " - \'h\' to see this message again \n" +
-                " - \'r\' to reset the connection to CsPy \n" +
-                " - \'q\' to stop the connection and close this server.")
+    
+    help_str = ("At any time, type... \n"+
+	            " - \'h\' to see this message again \n"+
+				" - \'r\' to reset the connection to CsPy \n"+
+				" - \'q\' to stop the connection and close this server.")
 
     def __init__(self, address: Tuple[str, int]):
         self.logger = logging.getLogger(str(self.__class__))
@@ -59,13 +58,13 @@ class PXI:
         self.element_tags = []  # for debugging
 
         # instantiate the device objects
-        self.hsdio = HSDIO()
+        self.hsdio = HSDIO(self)
         self.tcp = TCP(self, address)
         self.hamamatsu = Hamamatsu()
         # TODO: implement these classes
         self.counters = None  # Counters()
-        self.analog_input = None  # AnalogOutput()
-        self.analog_output = None  # AnalogInput()
+        self.analog_input = None  # AnalogOutput(self)
+        self.analog_output = None  # AnalogInput(self)
         self.ttl = None  # TTL()
         self.daqmx_do = None # DAQMX_DO()
 
@@ -147,16 +146,16 @@ class PXI:
     def parse_xml(self, xml_str):
         """
         Initialize the device instances and other settings from queued xml
-
-        Loop over highest tier of xml tags with the root tag='LabView' in the
-        message received from CsPy, and call the appropriate device class accordingly. the xml is popped
-        from a queue, which updates in the network_loop whenever a valid
-        message from CsPy is received.
-
+        
+        Loop over highest tier of xml tags with the root tag='LabView' in the 
+        message received from CsPy, and call the appropriate device class accordingly. the xml is popped 
+        from a queue, which updates in the network_loop whenever a valid 
+        message from CsPy is received. 
+        
         Args:
             'xml_str': (str) xml received from CsPy in the receive_message method
         """
-
+        
         self.exit_measurement = False
         self.element_tags = []  # clear the list of received tags
 
