@@ -449,6 +449,62 @@ class Hamamatsu:
         '''
         err_c, acquiring, last_buffer_index, last_buffer_number = self.session.status()
         pass
+
+    def minimial_acquire(self):  # TODO : Implement
+        if not self.use_camera:
+            return
+        er_c, session_acquiring, last_buf_ind, last_buf_num = self.session.status()
+        bf_dif = last_buf_num - self.lastFrameAcquired
+        not_enough_buffers = bf_dif > self.numImageBuffers
+        # Why is this in the labview code? Should be a flag for you verbose logging is maybe?
+        if False:
+            d1 = self.lastFrameAcquired
+            d2 = last_buf_num
+            d3 = bf_dif
+            self.append_to_log(f"Last Frame : {d1}\nNew Frame : {d2}\n Difference : {d3}")
+        if not session_acquiring:
+            er_msg = "In session.status() NOT acquiring."
+            raise SomeError(er_msg)  # TODO : Replace placeholder
+        if last_buf_num != self.lastFrameAcquired and last_buf_num != -1 and not_enough_buffers:
+            er_msg = "The number of images taken exceeds the number of buffers alloted." + \
+                "Images have been lost.  Increase the number of buffers."
+            raise SomeError(er_msg)  # TODO : Replace placeholder
+            # TODO : Use logger
+        frame_ind = last_buf_ind
+        for i in range(bf_dif):
+            frame_ind = frame_ind + 1
+            # Why is this in the labview code? Should be a flag for you verbose logging is maybe?
+            if False:
+                self.append_to_log(f"True: Acquiring a new image available\n"
+                                   " Reading buffer number {}")
+            er_c, img = self.session.extract_buffer()  # TODO : Implement
+            #  If self.forceImageToU16 out is I16, then cast to U16. Otherwise comes out U16 then cast again.
+            self.session.img_to_array(self.forceImagesToU16)  # TODO : Implement
+            er_c = self.session.extract_buffer()  # Here extracted frame buffer is -1. Seems like it'll replace it
+            #  self.session.release_buffer() is a better option
+        self.session.read_camera_temperature()  # TODO : Implement
+
+
+
+
+
+
+
+
+
+
+
+        pass
+
+    def data_out(self):  # TODO : Implement
+        """
+        Should return a formatted data string
+        Returns:
+
+        """
+        pass
+
+
                 
                 
 

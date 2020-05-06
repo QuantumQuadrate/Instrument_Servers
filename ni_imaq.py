@@ -792,10 +792,11 @@ class NiImaqSession:
         the last valid buffer acquired
 
         Returns:
-            error_code : int
-            Session Acquiring : Boolean
-            Last Valid Buffer Index: Int, buffer list index of last acquired image
-            Last Valid Buffer Number: Int, cumulative number of last acquired image
+            error_code, session acquiring, last valid bufffer index, last valid buffer number
+                error_code : int
+                Session Acquiring : Boolean
+                Last Valid Buffer Index: Int, buffer list index of last acquired image
+                Last Valid Buffer Number: Int, cumulative number of last acquired image
         """
 
         er_ret = (True, -1, -1)  # Useless data returned in case of an error when getting attributes
