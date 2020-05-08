@@ -10,7 +10,6 @@ all methods decorated with "abstractmethod" must be overriden in the class
 that inherits from Instrument.
 
 For example usage, go look at implementation in hsdio.py, analogin.py, etc. 
-
 """
 
 import xml.etree.ElementTree as ET
@@ -20,10 +19,17 @@ from instrumentfuncs import str_to_bool
 class Instrument(ABC):
     
     def __init__(self, pxi, expectedRoot):
+        """
+        Constructor for the Instrument abstract base class
+        
+        Args:
+            'pxi': reference to the parent PXI instance
+            'expectedRoot': the xml tag corresponding to your instrument. This 
+            should be in the xml sent by CsPy to talk to setup this device.
+        """
+        
         self.pxi = pxi
-        self.expectedRoot = expectedRoot # the xml tag corresponding to your instrument. 
-                                                       # this should be in the xml sent by cspy to talk
-                                                       # to setup this device
+        self.expectedRoot = expectedRoot 
         self.enable = False
     
     @property
@@ -44,7 +50,7 @@ class Instrument(ABC):
    
     
     @abstractmethod
-    def load_xml()
+    def load_xml(self, node)
         """
         Initialize the instrument class attributes from XML received from CsPy
         
