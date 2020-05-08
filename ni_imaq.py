@@ -13,6 +13,7 @@ import os
 from ctypes import c_uint32
 from typing import Tuple, Callable, TypeVar
 import numpy as np
+from copy import deepcopy
 
 '''
 Not Sure this will be useful. Might be a decent place to start
@@ -50,7 +51,7 @@ class NiImaqSession:
     IMG_HOST_FRAME = 0
     IMG_DEVICE_FRAME = 1
 
-    _IMG_BASE = int(0x3FF60000,16)
+    _IMG_BASE = int(0x3FF60000, 16)
 
     # Buffer command keys
     IMG_CMD_LOOP = _IMG_BASE + int(0x02, 16)
@@ -702,6 +703,97 @@ class NiImaqSession:
 
         return error_code
 
+    def examine_buffer(
+            self,
+            which_buffer: int,
+            check_error: bool = True
+    ) -> Tuple[int, int, c_void_p]:
+        """
+        Extracts an image from a live acquisition.
+
+        This function locks an image out of a continuous loop sequence (continuous loop/ ring
+        acquisition) when you are using a ring (continuous) sequence. If the requested image has
+        been acquired and exists in memory, the function returns that image immediately. If the
+        requested image has not yet been acquired, the function does not return until the image has
+        been acquired or the timeout period has expired. If the requested image has already been
+        overwritten, the function returns the most current image. If the buffer remains extracted
+        long enough that the acquisition hardware wraps around the buffer lis and encounters the
+        extracted buffer again, the acquisition will stall, increment the last fram count, and the
+        extracted buffer will not be overwritten.
+
+        wraps imgSessionExamineBuffer2
+
+        Args:
+            which_buffer : cumulative buffer number of image to extract.
+                Pass NiImageSession.IMG_CURRENT_BUFFER to get the buffer that is currently being
+                extracted
+
+            check_error : should the check() function be called once operation has completed
+
+        Returns:
+            (error_code, bf_num, bf_addr)
+                error code : error code which reports status of operation.
+
+                    0 = Success, positive values = Warnings,
+                    negative values = Errors
+                bf_num : cumulative number of the returned image
+                bf_addr : address to locked image buffer
+        """
+
+        bf_num = c_uint32(0)
+        bf_addr = c_void_p(0)
+
+        error_code = self.imaq.imgSessionExamineBuffer2(
+            self.session_id,            # SESSION_ID
+            c_uint32(which_buffer),     # uInt32
+            bf_num,                     # void*
+            byref(bf_addr)              # void**
+        )
+
+        if error_code != 0 and check_error:
+            self.check(
+                error_code,
+                traceback_msg=f"examine_buffer\n"
+                              f"buffer index :{which_buffer}\n"
+                              f"buffer read : {bf_num.value}"
+            )
+
+        return error_code, bf_num.value, bf_addr
+
+    def release_buffer(
+            self,
+            check_error: bool = True
+    ) -> int:
+        """
+        Releases an image that was previously held with self.examine_buffer.
+
+        This function has the effect of re_entering an image into a continuous ring buffer pool
+        after analysis.
+
+        wraps imgSessionReleaseBuffer
+
+        Args:
+            check_error : should the check() function be called once operation has completed
+
+        Returns:
+            error code which reports status of operation.
+
+                0 = Success, positive values = Warnings,
+                negative values = Errors
+        """
+
+        error_code = self.imaq.imgSessionReleaseBuffer(
+            self.session_id  # SESSION_ID
+        )
+
+        if error_code != 0 and check_error:
+            self.check(
+                error_code,
+                traceback_msg="release_buffer"
+            )
+
+        return error_code
+
     def session_copy_buffer(
             self,
             buf_index: int,
@@ -710,17 +802,7 @@ class NiImaqSession:
             check_error: bool = True
     ) -> Tuple[int, Array[int]]:
         """
-        Extracts an image from a live acquisition.
-
-        This function lets you lock an image out of a continuous loop sequence for processing when
-        you are using a ring (continuous) sequence. If the requested image has been acquired and
-        exists in memory, the function returns that image immediately.If the requested image has not
-        yet been acquired, the function does not return until the image has been acquired or the
-        timeout period has expired. If the requested image has already been overwritten, the
-        function returns the most current image. If the buffer remains extracted long enough that
-        the acquisition hardware wraps around the buffer list and encounters the extracted buffer
-        again, the acquisition will stall, increment the lost frame count, and the extracted buffer
-        will not be overwritten.
+        copies session image data to a use buffer
 
         wraps imgSessionCopyBuffer
 
@@ -951,6 +1033,67 @@ class NiImaqSession:
             return er
 
         return 0
+
+    def extract_buffer(
+            self,
+            buf_num
+    ) -> Tuple[int, int, np.ndarray]:
+        """
+        Extracts the image data from a buffer during acquisition.
+
+        The buffer is extracted from the acquisition and protected from being overwritten during the
+        operation of this function. The buffer data is copied into a numpy array and the buffer is
+        reinserted into the buffer list. When this function is called any currently extracted buffer
+        is reinserted into the buffer list.
+
+        If the acquisition hardware wraps around the buffer list and encounters the extracted buffer
+        while the buffer remains extracted, the acquisition will stall, increment the lost frame
+        count, and the extracted buffer is reinserted into the buffer list.
+        Args:
+            buf_num : cumulative buffer number of image to extract. Pass NiImageSession.IMG_CURRENT_BUFFER to
+                get the buffer that is currently being extracted
+        Returns:
+            (error_code, last_buffer, img_array)
+                error_code : error code which reports status of operation.
+
+                    0 = Success, positive values = Warnings,
+                    negative values = Errors
+                last_buffer : cumulative number of the returned image
+                img_array : numpy array of image data in ints
+                    if error_code is not 0, returns None
+                    Shape = (self.attributes["Width"], self.attributes["Height"]
+        """
+
+        self.compute_buffer_size()  # to be extra sure certain attributes are set correctly
+        pix = self.attributes["ROI Width"] * self.attributes["ROI Height"]
+
+        err_c, last_buffer, img_addr = self.examine_buffer(buf_num)
+
+        if err_c:
+            # make sure buffers aren't being held irresponsibly
+            self.release_buffer()
+            return err_c, last_buffer, None
+
+        if self.attributes["Bytes Per Pixel"] == 8:
+            bf_type = c_uint8*pix
+        elif self.attributes["Bytes Per Pixel"] == 16:
+            bf_type = c_uint16 * pix
+        else:  # Assuming these are the only values bytes per pixel can take
+            bf_type = c_uint32 * pix
+        img_bf = bf_type()
+
+        # Not sure this is the most effective way of doing this but I could
+        # do this on my laptop 10^6 times in 3 sec. Should be fast enough -Juan
+
+        # make a shallow copy of the array as a numpy array
+        shallow = np.ctypeslib.as_array(img_addr, shape=pix)
+        # make a deep copy
+        img_ar = shallow.astype(int)
+        # release the buffer, we have the data we need
+        self.release_buffer()
+
+        img_ar = np.reshape(img_ar, (self.attributes["ROI Width"], self.attributes["ROI Height"]))
+        return err_c, last_buffer, img_ar
 
     def hamamatsu_serial(
             self,

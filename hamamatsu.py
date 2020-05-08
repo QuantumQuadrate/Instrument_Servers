@@ -12,6 +12,7 @@ from ctypes import * # open to suggestions on making this better with minimal ob
 import numpy as np
 import xml.etree.ElementTree as ET
 from ni_imaq import NiImaqSession
+import re
 
 class Hamamatsu:
     """
@@ -94,7 +95,7 @@ class Hamamatsu:
         }
         self.session = NiImaqSession()
         self.lastFrameAcquired = -1
-        self.cameraTemp = 0.0
+        self.camera_temp = 0.0
         self.last_measurement = np.array([])  # Holds data from previous measurement in 3D array (shots,x,y)
 
     def load_xml(self, node):
@@ -373,7 +374,7 @@ class Hamamatsu:
 
             # read camera temperature
             error_code, response =  self.session.hamamatsu_serial("?TMP")
-            self.cameraTemp = f"TMP {response:f}"
+            self.camera_temp = f"TMP {response:f}"
 
             # last frame acquired. first actual frame will be zero. 
             self.lastFrameAcquired = -1
@@ -431,6 +432,14 @@ class Hamamatsu:
             if not self.session.get_buff_list_init():  # TODO : implement
                 pass  # TODO : deal with this error case
 
+            self.last_measurement = np.zeros(
+                (
+                    self.shotsPerMeasurement,
+                    self.session.get_attribute("ROI Width"),
+                    self.session.get_attribute("ROI Height")
+                ),
+                dtype = int
+            )
             self.is_initialized = True
             self.num_images = 0
             self.use_camera = True
@@ -450,7 +459,8 @@ class Hamamatsu:
         err_c, acquiring, last_buffer_index, last_buffer_number = self.session.status()
         pass
 
-    def minimial_acquire(self):  # TODO : Implement
+    def minimial_acquire(self):
+
         if not self.use_camera:
             return
         er_c, session_acquiring, last_buf_ind, last_buf_num = self.session.status()
@@ -458,10 +468,9 @@ class Hamamatsu:
         not_enough_buffers = bf_dif > self.numImageBuffers
         # Why is this in the labview code? Should be a flag for you verbose logging is maybe?
         if False:
-            d1 = self.lastFrameAcquired
-            d2 = last_buf_num
-            d3 = bf_dif
-            self.append_to_log(f"Last Frame : {d1}\nNew Frame : {d2}\n Difference : {d3}")
+            self.append_to_log(f"Last Frame : {self.lastFrameAcquired}\n"
+                               f"New Frame : {last_buf_num}\n"
+                               f"Difference : {bf_dif}")
         if not session_acquiring:
             er_msg = "In session.status() NOT acquiring."
             raise SomeError(er_msg)  # TODO : Replace placeholder
@@ -475,26 +484,31 @@ class Hamamatsu:
             frame_ind = frame_ind + 1
             # Why is this in the labview code? Should be a flag for you verbose logging is maybe?
             if False:
-                self.append_to_log(f"True: Acquiring a new image available\n"
-                                   " Reading buffer number {}")
-            er_c, img = self.session.extract_buffer()  # TODO : Implement
-            #  If self.forceImageToU16 out is I16, then cast to U16. Otherwise comes out U16 then cast again.
-            self.session.img_to_array(self.forceImagesToU16)  # TODO : Implement
-            er_c = self.session.extract_buffer()  # Here extracted frame buffer is -1. Seems like it'll replace it
-            #  self.session.release_buffer() is a better option
-        self.session.read_camera_temperature()  # TODO : Implement
+                self.append_to_log("True: Acquiring a new image available\n"
+                                   f" Reading buffer number {frame_ind}")
+            er_c, bf_ind, img = self.session.extract_buffer(frame_ind)
+            self.last_measurement[i,:,:] = img
 
-
-
-
-
-
-
-
-
-
+        self.read_camera_temp()
 
         pass
+
+    def read_camera_temp(self):
+        """
+        Reads the camera temperature, sets self.cameraTemp to the new value
+        """
+
+        if self.use_camera:
+            msg_in = "?TMP"
+            er_c, msg_out = self.session.hamamatsu_serial(msg_in)
+            msg_out_fmt = "TMP {}"
+
+            # TODO : parse out temp from string, cast to float
+            m = re.match(r"Temp (\d+)\.(\d+)",msg_out)
+            self.camera_temp = float("{}.{}".format(m.groups()[0],m.groups()[1]))
+
+        else:
+            self.camera_temp = np.inf
 
     def data_out(self):  # TODO : Implement
         """
