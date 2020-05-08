@@ -300,7 +300,7 @@ class PXI:
             self.return_data_str += spawn.data_out()
         '''
 
-        return_data_str += self.hamamatsu.data_out()  # TODO : Implement
+        return_data_str += self.hamamatsu.data_out()
         return_data_str += self.counters.data_out()  # TODO : Implement
         return_data_str += self.ttl.data_out()  # TODO : Implement
         return_data_str += self.analog_input.data_out()  # TODO : Implement
@@ -376,7 +376,7 @@ class PXI:
 
     def get_data(self):
         self.counters.get_data()
-        self.hamamatsu.minimal_acquire()  # TODO : Implement
+        self.hamamatsu.minimal_acquire()
         self.analog_input.get_data()  # TODO : Implement
         pass
 

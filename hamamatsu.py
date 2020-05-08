@@ -94,7 +94,7 @@ class Hamamatsu:
             "Bottom":0
         }
         self.session = NiImaqSession()
-        self.lastFrameAcquired = -1
+        self.last_frame_acquired = -1
         self.camera_temp = 0.0
         self.last_measurement = np.array([])  # Holds data from previous measurement in 3D array (shots,x,y)
 
@@ -377,7 +377,7 @@ class Hamamatsu:
             self.camera_temp = f"TMP {response:f}"
 
             # last frame acquired. first actual frame will be zero. 
-            self.lastFrameAcquired = -1
+            self.last_frame_acquired = -1
 
             # set scan mode
             self.session.hamamatsu_serial(self.scanMode,self.scanMode)
@@ -464,24 +464,24 @@ class Hamamatsu:
         if not self.use_camera:
             return
         er_c, session_acquiring, last_buf_ind, last_buf_num = self.session.status()
-        bf_dif = last_buf_num - self.lastFrameAcquired
+        bf_dif = last_buf_num - self.last_frame_acquired
         not_enough_buffers = bf_dif > self.numImageBuffers
         # Why is this in the labview code? Should be a flag for you verbose logging is maybe?
         if False:
-            self.append_to_log(f"Last Frame : {self.lastFrameAcquired}\n"
+            self.append_to_log(f"Last Frame : {self.last_frame_acquired}\n"
                                f"New Frame : {last_buf_num}\n"
                                f"Difference : {bf_dif}")
         if not session_acquiring:
             er_msg = "In session.status() NOT acquiring."
             raise SomeError(er_msg)  # TODO : Replace placeholder
-        if last_buf_num != self.lastFrameAcquired and last_buf_num != -1 and not_enough_buffers:
+        if last_buf_num != self.last_frame_acquired and last_buf_num != -1 and not_enough_buffers:
             er_msg = "The number of images taken exceeds the number of buffers alloted." + \
                 "Images have been lost.  Increase the number of buffers."
             raise SomeError(er_msg)  # TODO : Replace placeholder
             # TODO : Use logger
-        frame_ind = last_buf_ind
+        frame_ind = self.last_frame_acquired
         for i in range(bf_dif):
-            frame_ind = frame_ind + 1
+            frame_ind += 1
             # Why is this in the labview code? Should be a flag for you verbose logging is maybe?
             if False:
                 self.append_to_log("True: Acquiring a new image available\n"
@@ -489,6 +489,7 @@ class Hamamatsu:
             er_c, bf_ind, img = self.session.extract_buffer(frame_ind)
             self.last_measurement[i,:,:] = img
 
+        self.last_frame_acquired = frame_ind
         self.read_camera_temp()
 
         pass
@@ -510,13 +511,60 @@ class Hamamatsu:
         else:
             self.camera_temp = np.inf
 
-    def data_out(self):  # TODO : Implement
+    def data_out(self) -> str:
         """
-        Should return a formatted data string
-        Returns:
+        Returns a formatted string of relevant hamamatsu data to be written to hdf5 fike
+        Returns: formatted data string
+        """
+        if not self.use_camera:
+            return ""
+        hm = "Hamamatsu"
+        hm_str = ""
+        sz = self.last_measurement.shape
+        hm_str += self.format_data(f"{hm}/numShots",f"{sz[0]}")
+        hm_str += self.format_data(f"{hm}/rows",f"{sz[1]}")
+        hm_str += self.format_data(f"{hm}/columns",f"{sz[2]}")
 
+        for shot in range(sz[0]):
+            flat_ar = np.reshape(self.last_measurement[shot,:,:],sz[1]*sz[2])
+            tmp_str = ""
+            hm_str += self.format_data(f"{hm}/shots/{shot}",tmp_str)
+
+        hm_str += self.format_data(f"{hm}/temperature","{:.3f}".format(self.camera_temp))
+
+        return hm_str
+
+    # TODO : @Preston @Cody This should be in a higher class, eg pxi
+    # TODO : Implement
+    def format_data(self, name: str, data: str) -> str:
         """
-        pass
+        Formats data for output to xml
+        Args:
+            name : name of field to be populated
+            data : data in field to be populated
+
+        Returns: formatted string
+        TODO : I don't trust this (I wrote it haha) we need to do some testing on
+            the labview end to make sure this functionality is consistent.
+        """
+
+        return f"{self.format_message(name)}{self.format_message(data)}"
+
+    def format_message(self,message: str) -> str:
+        """
+        Formats message by encoding it in the format "len(message)message"
+        Args:
+            message : string, message to be sent
+
+        Returns:
+            formatted message string
+
+        TODO : Verify functionallity matches labview! The output of the concatinated
+            string is not just an int, but an encoding of that int. I'd like to take some
+            time to dig into this
+        """
+        l = len(message)
+        return f"{l}{message}"
 
 
                 
