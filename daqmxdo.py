@@ -5,11 +5,12 @@ SaffmanLab, University of Wisconsin - Madison
 
 ## modules
 import nidaqmx
-from nidaqmx.constants import Edge
+from nidaqmx.constants import Edge, LineGrouping
+import numpy as np
 
 ## local imports
 from trigger import StartTrigger
-from waveform import Waveform
+from waveform import DAQmxDOWaveform
 
 class DAQmxDO(Instrument):
 
@@ -19,6 +20,21 @@ class DAQmxDO(Instrument):
         self.physicalChannels = None
         self.startTrigger = StartTrigger()
         
+    @property
+    def reset_connection(self) -> bool:
+        return self.pxi.reset_connection
+
+    @reset_connection.setter
+    def reset_connection(self, value):
+        self.pxi.reset_connection = value
+
+    @property
+    def stop_connections(self) ->bool:
+        return self.pxi.stop_connections
+
+    @stop_connections.setter
+    def stop_connections(self, value):
+        self.pxi.stop_connections = value
     
     def load_xml(self, node)
         """
@@ -68,6 +84,12 @@ class DAQmxDO(Instrument):
                 elif child.tag == "waveform":
                     self.waveform = Waveform()
                     self.waveform.init_from_xml(child)
+                    self.waveform.samplesPerChannel = self.waveform.length # the number of transitions
+                    
+                    # reverse each array of samples 
+                    self.data = np.empty((self.states, self.waveform.length))
+                    for i in range(self.waveform.length):
+                        
                     
                 else:
                     self.logger.warning(f"Unrecognized XML tag \'{child.tag}\' in <{self.expectedRoot}>")
@@ -78,7 +100,41 @@ class DAQmxDO(Instrument):
         """
     
         if not (self.stop_connections or self.reset_connection):
-            pass
+            
+             if self.enable:
+
+                # Clear old task
+                if self.task != None:
+                    self.task.close()
+
+                self.task = nidaqmx.Task() # might be task.Task()
+                
+                # Create digital out virtual channel
+                self.task.do_channels.add_do_chan(
+                    lines=self.physicalChannels, 
+                    name_to_assign_to_lines="",
+                    line_grouping=LineGrouping.CHAN_FOR_ALL_LINES)
+                
+                # Setup timing. Use the onboard clock
+                self.task.timing.cfg_samp_clk_timing(
+                    rate=self.clockRate, 
+                    active_edge=Edge.RISING, # default
+                    sample_mode=AcquisitionType.FINITE, # default
+                    samps_per_chan=samplesPerChannel) 
+                    
+                # TODO: start digital edge
+                if self.startTrigger.waitForStartTrigger:
+                    self.task.start_trigger.cfg_dig_edge_start_trig(
+                        trigger_source=self.startTrigger.source,
+                        trigger_edge=self.startTrigger.edge)
+                                                        
+                # Write digital waveform 1 chan N samp
+                self.task.write(
+                    self.data, 
+                    auto_start=AUTO_START_UNSET, #default
+                    timeout=10.0) # default
+                    
+                self.isInitialized = True
             
         
     def load_waveform(wave_node):

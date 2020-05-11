@@ -17,7 +17,7 @@ from ni_hsdio import HsdioSession
 
 ## local class imports
 from trigger import Trigger, StartTrigger
-from waveform import Waveform
+from waveform import HSDIOWaveform
 
 
 class HSDIO: # could inherit from an Instrument class if helpful
@@ -157,7 +157,7 @@ class HSDIO: # could inherit from an Instrument class if helpful
 
                             if wvf_child.tag == "waveform":
 
-                                wvform = Waveform()
+                                wvform = HSDIOWaveform()
                                 wvform.init_from_xml(wvf_child)
                                 self.waveformArr.append(wvform)
 

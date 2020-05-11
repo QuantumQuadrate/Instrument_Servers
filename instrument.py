@@ -72,7 +72,9 @@ class Instrument(ABC):
                     # self.thatProperty = child.text
                 
                 else:
-                    self.logger.warning(f"Unrecognized XML tag \'{child.tag}\' in <{self.expectedRoot}>")
+                    # TODO handle unexpected tag case
+                    # self.logger.warning(f"Unrecognized XML tag \'{child.tag}\' in <{self.expectedRoot}>")
+                    pass
                     
     @abstractmethod
     def init(self):

@@ -1,5 +1,5 @@
 """
-Waveform class for the PXI Server
+Waveform classes for the PXI Server
 SaffmanLab, University of Wisconsin - Madison
 
 Authors: Preston Huft, Juan Bohorquez
@@ -8,18 +8,125 @@ Authors: Preston Huft, Juan Bohorquez
 from __future__ import annotations
 from ctypes import *
 import numpy as np
+from abc import ABC
 
 
-class Waveform:
-	
-	def __init__(self, name="", transitions=None, states=None,data_format=None):
+class Waveform(ABC):
+    """
+    The base class for Waveform data types for the PXI Server. 
+    
+    Methods that have the 'abstractmethod' decorator are abstract and must be 
+    implemented explicitly in the child class. 
+    """
+
+    def __init__(self, name="", transitions=None, states=None,data_format=None):
 		self.name = name
 		self.transitions = transitions
 		self.states = states
-		if self.states is not None:
-			assert len(self.states[0]) % 32 == 0  # this assertion my be a little late
 		self.data_format = data_format
 		self.wvfm = None
+        
+    @abstractmethod
+    def init_from_xml(self, node): # equivalent to load waveform in labVIEW
+        """ 
+        Initialize attributes of waveform from xml
+        
+        Args:
+            'node' is of type xml.etree.ElementTree.Element, with tag="waveform"
+        """
+    
+        waveform_attrs = node
+        for child in waveform_attrs:
+            
+            if child.tag == "name":
+                self.name = child.text
+
+            elif child.tag == "transitions":
+                # TODO get the transitions from xml
+                # TODO optionally set the length parameter:
+                # self.length = len(self.transitions)
+                pass
+
+            elif child.tag == "states":
+                # TODO get the states from xml 
+                pass
+
+            else:
+                 # TODO: do something like the following with a logger in your class:
+                # print("Invalid Waveform attribute")
+                pass
+            
+    @property
+    def length(self) -> int:
+        """
+        return the number of transitions in this waveform
+        
+        If the waveform is uncompressed, this is equal to number of samples that
+        will be written per channel
+        """
+        assert self.transitions is not None, """Tried to read number of waveform
+                                                         transitions, but transitions have not 
+                                                         been supplied yet!"""
+        return self.length
+        
+    @length.setter
+    def length(self, value):
+        self.length = value
+                                    
+    def __repr__(self):  # mostly for debugging
+		return (f"Waveform(name={self.name}, transitions={self.transitions}, "
+				f"states={self.states}")
+                
+        
+class DAQmxDOWaveform(Waveform):
+    """
+    Waveform class for use in the DAQmxDO class
+    """
+    
+    def __init__(self, name="", transitions=None, states=None, data_format=None):
+        super().__init__(name, transitions, states, data_format)
+        self.logger = logging.getLogger(str(self.__class__))
+        
+    def init_from_xml(self, node): # equivalent to load waveform in labVIEW
+        """ 
+        Initialize attributes of waveform from xml
+        
+        Args:
+            'node' is of type xml.etree.ElementTree.Element, with tag="waveform"
+        """
+    
+        waveform_attrs = node
+		for child in waveform_attrs:
+			
+			if child.tag == "name":
+				self.name = child.text
+
+			elif child.tag == "transitions":
+				t = np.array([x for x in child.text.split(" ")], 
+							 dtype=c_uint32)
+				self.transitions = t
+                self.length(len(self.transitions))
+
+			elif child.tag == "states":
+				states= np.array([[int(x) for x in line.split(" ")] 
+								  for line in child.text.split("\n")],
+								 dtype=c_uint32)
+				self.states = states
+
+			else:
+				self.logger.warning("Invalid Waveform attribute")
+
+
+class HSDIOWaveform(Waveform):
+	"""
+    Waveform class for use in the HSDIO class
+    """
+    
+	def __init__(self, name="", transitions=None, states=None, data_format=None):
+        super().__init__(name, transitions, states, data_format)
+        self.logger = logging.getLogger(str(self.__class__))
+		if self.states is not None:
+			assert len(self.states[0]) % 32 == 0  # this assertion my be a little late
 		
 	def init_from_xml(self, node): # equivalent to load waveform in labVIEW
 		""" 
@@ -37,6 +144,7 @@ class Waveform:
 				t = np.array([x for x in child.text.split(" ")], 
 							 dtype=c_uint32)
 				self.transitions = t
+                self.length(len(self.transitions))
 
 			elif child.tag == "states":
 				states= np.array([[int(x) for x in line.split(" ")] 
@@ -46,7 +154,7 @@ class Waveform:
 				assert len(self.states[0]) % 32 == 0
 
 			else:
-				print("Invalid Waveform attribute") # TODO: replace with logger
+				self.logger.warning("Invalid Waveform attribute") # TODO: replace with logger
 
 	def decompress(
 			self,
@@ -125,7 +233,7 @@ class Waveform:
 				t_old = transition
 				s_old = c_state
 		else:
-			print("You shouldn't be here, you used the wrong input for data_format")
+			self.logger.error("You shouldn't be here, you used the wrong input for data_format")
 			return
 
 
@@ -181,7 +289,4 @@ class Waveform:
 			wave_array[d] = Waveform(self.name, self.transitions, new_states, self.data_format)
 
 		return wave_array
-
-	def __repr__(self):  # mostly for debugging
-		return (f"Waveform(name={self.name}, transitions={self.transitions}, "
-				f"states={self.states}")
+    
