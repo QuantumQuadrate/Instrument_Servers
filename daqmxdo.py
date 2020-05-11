@@ -64,7 +64,6 @@ class DAQmxDO(Instrument):
                                 raise
                         else:
                             self.logger.warning(f"Unrecognized XML tag \'{node.tag}\' in <{child.tag}>")
-                            
                 
                 elif child.tag == "waveform":
                     self.waveform = Waveform()

@@ -83,6 +83,7 @@ class Instrument(ABC):
         if not (self.stop_connections or self.reset_connection):
             pass
                     
+            
     
         
         
