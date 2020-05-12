@@ -29,7 +29,7 @@ from keylistener import KeyListener
 
 #### local device classes
 from hsdio import HSDIO
-from hamamatsu import Hamamatsu
+#from hamamatsu import Hamamatsu
 from tcp import TCP
 
 
@@ -60,7 +60,7 @@ class PXI:
         # instantiate the device objects
         self.hsdio = HSDIO(self)
         self.tcp = TCP(self, address)
-        self.hamamatsu = Hamamatsu(self)
+        self.hamamatsu = Hamamatsu()
         # TODO: implement these classes
         self.counters = None  # Counters()
         self.analog_input = None  # AnalogOutput(self)
@@ -300,11 +300,11 @@ class PXI:
             self.return_data_str += spawn.data_out()
         '''
 
-        return_data_str += self.hamamatsu.data_out()
-        return_data_str += self.counters.data_out()  # TODO : Implement
-        return_data_str += self.ttl.data_out()  # TODO : Implement
-        return_data_str += self.analog_input.data_out()  # TODO : Implement
-        return_data_str += self.demo.data_out()  # TODO : Implement
+        #return_data_str += self.hamamatsu.data_out()  # TODO : Implement
+        #return_data_str += self.counters.data_out()  # TODO : Implement
+        #return_data_str += self.ttl.data_out()  # TODO : Implement
+        #return_data_str += self.analog_input.data_out()  # TODO : Implement
+        #return_data_str += self.demo.data_out()  # TODO : Implement
 
         return return_data_str
 
@@ -351,33 +351,37 @@ class PXI:
 
         So far only ttl is reset in labview code.
         """
-        self.ttl.reset_data()  # TODO : implement this
+        # self.ttl.reset_data()  # TODO : implement this
+	pass
 
     def system_checks(self):
         """
         This is all this function does in the labview.
         """
-        self.ttl.ttl_check()  # TODO: Implement
+        # self.ttl.ttl_check()  # TODO: Implement
+	pass
 
     def start_tasks(self):
-        self.counters.start()  # TODO : Implement
-        self.daqmx_do.start()  # TODO : Implement
-        self.hsdio.start()  # TODO : Implement
-        self.analog_input.start()  # TODO : Implement
-        self.analog_output.start()  # TODO : Implement
-        self.reset_timeout()  # TODO : Implement
+        # self.counters.start()  # TODO : Implement
+        # self.daqmx_do.start()  # TODO : Implement
+        # self.hsdio.start()  # TODO : Implement
+        # self.analog_input.start()  # TODO : Implement
+        # self.analog_output.start()  # TODO : Implement
+        # self.reset_timeout()  # TODO : Implement
+	pass
 
     def stop_tasks(self):
-        self.counters.stop()  # TODO : Implement
-        self.hsdio.stop()  # TODO : Implement
-        self.daqmx_do.stop()  # TODO : Implement
-        self.analog_input.stop()  # TODO : Implement
-        self.analog_output.stop()  # TODO : Implement
+        # self.counters.stop()  # TODO : Implement
+        # self.hsdio.stop()  # TODO : Implement
+        # self.daqmx_do.stop()  # TODO : Implement
+        # self.analog_input.stop()  # TODO : Implement
+        # self.analog_output.stop()  # TODO : Implement
+	pass
 
     def get_data(self):
-        self.counters.get_data()
-        self.hamamatsu.minimal_acquire()
-        self.analog_input.get_data()  # TODO : Implement
+        # self.counters.get_data()
+        # self.hamamatsu.minimal_acquire()  # TODO : Implement
+        # self.analog_input.get_data()  # TODO : Implement
         pass
 
     def is_done(self):
