@@ -38,15 +38,17 @@ def hsdio_tests(pxi, node):
         'pxi': an instance of PXI
     """
     
-    print("Attempting to instantiate HSDIO...")
+    devname = "HSDIO"
+    
+    print(f"Attempting to instantiate {devname}...")
     hsdio = HSDIO(pxi)
-    print("HSDIO instantiated! \n Calling HSDIO.load_xml...")
+    print(f"{devname} instantiated! \n Calling {devname}.load_xml...")
     hsdio.load_xml(node)
-    print("HSDIO XML loaded! \n Calling HSDIO.init...")
+    print(f"{devname} XML loaded! \n Calling {devname}.init...")
     hsdio.init()
-    print("HSDIO initialized! \n Calling HSDIO.update...")
+    print(f"{devname} initialized! \n Calling {devname}.update...")
     hsdio.update()
-    print("HSDIO updated")
+    print(f"{devname} updated")
     
     
 def daqmxdo_tests(pxi, node):
@@ -57,13 +59,54 @@ def daqmxdo_tests(pxi, node):
         'pxi': an instance of PXI
     """
     
-    print("Attempting to instantiate DAQmxDO...")
+    devname = "DAQMX_DO"
+    
+    print(f"Attempting to instantiate {devname}...")
     do = DAQmxDO(pxi)
-    print("DAQmxDO instantiated! \n Calling DAQmxDO.load_xml...")
+    print(f"{devname} instantiated! \n Calling {devname}.load_xml...")
     do.load_xml(node)
-    print("DAQmxDO XML loaded! \n Calling DAQmxDO.init...")
+    print(f"{devname} XML loaded! \n Calling {devname}.init...")
     do.init()
-    print("DAQmxDO initialized!")
+    print(f"{devname} initialized!")
+    
+    
+def ao_tests(pxi, node):
+    """
+    setup tests to run below
+    
+    Args:
+        'pxi': an instance of PXI
+    """
+    devname = "AnalogOutput"
+    
+    print(f"Attempting to instantiate {devname}...")
+    ao = AnalogOutput(pxi)
+    print(f"{devname} instantiated! \n Calling {devname}.load_xml...")
+    ao.load_xml(node)
+    print(f"{devname} XML loaded! \n Calling {devname}.init...")
+    ao.init()
+    print(f"{devname} initialized! \n Calling {devname}.update...")
+    ao.update()
+    print(f"{devname} updated")
+    
+    
+def ai_tests(pxi, node):
+    """
+    setup tests to run below
+    
+    Args:
+        'pxi': an instance of PXI
+    """
+    devname = "AnalogInput"
+    
+    print(f"Attempting to instantiate {devname}...")
+    ai = AnalogInput(pxi)
+    print(f"{devname} instantiated! \n Calling {devname}.load_xml...")
+    ai.load_xml(node)
+    print(f"{devname} XML loaded! \n Calling {devname}.init...")
+    ai.init()
+    print(f"{devname} initialized!")
+    
     
 
 class DummyPXI:
@@ -106,6 +149,7 @@ class DummyPXI:
 
 if __name__ == "__main__":
 
+    #### test setup
     # get xml from file
     msg = msg_from_file()[0]
     root = ET.fromstring(msg)
@@ -114,14 +158,14 @@ if __name__ == "__main__":
         print("Not a valid msg for the pxi")
         raise
     
-    # {device: skip}. set False to run those device tests
+    # {device: skip}. set skip to False to run those device tests
     skiplist = {
-        "HSDIO": True,
+        "HSDIO": True, # works, 12 May '20
         "Counters": True,
         "TTL": True,
-        "DAQmxDO": False,
-        "AnalogOutput": True,
-        "AnalogInput": True,
+        "DAQmxDO": True, # works up to hardware test, 12 May '20
+        "AnalogOutput": True, # works up to hardware test, 12 May '20
+        "AnalogInput": False, # works up to hardware test, 12 May '20
         "RF_generators": True}
         
     # instantiate the PXI
@@ -129,6 +173,7 @@ if __name__ == "__main__":
     hostname="localhost"
     pxi = DummyPXI((port, hostname))
         
+    #### run tests for each device
     # loop over xml tags and call desired tests
     for child in root:
         if child.tag == "HSDIO" and not skiplist[child.tag]:
@@ -144,10 +189,10 @@ if __name__ == "__main__":
             daqmxdo_tests(pxi, child)
             
         elif child.tag == "AnalogInput" and not skiplist[child.tag]:
-            pass
+            ai_tests(pxi, child) # TODO implement
             
         elif child.tag == "AnalogOutput" and not skiplist[child.tag]:
-            pass
+            ao_tests(pxi, child)
             
         elif child.tag == "RF_generators" and not skiplist[child.tag]:
             pass

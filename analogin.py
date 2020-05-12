@@ -31,7 +31,7 @@ class AnalogInput(Instrument):
         initialization should be done through the load_xml method with xml
         from CsPy. 
         """
-        super.__init__(pxi, "AnalogInput")
+        super().__init__(pxi, "AnalogInput")
         self.logger = logging.getLogger(str(self.__class__))
         self.groundMode = ''
         self.sampleRate = 0

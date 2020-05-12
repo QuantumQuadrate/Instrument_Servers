@@ -9,6 +9,7 @@ from __future__ import annotations
 from ctypes import *
 import numpy as np
 from abc import ABC, abstractmethod
+import logging
 
 
 class Waveform(ABC):
@@ -22,6 +23,7 @@ class Waveform(ABC):
     def __init__(self, name="", transitions=None, states=None,data_format=None):
         self.name = name
         self.transitions = transitions
+        self._length = 0
         self.states = states
         self.data_format = data_format
         self.wvfm = None
@@ -67,11 +69,11 @@ class Waveform(ABC):
         assert self.transitions is not None, """Tried to read number of waveform
                                                          transitions, but transitions have not 
                                                          been supplied yet!"""
-        return self.length
+        return self._length
         
     @length.setter
     def length(self, value):
-        self.length = value
+        self._length = value
                                     
     def __repr__(self):  # mostly for debugging
         return (f"Waveform(name={self.name}, transitions={self.transitions}, "
@@ -144,7 +146,7 @@ class HSDIOWaveform(Waveform):
                 t = np.array([x for x in child.text.split(" ")], 
                              dtype=c_uint32)
                 self.transitions = t
-                self.length(len(self.transitions))
+                self.length = len(self.transitions)
 
             elif child.tag == "states":
                 states= np.array([[int(x) for x in line.split(" ")] 

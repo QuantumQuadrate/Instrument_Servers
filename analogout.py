@@ -24,7 +24,7 @@ class AnalogOutput(Instrument):
     ExternalClock = rc('ExternalClock', ('useExternalClock', 'source', 'maxClockRate'))
     
     def __init__(self, pxi):
-        super.__init__(pxi, "AnalogOutput")
+        super().__init__(pxi, "AnalogOutput")
         self.logger = logging.getLogger(str(self.__class__))
         self.physicalChannels = ""
         self.minValue = -10
@@ -32,7 +32,7 @@ class AnalogOutput(Instrument):
         self.sampleRate = 0
         self.waveforms = None
         self.exportTrigger = self.ExportTrigger(False, None)
-        self.externalClock = self.ExportTrigger(False, '', 0)
+        self.externalClock = self.ExternalClock(False, '', 0)
         self.startTrigger = StartTrigger()
         self.task = None
         self.isInitialized = False
