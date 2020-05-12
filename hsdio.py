@@ -12,15 +12,17 @@ import xml.etree.ElementTree as ET
 import os
 import struct
 import platform # for checking the os bit
-import logger
+import logging
 from ni_hsdio import HsdioSession
 
 ## local class imports
+from instrumentfuncs import str_to_bool
 from trigger import Trigger, StartTrigger
 from waveform import HSDIOWaveform
+from instrument import Instrument
 
 
-class HSDIO: # could inherit from an Instrument class if helpful
+class HSDIO(Instrument): # could inherit from an Instrument class if helpful
 
     if platform.machine().endswith("64"):
         programsDir32 = "Program Files (x86)"
@@ -31,22 +33,11 @@ class HSDIO: # could inherit from an Instrument class if helpful
     dllpath64 = os.path.join("C:\Program Files\IVI Foundation\IVI\Bin", "niHSDIO_64.dll")
 
     def __init__(self, pxi):
-        '''
-        This is taken care of inside of ni_hsdio now
-        # Quick test for bitness
-        self.bitness = struct.calcsize("P") * 8
-        if self.bitness == 32:
-            # Default location of the 32 bit dll
-            self.hsdio = CDLL(self.dllpath32)
-        else:
-            # Default location of the 64 bit dll
-            self.hsdio = CDLL(self.dllpath64)
-        '''
+        super().__init__(pxi, "HSDIO")
 
         ## device settings
         self.logger = logging.getLogger(str(self.__class__))
         self.pxi = pxi
-        self.enablePulses = False
         self.resourceNames = np.array([], dtype=str)
         self.clockRate = 2*10**7 # 20 MHz
         self.hardwareAlignmentQuantum = 1 # (in samples)
@@ -69,24 +60,7 @@ class HSDIO: # could inherit from an Instrument class if helpful
         # whether or not we've actually populated the attributes above
         self.isInitialized = False
         
-    
-    @property
-    def reset_connection(self) -> bool:
-        return self.pxi.reset_connection
-
-    @reset_connection.setter
-    def reset_connection(self, value):
-        self.pxi.reset_connection = value
-
-    @property
-    def stop_connections(self) ->bool:
-        return self.pxi.stop_connections
-
-    @stop_connections.setter
-    def stop_connections(self, value):
-        self.pxi.stop_connections = value
         
-
     def load_xml(self, node):
         """
         iterate through node's children and parse xml by tag to update HSDIO
@@ -94,7 +68,7 @@ class HSDIO: # could inherit from an Instrument class if helpful
         'node': type is ET.Element. tag should be "HSDIO"
         """
 
-        assert node.tag == "HSDIO", "This XML is not tagged for the HSDIO"
+        assert node.tag == self.expectedRoot, "This XML is not tagged for the HSDIO"
 
         for child in node:
 
@@ -104,11 +78,7 @@ class HSDIO: # could inherit from an Instrument class if helpful
 
                 # handle each tag by name:
                 if child.tag == "enable":
-                    self.print_txt(child) # DEBUGGING
-                    res = False
-                    if child.text.lower() == "true":
-                        res = True
-                    self.enablePulses = res
+                    self.enable = str_to_bool(child.text)
 
                 elif child.tag == "description":
                     self.print_txt(child) # DEBUGGING
@@ -204,7 +174,7 @@ class HSDIO: # could inherit from an Instrument class if helpful
 
             # self.instrumentHandles.append("")  # Not sure why this is here
 
-            if self.enablePulses:
+            if self.enable:
 
                 iterables = zip(self.idleStates, self.initialStates,
                                 self.activeChannels, self.resourceNames)
@@ -259,7 +229,7 @@ class HSDIO: # could inherit from an Instrument class if helpful
         
         if not (self.stop_connections or self.reset_connection):
 
-            if self.enablePulses:
+            if self.enable:
 
                 for wf in self.waveformArr:
 

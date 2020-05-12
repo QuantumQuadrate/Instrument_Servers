@@ -48,9 +48,8 @@ class Instrument(ABC):
     def stop_connections(self, value):
         self.pxi.stop_connections = value
    
-    
     @abstractmethod
-    def load_xml(self, node)
+    def load_xml(self, node):
         """
         Initialize the instrument class attributes from XML received from CsPy
         

@@ -3,14 +3,18 @@ DAQmx Digital Output class for the PXI Server
 SaffmanLab, University of Wisconsin - Madison
 """
 
-## modules
+#### modules
 import nidaqmx
 from nidaqmx.constants import Edge, LineGrouping
+import xml.etree.ElementTree as ET
 import numpy as np
+import logging
 
-## local imports
+#### local imports
 from trigger import StartTrigger
 from waveform import DAQmxDOWaveform
+from instrument import Instrument
+from instrumentfuncs import str_to_bool
 
 class DAQmxDO(Instrument):
 
@@ -20,23 +24,8 @@ class DAQmxDO(Instrument):
         self.physicalChannels = None
         self.startTrigger = StartTrigger()
         
-    @property
-    def reset_connection(self) -> bool:
-        return self.pxi.reset_connection
-
-    @reset_connection.setter
-    def reset_connection(self, value):
-        self.pxi.reset_connection = value
-
-    @property
-    def stop_connections(self) ->bool:
-        return self.pxi.stop_connections
-
-    @stop_connections.setter
-    def stop_connections(self, value):
-        self.pxi.stop_connections = value
     
-    def load_xml(self, node)
+    def load_xml(self, node):
         """
         Initialize the instrument class attributes from XML received from CsPy
         
@@ -64,9 +53,9 @@ class DAQmxDO(Instrument):
                     node = child
                     for child in node:
                     
-                        if node.text = "waitForStartTrigger":
+                        if node.text == "waitForStartTrigger":
                             self.startTrigger.waitForStartTrigger = str_to_bool(child.text)
-                        elif child.text = "source":
+                        elif child.text == "source":
                             self.startTrigger.source = child.text
                         elif child.text == "edge":
                             try:

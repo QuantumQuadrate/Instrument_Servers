@@ -352,14 +352,14 @@ class PXI:
         So far only ttl is reset in labview code.
         """
         # self.ttl.reset_data()  # TODO : implement this
-	pass
+        pass
 
     def system_checks(self):
         """
         This is all this function does in the labview.
         """
         # self.ttl.ttl_check()  # TODO: Implement
-	pass
+        pass
 
     def start_tasks(self):
         # self.counters.start()  # TODO : Implement
@@ -368,7 +368,7 @@ class PXI:
         # self.analog_input.start()  # TODO : Implement
         # self.analog_output.start()  # TODO : Implement
         # self.reset_timeout()  # TODO : Implement
-	pass
+        pass
 
     def stop_tasks(self):
         # self.counters.stop()  # TODO : Implement
@@ -376,7 +376,7 @@ class PXI:
         # self.daqmx_do.stop()  # TODO : Implement
         # self.analog_input.stop()  # TODO : Implement
         # self.analog_output.stop()  # TODO : Implement
-	pass
+        pass
 
     def get_data(self):
         # self.counters.get_data()

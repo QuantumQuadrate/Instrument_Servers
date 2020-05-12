@@ -11,15 +11,16 @@ import xml.etree.ElementTree as ET
 import csv
 import re
 from io import StringIO
-import logger
+import logging
 from recordclass import recordclass as rc
 
 ## local imports
+from instrument import Instrument
 from trigger import StartTrigger
 from instrumentfuncs import *
 
 
-class AnalogInput:
+class AnalogInput(Instrument):
 
     def __init__(self, pxi):
         """
@@ -30,10 +31,8 @@ class AnalogInput:
         initialization should be done through the load_xml method with xml
         from CsPy. 
         """
+        super.__init__(pxi, "AnalogInput")
         self.logger = logging.getLogger(str(self.__class__))
-        self.pxi = pxi
-        self.expectedRoot = "AnalogInput"
-        self.enable = False
         self.groundMode = ''
         self.sampleRate = 0
         self.samplesPerMeasurement = 0
@@ -42,23 +41,6 @@ class AnalogInput:
         self.maxValue = 10.0
         self.startTrigger = StartTrigger()
         self.task = None
-        
-        
-    @property
-    def reset_connection(self) -> bool:
-        return self.pxi.reset_connection
-
-    @reset_connection.setter
-    def reset_connection(self, value):
-        self.pxi.reset_connection = value
-
-    @property
-    def stop_connections(self) ->bool:
-        return self.pxi.stop_connections
-
-    @stop_connections.setter
-    def stop_connections(self, value):
-        self.pxi.stop_connections = value
         
     
     def load_xml(self, node):
