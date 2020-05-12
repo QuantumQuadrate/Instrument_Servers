@@ -13,7 +13,8 @@ import os
 from ctypes import c_uint32
 from typing import Tuple, Callable, TypeVar
 import numpy as np
-from copy import deepcopy
+from recordclass import recordclass as rc
+import re
 
 '''
 Not Sure this will be useful. Might be a decent place to start
@@ -122,6 +123,11 @@ class NiImaqSession:
 
     # Add all keys from ATTRIBUTE dicts to this array
     ATTRIBUTE_KEYS = IMG_ATTRIBUTES_UINT32.keys()
+
+    SubArray = rc('SubArray', ('left', 'top', 'width', 'height'))
+    FrameGrabberAqRegion = rc('FrameGrabberAqRegion', ('left', 'right', 'top', 'bottom'))
+
+    ROI = TypeVar("ROI", SubArray, FrameGrabberAqRegion)
 
     def __init__(self):
         self.imaq = CDLL(os.path.join("C:\Windows\System32", "imaq.dll"))
@@ -976,22 +982,12 @@ class NiImaqSession:
 
     def set_roi(
             self,
-            roi: dict[str: int],
+            roi: ROI,
     ) -> int:
         """
         Sets the session roi based on the aquisition_region dict
         Args:
-            roi : should map the either of the following four sets of keys to their
-                respective values
-                "Right"
-                "Left"
-                "Bottom"
-                "Top"
-                or
-                "Left"
-                "Top"
-                "Width"
-                "Height"
+            roi : recordclass that stores ROI parameters
         Returns:
             error_code : error code which reports status of operation.
 
@@ -999,15 +995,18 @@ class NiImaqSession:
                 negative values = Errors
         """
 
-        if set(roi.keys()) == {"Right","Left","Bottom","Top"}:
-            width = roi["Right"] - roi["Left"]
-            height = roi["Bottom"] - roi["Top"]
-        elif set(roi.keys()) == {"Bottom","Top","Width","Height"}:
-            width = roi["Width"]
-            height = roi["Height"]
-        else: raise KeyError("Read the docstring, wrong keys in the dict!")
-        top = roi["Top"]
-        left = roi["Left"]
+        msg = repr(type(roi))
+        m = re.match(r".*\.(.*)'>", msg)
+        if m.group(1) == "FrameGrabberAqRegion":
+            width = roi.right - roi.left
+            height = roi.bottom - roi.top
+        elif m.group(1) == "SubArray":
+            width = roi.width
+            height = roi.height
+        else:
+            raise TypeError("Must pass in FrameGrabberAqRegion of SubArray object")
+        top = roi.top
+        left = roi.left
         er = self.get_attribute("ROI Width")
         if er != 0:
             return er

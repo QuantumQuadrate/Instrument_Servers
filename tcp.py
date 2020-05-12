@@ -105,6 +105,43 @@ class TCP:
         # if msg_str is none, just send the return data?
         pass
 
-    # This method returns the data as well as updates
-    # 'return_data_str', so having a return seems
-    # uneccesary
+
+'''
+This placement emulates the file structure of the labview code, although I 
+don't think this is the best place for these functions
+-Juan
+'''
+# TODO : Implement
+
+
+def format_message(message: str) -> str:
+    """
+    Formats message by encoding it in the format "len(message)message"
+    Args:
+        message : string, message to be sent
+
+    Returns:
+        formatted message string
+
+    TODO : Verify functionallity matches labview! The output of the concatinated
+        string is not just an int, but an encoding of that int. I'd like to take some
+        time to dig into this
+        uint32 bit big endian
+    """
+    l = len(message)
+    return f"{l}{message}"
+
+
+def format_data(name: str, data: str) -> str:
+    """
+    Formats data for output to xml
+    Args:
+        name : name of field to be populated
+        data : data in field to be populated
+
+    Returns: formatted string
+    TODO : I don't trust this (I wrote it haha) we need to do some testing on
+        the labview end to make sure this functionality is consistent.
+    """
+
+    return f"{format_message(name)}{format_message(data)}"

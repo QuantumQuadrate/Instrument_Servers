@@ -8,14 +8,21 @@ For parsing XML strings which specify the settings for the Hamamatsu C9100-13
 camera and initialization of the hardware of said camera. 
 """
 
-from ctypes import * # open to suggestions on making this better with minimal obstruction to workflow
+# TODO : @Juan clean up your messes with respect to private variables etc here and in ni_imaq.py
+
+from ctypes import *
 import numpy as np
 import xml.etree.ElementTree as ET
 from ni_imaq import NiImaqSession
 import re
+from tcp import format_data
+from recordclass import recordclass as rc
+
 
 class Hamamatsu:
     """
+    Class to control the operation of the Hamamatsu camera using the NI IMAQ drivers
+
     could inherit from a Camera class if we choose to move
     control of other cameras (e.g. Andor) over to this server
     And/or having a parent class would shorten the code here.
@@ -24,7 +31,7 @@ class Hamamatsu:
     # dictionaries of allowed values for class attributes. note that the key
     # 'Default' has a value which is the key for the default value to be used
     # in the dictionary
-    scanModeValues = {"Super Pixel": "SMD S","Sub-array": "SMD A",
+    scanModeValues = {"Super Pixel": "SMD S", "Sub-array": "SMD A",
                       "Normal": "SMD N", "Default": "Normal"}
     fanValues = {"On": "FAN O", "Off": "FAN F", "Default": "Off"}
     coolingValues = {"On": "CSW O", "Off": "CSW F", "Default": "Off"}
@@ -32,17 +39,19 @@ class Hamamatsu:
                                    "Multi-Timing I/O Pin": "ESC M",
                                    "BNC on Power Supply": "ESC B", 
                                    "Default": "BNC on Power Supply"}
-    externalTriggerModeValues = {"Edge":"EMD E",
+    externalTriggerModeValues = {"Edge": "EMD E",
                                  "Synchronous Readout": "EMD S", 
-                                 "Level":"EMD L", "Default": "EMD L"}
+                                 "Level": "EMD L", "Default": "EMD L"}
     lowLightSensitivityValues = {"5x": "LLS1", "13x": "LLS2", "21x": "LLS3",
                                  "Off": "LLS 0", "Default": "Off"}
-    scanSpeedValues = {"Slow":"SSP S", "Middle": "SSP M", "High":"SSP H",
+    scanSpeedValues = {"Slow": "SSP S", "Middle": "SSP M", "High":"SSP H",
                        "Default": "High"}
     triggerPolarityValues = {"Negative": "ATP N", "Positive": "ATP P", 
                              "Default": "Positive"}
-    
-                   
+
+    SubArray = rc('SubArray', ('left', 'top', 'width', 'height'))
+    FrameGrabberAqRegion = rc('FrameGrabberAqRegion', ('left', 'right', 'top', 'bottom'))
+
     def __init__(self):
 
         # Labview Camera variables
@@ -51,13 +60,13 @@ class Hamamatsu:
         self.use_camera = False
         self.shots_per_measurement = 0
         self.camera_roi_file_refnum = 0
-        # Laview Hamamatsu variables
+        # Labview Hamamatsu variables
         # TODO : @Juan create static class variables to map settings to Hamamatsu-Compatible settings
         # TODO : @Juan compile descriptions of settings set bellow for ease of use later
-        self.enable = False # called "use camera?" in labview
-        self.analogGain = 0 # 0-5
-        self.exposureTime = 0 # can be scientific format
-        self.EMGain = 0 # 0-255
+        self.enable = False  # called "use camera?" in labview
+        self.analogGain = 0  # 0-5
+        self.exposureTime = 0  # can be scientific format
+        self.EMGain = 0  # 0-255
         self.triggerPolarity = self.triggerPolarityValues[
             self.triggerPolarityValues["Default"]
         ]  # positive by default
@@ -69,30 +78,20 @@ class Hamamatsu:
             self.externalTriggerModeValues["Default"]
         ]
         self.scanMode = self.scanModeValues[self.scanModeValues["Default"]]
-        self.superPixelBinning = # WHERES. MY. SUPER. SUIT?
+        self.superPixelBinning = ""  # WHERES. MY. SUPER. SUIT? TODO Find setting
         # Dicts instead of classes to reduce complexity
         # Uses uint16 in labview, use ints here, cast where necessary
-        self.cameraSubArrayAcquistionRegion = {
-            "Left": 0,
-            "Top": 0,
-            "Width": 0,
-            "Height": 0
-        }
-        self.numImageBuffers = 0 # imageBuffers in labview; renamed by tag name.
+        self.sub_array = self.SubArray(0, 0, 0, 0)
+        self.numImageBuffers = 0  # imageBuffers in labview; renamed by tag name.
         self.shotsPerMeasurement = 2
         self.forceImagesToU16 = False
         self.lowLightSensitivity = self.lowLightSensitivityValues[
             self.lowLightSensitivityValues["Default"]
         ]
-        self.cooling = self.coolingValues[self.coolingValues["Default"]] #Find default value
+        self.cooling = self.coolingValues[self.coolingValues["Default"]]
         self.fan = self.fanValues[self.fanValues["Default"]]
         # Uses int32 in labview, use ints here, cast where necessary
-        self.frameGrabberAcquisitionRegion = {
-            "Left":0,
-            "Top":0,
-            "Right":0,
-            "Bottom":0
-        }
+        self.fg_acquisition_region = self.FrameGrabberAqRegion(0, 0, 0, 0)
         self.session = NiImaqSession()
         self.last_frame_acquired = -1
         self.camera_temp = 0.0
@@ -183,10 +182,8 @@ class Hamamatsu:
 
                 elif child.tag == "EMGain":
                     try:
-                        # This is an int in labview, why was this set to a float?
-                        # gain = float(child.text)
                         gain = int(child.text)
-                        assert 0 < gain < 255, ("EMGain must be between and 255")
+                        assert 0 < gain < 255, "EMGain must be between and 255"
                         self.EMGain = gain
                     except ValueError as e:  #
                         # TODO replace with logger
@@ -223,7 +220,7 @@ class Hamamatsu:
                     
                 elif child.tag == "subArrayLeft":
                     try:
-                        self.cameraSubArrayAcquistionRegion["Left"] = int(child.text)
+                        self.sub_array.left = int(child.text)
                     except ValueError as e: #
                         # TODO replace with logger
                         print(f"{e}\n{child.tag} value {child.text} is non-numeric!")
@@ -231,7 +228,7 @@ class Hamamatsu:
 
                 elif child.tag == "subArrayTop":
                     try:
-                        self.cameraSubArrayAcquistionRegion["Top"] = int(child.text)
+                        self.sub_array.top = int(child.text)
                     except ValueError as e:  #
                         # TODO replace with logger
                         print(f"{e}\n{child.tag} value {child.text} is non-numeric!")
@@ -239,7 +236,7 @@ class Hamamatsu:
                         
                 elif child.tag == "subArrayWidth":
                     try:
-                        self.cameraSubArrayAcquistionRegion["Width"] = int(child.text)
+                        self.sub_array.width = int(child.text)
                     except ValueError as e:  #
                         # TODO replace with logger
                         print(f"{e}\n{child.tag} value {child.text} is non-numeric!")
@@ -247,7 +244,7 @@ class Hamamatsu:
                         
                 elif child.tag == "subArrayHeight":
                     try:
-                        self.cameraSubArrayAcquistionRegion["Height"] = int(child.text)
+                        self.sub_array.height = int(child.text)
                     except ValueError as e:  #
                         # TODO replace with logger
                         print(f"{e}\n{child.tag} value {child.text} is non-numeric!")
@@ -255,7 +252,7 @@ class Hamamatsu:
                         
                 elif child.tag == "frameGrabberAcquisitionRegionLeft":
                     try:
-                        self.frameGrabberAcquisitionRegion["Left"] = int(child.text)
+                        self.fg_acquisition_region.left = int(child.text)
                     except ValueError as e:  #
                         # TODO replace with logger
                         print(f"{e}\n{child.tag} value {child.text} is non-numeric!")
@@ -263,7 +260,7 @@ class Hamamatsu:
                     
                 elif child.tag == "frameGrabberAcquisitionRegionTop":
                     try:
-                        self.frameGrabberAcquisitionRegion["Top"] = int(child.text)
+                        self.fg_acquisition_region.top = int(child.text)
                     except ValueError as e:  #
                         # TODO replace with logger
                         print(f"{e}\n{child.tag} value {child.text} is non-numeric!")
@@ -271,7 +268,7 @@ class Hamamatsu:
                         
                 elif child.tag == "frameGrabberAcquisitionRegionRight":
                     try:
-                        self.frameGrabberAcquisitionRegion["Right"] = int(child.text)
+                        self.fg_acquisition_region.right = int(child.text)
                     except ValueError as e:  #
                         # TODO replace with logger
                         print(f"{e}\n{child.tag} value {child.text} is non-numeric!")
@@ -279,7 +276,7 @@ class Hamamatsu:
                         
                 elif child.tag == "frameGrabberAcquisitionRegionBottom":
                     try:
-                        self.frameGrabberAcquisitionRegion["Bottom"] = int(child.text)
+                        self.fg_acquisition_region.bottom = int(child.text)
                     except ValueError as e:  #
                         # TODO replace with logger
                         print(f"{e}\n{child.tag} value {child.text} is non-numeric!")
@@ -393,32 +390,32 @@ class Hamamatsu:
                     
                 elif self.scanMode == "SMD A": # sub-array
 
-                    sub_array_left = ("SHO\s"+
-                                    str(self.cameraSubArrayAcquistionRegion["Left"]))
+                    sub_array_left = ("SHO\s" +
+                                      str(self.sub_array.left))
 
                     self.session.hamamatsu_serial(
                         sub_array_left,
                         sub_array_left
                     )
 
-                    sub_array_top = ("SVO\s"+
-                                   str(self.cameraSubArrayAcquistionRegion["Top"]))
+                    sub_array_top = ("SVO\s" +
+                                     str(self.sub_array.top))
 
                     self.session.hamamatsu_serial(
                         sub_array_top,
                         sub_array_top
                     )
 
-                    sub_array_width = ("SHW\s"+
-                                    str(self.cameraSubArrayAcquistionRegion["Width"]))
+                    sub_array_width = ("SHW\s" +
+                                       str(self.sub_array.width))
 
                     self.session.hamamatsu_serial(
                         sub_array_width,
                         sub_array_width
                     )
 
-                    sub_array_height = ("SVW\s"+
-                                     str(self.cameraSubArrayAcquistionRegion["Height"]))
+                    sub_array_height = ("SVW\s" +
+                                        str(self.sub_array.height))
 
                     self.session.hamamatsu_serial(
                         sub_array_height,
@@ -426,7 +423,7 @@ class Hamamatsu:
                     )
             # default is to do nothing
 
-            self.session.set_roi(self.frameGrabberAcquisitionRegion)
+            self.session.set_roi(self.fg_acquisition_region)
 
             self.session.setup_buffers(num_buffers=self.numImageBuffers)
             if not self.session.get_buff_list_init():  # TODO : implement
@@ -438,7 +435,7 @@ class Hamamatsu:
                     self.session.get_attribute("ROI Width"),
                     self.session.get_attribute("ROI Height")
                 ),
-                dtype = int
+                dtype=int
             )
             self.is_initialized = True
             self.num_images = 0
@@ -502,11 +499,9 @@ class Hamamatsu:
         if self.use_camera:
             msg_in = "?TMP"
             er_c, msg_out = self.session.hamamatsu_serial(msg_in)
-            msg_out_fmt = "TMP {}"
 
-            # TODO : parse out temp from string, cast to float
-            m = re.match(r"Temp (\d+)\.(\d+)",msg_out)
-            self.camera_temp = float("{}.{}".format(m.groups()[0],m.groups()[1]))
+            m = re.match(r"Temp (\d+)\.(\d+)", msg_out)
+            self.camera_temp = float("{}.{}".format(m.group(1), m.group(2)))
 
         else:
             self.camera_temp = np.inf
@@ -521,52 +516,16 @@ class Hamamatsu:
         hm = "Hamamatsu"
         hm_str = ""
         sz = self.last_measurement.shape
-        hm_str += self.format_data(f"{hm}/numShots",f"{sz[0]}")
-        hm_str += self.format_data(f"{hm}/rows",f"{sz[1]}")
-        hm_str += self.format_data(f"{hm}/columns",f"{sz[2]}")
+        hm_str += format_data(f"{hm}/numShots",f"{sz[0]}")
+        hm_str += format_data(f"{hm}/rows",f"{sz[1]}")
+        hm_str += format_data(f"{hm}/columns",f"{sz[2]}")
 
         for shot in range(sz[0]):
             flat_ar = np.reshape(self.last_measurement[shot,:,:],sz[1]*sz[2])
             tmp_str = ""
-            hm_str += self.format_data(f"{hm}/shots/{shot}",tmp_str)
+            hm_str += format_data(f"{hm}/shots/{shot}",tmp_str)
 
-        hm_str += self.format_data(f"{hm}/temperature","{:.3f}".format(self.camera_temp))
+        hm_str += format_data(f"{hm}/temperature","{:.3f}".format(self.camera_temp))
 
         return hm_str
-
-    # TODO : @Preston @Cody This should be in a higher class, eg pxi
-    # TODO : Implement
-    def format_data(self, name: str, data: str) -> str:
-        """
-        Formats data for output to xml
-        Args:
-            name : name of field to be populated
-            data : data in field to be populated
-
-        Returns: formatted string
-        TODO : I don't trust this (I wrote it haha) we need to do some testing on
-            the labview end to make sure this functionality is consistent.
-        """
-
-        return f"{self.format_message(name)}{self.format_message(data)}"
-
-    def format_message(self,message: str) -> str:
-        """
-        Formats message by encoding it in the format "len(message)message"
-        Args:
-            message : string, message to be sent
-
-        Returns:
-            formatted message string
-
-        TODO : Verify functionallity matches labview! The output of the concatinated
-            string is not just an int, but an encoding of that int. I'd like to take some
-            time to dig into this
-        """
-        l = len(message)
-        return f"{l}{message}"
-
-
-                
-                
 
