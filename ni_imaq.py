@@ -16,27 +16,8 @@ import numpy as np
 from recordclass import recordclass as rc
 import re
 
-'''
-Not Sure this will be useful. Might be a decent place to start
-class HamamatsuSerialError(Exception):
-    """
-    Error to deal with Hamamatsu serial writing issues
 
-    TODO : Is this the right way to define this???
-    """
-    def __init__(self, msg: str):
-        """
-        Args:
-            msg: message tied to this serial error
-        """
-        self.msg = msg
-
-    def __str__(self):
-        return repr(self.msg)
-'''
-
-
-class NiImaqSession:
+class NIIMAQSession:
 
     # Class variables to store constants inside niimaq.h. ==========================================
 
@@ -123,6 +104,8 @@ class NiImaqSession:
 
     # Add all keys from ATTRIBUTE dicts to this array
     ATTRIBUTE_KEYS = IMG_ATTRIBUTES_UINT32.keys()
+
+    # Sub array acquisition RecordClasses for TypeHint convenience =================================
 
     SubArray = rc('SubArray', ('left', 'top', 'width', 'height'))
     FrameGrabberAqRegion = rc('FrameGrabberAqRegion', ('left', 'right', 'top', 'bottom'))
@@ -440,7 +423,8 @@ class NiImaqSession:
             check_error: bool = True
     ) -> int:
         """
-        Sets an attribute value
+        Sets an attribute value in the imaq c dll and sets the corresponding attribute
+        in the self.attributes dict
 
         wraps imgSetAttribute2()
         Args:
@@ -804,9 +788,8 @@ class NiImaqSession:
             self,
             buf_index: int,
             wait_for_next: bool,
-            reshape: bool = False,
             check_error: bool = True
-    ) -> Tuple[int, Array[int]]:
+    ) -> Tuple[int, np.ndarray]:
         """
         copies session image data to a use buffer
 
@@ -816,24 +799,17 @@ class NiImaqSession:
             buf_index : a valid buffer list index from which to copy
             wait_for_next : if False, the buffer is copied immediately, otherwise the buffer is
                 copied once the current acquisition is complete.
-            reshape : should the array reshaped into a 2D array of shape
-                (self.attributes["ROI Height"] x self.attributes["ROI Width"])
             check_error : should the check() function be called once operation has completed
 
         Returns:
             (error_code, img)
-            error_code : error code which reports status of operation.
+                error_code : error code which reports status of operation.
 
-                0 = Success, positive values = Warnings,
-                negative values = Errors
-            img : numpy array containing image data.
-                If reshape is true it's a 2D array of shape
-                    (self.attributes["ROI Height"], self.attributes["ROI Width"])
-                Otherwise it remains a 1D array of length
-                    self.attributes["ROI Height"] x self.attributes["ROI Width"]
-                This returns None if the error code is not 0
-                 TODO Double check shape, figure out convenient encoding for
-                                        our use case
+                    0 = Success, positive values = Warnings,
+                    negative values = Errors
+                img_array : numpy array of image data in ints
+                    if error_code is less than 0, returns None
+                    Shape = (self.attributes["Width"], self.attributes["Height"]
         """
 
         assert buf_index < self.num_buffers, \
@@ -854,7 +830,7 @@ class NiImaqSession:
             self.session_id,         # SESSION_ID
             c_uint32[buf_index],     # uInt32
             bf_pt,                   # void*
-            c_uint32(wait_for_next)  # void**
+            c_int32(wait_for_next)  # Int32
         )
 
         if error_code != 0 and check_error:
@@ -862,14 +838,14 @@ class NiImaqSession:
                 error_code,
                 traceback_msg=f"session copy buffer"
             )
+        if error_code < 0:
             return error_code, None
 
         img_array = np.ctypeslib.as_array(bf_pt)
-        if reshape:
-            img_array = np.reshape(
-                img_array,
-                (self.attributes["ROI Height"].value, self.attributes["ROI Width"].value)
-            )
+        img_array = np.reshape(
+            img_array,
+            (self.attributes["ROI Height"].value, self.attributes["ROI Width"].value)
+        )
         return error_code, img_array
 
 # Non-Wrapper functions ----------------------------------------------------------------------------
@@ -943,7 +919,7 @@ class NiImaqSession:
         """
         Initializes buffer array and buffer list for acquisition
         If all calls to imaq are successful self.buf_list_init should be True, otherwise
-        it will be false
+        it will be False
         """
 
         if self.create_buffer_list(num_buffers):
@@ -1049,8 +1025,9 @@ class NiImaqSession:
         while the buffer remains extracted, the acquisition will stall, increment the lost frame
         count, and the extracted buffer is reinserted into the buffer list.
         Args:
-            buf_num : cumulative buffer number of image to extract. Pass NiImageSession.IMG_CURRENT_BUFFER to
-                get the buffer that is currently being extracted
+            buf_num : cumulative buffer number of image to extract. Pass
+                NiImageSession.IMG_CURRENT_BUFFER to get the buffer that is currently being
+                extracted
         Returns:
             (error_code, last_buffer, img_array)
                 error_code : error code which reports status of operation.
@@ -1059,7 +1036,7 @@ class NiImaqSession:
                     negative values = Errors
                 last_buffer : cumulative number of the returned image
                 img_array : numpy array of image data in ints
-                    if error_code is not 0, returns None
+                    if error_code les than 0, returns None
                     Shape = (self.attributes["Width"], self.attributes["Height"]
         """
 
@@ -1068,7 +1045,7 @@ class NiImaqSession:
 
         err_c, last_buffer, img_addr = self.examine_buffer(buf_num)
 
-        if err_c:
+        if err_c < 0:
             # make sure buffers aren't being held irresponsibly
             self.release_buffer()
             return err_c, last_buffer, None
@@ -1081,7 +1058,7 @@ class NiImaqSession:
             bf_type = c_uint32 * pix
         img_bf = bf_type()
 
-        # Not sure this is the most effective way of doing this but I could
+        # Not sure this is the most efficient way of doing this but I could
         # do this on my laptop 10^6 times in 3 sec. Should be fast enough -Juan
 
         # make a shallow copy of the array as a numpy array
@@ -1102,7 +1079,7 @@ class NiImaqSession:
             check_error: bool = True
     ) -> Tuple[int, str]:
         """
-        Writes data to the serial port.
+        Writes data to the hamamatsu serial port.
 
         Serial communication parameters, such as baud rate, are set in the camera file associated
         with the session. You can adjust these communication parameters directly in the camera file.

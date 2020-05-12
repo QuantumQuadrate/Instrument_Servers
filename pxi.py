@@ -29,7 +29,7 @@ from keylistener import KeyListener
 
 #### local device classes
 from hsdio import HSDIO
-#from hamamatsu import Hamamatsu
+from hamamatsu import Hamamatsu
 from tcp import TCP
 
 
@@ -60,7 +60,7 @@ class PXI:
         # instantiate the device objects
         self.hsdio = HSDIO(self)
         self.tcp = TCP(self, address)
-        self.hamamatsu = Hamamatsu()
+        self.hamamatsu = Hamamatsu(self)
         # TODO: implement these classes
         self.counters = None  # Counters()
         self.analog_input = None  # AnalogOutput(self)
