@@ -131,7 +131,7 @@ class HSDIOWaveform(Waveform):
             assert len(self.states[0]) % 32 == 0  # this assertion my be a little late
             
     def init_from_xml(self, node): # equivalent to load waveform in labVIEW
-        """ 
+        """     
         re-initialize attributes for existing Waveformfrom children of node. 
         'node' is of type xml.etree.ElementTree.Element, with tag="waveform"
         """
