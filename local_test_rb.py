@@ -1,3 +1,7 @@
+"""
+Code for running modular tests for the PXI server instrument classes
+"""
+
 #### built-in modules
 import re
 import xml.etree.ElementTree as ET
