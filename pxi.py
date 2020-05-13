@@ -42,10 +42,14 @@ class PXI:
 
     def __init__(self, address: Tuple[str, int]):
         self.logger = logging.getLogger(str(self.__class__))
+
+        #Globals from LabVIEW
         self._stop_connections = False
         self._reset_connection = False
         self.cycle_continuously = True
         self.exit_measurement = False
+        self.return_data = ""
+        self.queued_return_data = ""
 
         self.keylisten_thread = None
         
@@ -128,7 +132,7 @@ class PXI:
 
                 # TODO add these variables to constructor
                 self.exit_measurement = False
-                self.return_data_str = ""  # reset the list
+                self.return_data = ""  # reset the list
 
                 if self.cycle_continuously:
                     # This method returns the data as well as updates
@@ -268,13 +272,12 @@ class PXI:
                  
         # TODO: some sort of error handling. could have several try/except 
         # blocks in the if/elifs above
-        
-        # TODO: implement send message
+
         # send a message back to CsPy
-        self.tcp.send_message()
+        self.tcp.send_message(self.return_data)
         
         # clear the return data
-        self.return_data_str = ""
+        self.return_data = ""
         self.return_data_queue = Queue(0)
 
 
@@ -297,7 +300,7 @@ class PXI:
 
         for spawn in data_spawns:
             # TODO: implement data_out methods in the relevant classes
-            self.return_data_str += spawn.data_out()
+            self.return_data += spawn.data_out()
 
         return return_data_str
 
