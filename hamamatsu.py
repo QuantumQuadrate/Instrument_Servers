@@ -199,7 +199,7 @@ class Hamamatsu:
                 elif child.tag == "EMGain":
                     try:
                         gain = int(child.text)
-                        assert 0 < gain < 255, "EMGain must be between and 255"
+                        assert 0 < gain < 255, "EMGain must be between 0 and 255"
                         self.em_gain = gain
                     except ValueError as e:  #
                         # TODO replace with logger
