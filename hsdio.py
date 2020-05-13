@@ -53,7 +53,7 @@ class HSDIO(Instrument): # could inherit from an Instrument class if helpful
 
         # These two have are related to one another, each session is attached to a handle, each handle can support man
         # sessions. Sessions now have an attribute HsdioSession.handle (a python string)
-        self.instrumentHandles = []  # array to hold instrument handles
+        self.instrumentHandles = []  # array to hold instrument handles; CAN PROBABLY DELETE; sessions takes care of this
         self.sessions = []  # array to hold HsdioSession objects
         self.waveformArr = []
 
@@ -160,7 +160,7 @@ class HSDIO(Instrument): # could inherit from an Instrument class if helpful
 
             if self.isInitialized:
 
-                for session in self.sessions:
+                for session in self.sessions: #
                     session.abort()
                     session.close()
                     pass
@@ -171,8 +171,6 @@ class HSDIO(Instrument): # could inherit from an Instrument class if helpful
                     # Its worth considering how these handles are being populated - Juan
 
                 self.sessions = []  # reset
-
-            # self.instrumentHandles.append("")  # Not sure why this is here
 
             if self.enable:
 
@@ -253,6 +251,32 @@ class HSDIO(Instrument): # could inherit from an Instrument class if helpful
                                 max(wave.transitions),
                                 data
                             )
+                            
+    
+    
+    def is_done(self)
+        """
+        Check if the tasks being run are completed
+        
+        Return:
+            'done': True if tasks completed, connection was stopped or reset, or
+                self.enable is False. False otherwise.
+        """
+        
+        done = True
+        if not (self.stop_connections or self.reset_connection) and self.enable:
+            
+            for session is self.sessions:
+                pass
+                # TODO: @Juan implement niHSDIO Is Done VI
+                #
+                # if not session.is_done():
+                    # done = False
+                    # break
+        
+        return done
+            
+            
 
 
     def settings(self, wf_arr, wf_names):
