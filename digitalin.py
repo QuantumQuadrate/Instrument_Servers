@@ -13,16 +13,19 @@ import numpy as np # for arrays
 import nidaqmx
 from nidaqmx.constants import Edge, AcquisitionType, Signal, TerminalConfiguration
 import nidaqmx
+import logging
 
 #### local class imports
+from instrumentfuncs import str_to_bool
 
 
 class TTLInput(Instrument):
     
     def __init__(self, pxi):
         super().__init__(pxi, "TTL")
-        self.lines = ""
         self.logger = logging.getLogger(str(self.__class__))
+        self.task = None
+        self.lines = ""
         
         
     def load_xml(self, node):
@@ -58,5 +61,19 @@ class TTLInput(Instrument):
         """
     
         if not (self.stop_connections or self.reset_connection):
-            pass
+            
+            if self.enable:
+            
+                # Clear old task
+                if self.task != None:
+                    self.task.close()
+                    
+                self.task = nidaqmx.Task() # might be task.Task()
+                
+                # Create a digital input channel
+                self.task.di_channels.add_di_chan(
+                    lines=self.lines
+                    name_to_assign_to_lines=u'', 
+                    line_grouping=<LineGrouping.CHAN_FOR_ALL_LINES: 1>)                
+            
     
