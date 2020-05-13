@@ -125,8 +125,3 @@ class DAQmxDO(Instrument):
                     timeout=10.0) # default
                     
                 self.isInitialized = True
-            
- 
-    
-        
-        
