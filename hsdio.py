@@ -274,9 +274,7 @@ class HSDIO(Instrument): # could inherit from an Instrument class if helpful
                     break
 
         return done
-            
-            
-
+ 
 
     def settings(self, wf_arr, wf_names):
         pass
@@ -285,6 +283,7 @@ class HSDIO(Instrument): # could inherit from an Instrument class if helpful
         # log certain HSDIO attributes
 
         # log stuff, call settings in the server code for debugging?
+
 
     def print_txt(self, node): # for debugging
         self.logger.info(f"{node.tag} = {node.text}")

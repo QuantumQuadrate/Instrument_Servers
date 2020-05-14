@@ -3,6 +3,9 @@ AnalogOutput class for the PXI Server
 SaffmanLab, University of Wisconsin - Madison
 """
 
+# TODO: could use nidaqmx task register_done_event, which can pass out and allow
+# error handling if a task ends unexpectedly due to an error
+
 ## modules 
 import nidaqmx
 from nidaqmx.constants import Edge, AcquisitionType, Signal
@@ -199,5 +202,21 @@ class AnalogOutput(Instrument):
                 # Auto-start is false by default when the data passed in contains
                 # more than one sample per channel
                 self.task.write(self.waveforms)
+                
+                
+    def is_done(self):
+        """
+        Check if the tasks being run are completed
+        
+        Return:
+            'done': True if tasks completed, connection was stopped or reset, or
+                self.enable is False. False otherwise.
+        """
+        
+        done = True
+        if not (self.stop_connections or self.reset_connection) and self.enable:
+        
+            # check if NI task is dones
+            done = self.task.is_task_done()
             
-            
+        return done
