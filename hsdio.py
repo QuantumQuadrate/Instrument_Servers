@@ -266,14 +266,13 @@ class HSDIO(Instrument): # could inherit from an Instrument class if helpful
         done = True
         if not (self.stop_connections or self.reset_connection) and self.enable:
             
-            for session is self.sessions:
-                pass
-                # TODO: @Juan implement niHSDIO Is Done VI
-                #
-                # if not session.is_done():
-                    # done = False
-                    # break
-        
+            for session in self.sessions:
+                er_c, is_dn = session.is_done()
+                # TODO : handle errors logically here or upstream
+                if not is_dn:
+                    done = False
+                    break
+
         return done
             
             

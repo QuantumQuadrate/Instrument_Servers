@@ -2,6 +2,7 @@ from ctypes import *
 import os
 import struct
 import platform # for checking the os bitness
+from typing import Tuple
 
 
 class HsdioSession:
@@ -700,6 +701,42 @@ class HsdioSession:
             self.check(error_code, traceback_msg="write_waveform_unit32")
 
         return error_code
+
+    def is_done(
+            self,
+            check_error: bool = True
+    ) -> Tuple[int, bool]:
+        """
+        Checks if the task being run is is completed.
+
+        Call this function to check the hardware to determine if your dynamic data operation has
+        completed. You can also use this function for continuous dynamic data operations to poll for
+        error conditions.
+
+        wraps niHSDIO_IsDone
+
+        Args:
+            check_error : should the check() function be called once operation has completed
+
+        Returns:
+            (error_code, done)
+                error code : code reports status of operation.
+
+                    0 = Success, positive values = Warnings,
+                    negative values = Errors
+                done : boolean indicating whether task has been successfully completed
+        """
+        c_done = c_bool(False)
+
+        error_code = self.hsdio.niHSDIO_IsDone(
+            self.vi,       # ViSession
+            byref(c_done)  # ViBoolean
+        )
+
+        if error_code != 0 and check_error:
+            self.check(error_code, traceback_msg="is_done")
+
+        return error_code, c_done.value
 
     def close(
             self,
