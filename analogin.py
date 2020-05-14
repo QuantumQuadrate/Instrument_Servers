@@ -139,3 +139,21 @@ class AnalogInput(Instrument):
                     self.start_trigger.cfg_dig_edge_start_trig(
                         trigger_source = self.startTrigger.source,
                         trigger_edge=self.startTrigger.edge)
+                        
+                        
+    def is_done(self):
+        """
+        Check if the tasks being run are completed
+        
+        Return:
+            'done': True if tasks completed, connection was stopped or reset, or
+                self.enable is False. False otherwise.
+        """
+        
+        done = True
+        if not (self.stop_connections or self.reset_connection) and self.enable:
+        
+            # check if NI task is dones
+            done = self.task.is_task_done()
+            
+        return done
