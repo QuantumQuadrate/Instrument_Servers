@@ -251,7 +251,6 @@ class HSDIO(Instrument): # could inherit from an Instrument class if helpful
                                 max(wave.transitions),
                                 data
                             )
-                            
     
     
     def is_done(self)
@@ -267,13 +266,27 @@ class HSDIO(Instrument): # could inherit from an Instrument class if helpful
         if not (self.stop_connections or self.reset_connection) and self.enable:
             
             for session in self.sessions:
-                er_c, is_dn = session.is_done()
+                error_code, _is_done = session.is_done()
                 # TODO : handle errors logically here or upstream
-                if not is_dn:
+                if not _is_done:
                     done = False
                     break
 
         return done
+        
+    
+    # TODO: call in PXI.start_tasks
+    def start(self):
+        """
+        Start the tasks
+        """
+        
+        if not (self.stop_connections or self.reset_connection) and self.enable:
+        
+            for session in self.sessions:
+                
+                # start the session
+                error_code = self.session.initiate()
  
 
     def settings(self, wf_arr, wf_names):
