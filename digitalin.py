@@ -102,7 +102,7 @@ class TTLInput(Instrument):
         pass
         
     # TODO: call this in PXI.measurement
-    def system_check(self):
+    def check(self):
         """
         I believe this just takes a 1 second data sample. Not clear than 
         anything else happens. 
@@ -126,7 +126,3 @@ class TTLInput(Instrument):
             
             # Stop the task and reset it to the state it was initiially
             self.task.stop()
-            
-            
-        
-    
