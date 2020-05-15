@@ -127,14 +127,20 @@ class DAQmxDO(Instrument):
                 self.isInitialized = True
                 
 
-    # TODO: call in PXI.start_tasks
+    # TODO: call in PXI.start_tasks  
     def start(self):
         """
         Start the task
         """
         
         if not (self.stop_connections or self.reset_connection) and self.enable:
-            
-            # TODO: daqmx start task
             self.task.start()
+            
+    # TODO: call in PXI.stop_tasks  
+    def stop(self):
+        """
+        Stop the task
+        """
         
+        if self.enable:
+            self.task.stop()

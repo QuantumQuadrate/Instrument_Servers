@@ -280,13 +280,19 @@ class HSDIO(Instrument): # could inherit from an Instrument class if helpful
         """
         Start the tasks
         """
-        
         if not (self.stop_connections or self.reset_connection) and self.enable:
-        
             for session in self.sessions:
-                # start the session
                 error_code = self.session.initiate()
- 
+                
+                
+    def stop(self):
+        """
+        Abort the session
+        """
+        if self.enable:
+            for session in self.sessions:
+                error_code = session.abort()
+
 
     def settings(self, wf_arr, wf_names):
         pass

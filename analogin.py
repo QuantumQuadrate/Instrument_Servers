@@ -162,15 +162,22 @@ class AnalogInput(Instrument):
         
 
      # TODO: call in PXI.start_tasks  
-     def start(self):
+    def start(self):
         """
         Start the task
         """
         
         if not (self.stop_connections or self.reset_connection) and self.enable:
-            
-            # TODO: daqmx start task
             self.task.start()
+            
+            
+    def stop(self):
+        """
+        Stop the task
+        """
+        
+        if self.enable:
+            self.task.stop()
             
             
     def get_data(self):
