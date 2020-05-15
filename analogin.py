@@ -158,6 +158,7 @@ class AnalogInput(Instrument):
             
         return done
         
+
      # TODO: call in PXI.start_tasks  
      def start(self):
         """

@@ -126,7 +126,7 @@ class DAQmxDO(Instrument):
                     
                 self.isInitialized = True
                 
-    
+
     # TODO: call in PXI.start_tasks
     def start(self):
         """

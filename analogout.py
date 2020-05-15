@@ -221,7 +221,11 @@ class AnalogOutput(Instrument):
             
         return done
         
+<<<<<<< HEAD
      # TODO: call in PXI.start_tasks
+=======
+        
+>>>>>>> 123423433307f215e20104110a162603933fa09d
      def start(self):
         """
         Start the task
