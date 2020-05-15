@@ -60,20 +60,73 @@ class TTLInput(Instrument):
         Initialize the device hardware with the attributes set in load_xml
         """
     
-        if not (self.stop_connections or self.reset_connection):
-            
-            if self.enable:
-            
-                # Clear old task
-                if self.task != None:
-                    self.task.close()
-                    
-                self.task = nidaqmx.Task() # might be task.Task()
+        if not (self.stop_connections or self.reset_connection) and self.enable:
+                        
+            # Clear old task
+            if self.task != None:
+                self.task.close()
                 
-                # Create a digital input channel
-                self.task.di_channels.add_di_chan(
-                    lines=self.lines
-                    name_to_assign_to_lines=u'', 
-                    line_grouping=<LineGrouping.CHAN_FOR_ALL_LINES: 1>)                
+            self.task = nidaqmx.Task() # might be task.Task()
             
+            # Create a digital input channel
+            self.task.di_channels.add_di_chan(
+                lines=self.lines
+                name_to_assign_to_lines=u'', 
+                line_grouping=<LineGrouping.CHAN_FOR_ALL_LINES: 1>)                
+            
+    
+    # TODO: call this in PXI.measurement
+    def reset_data(self):
+        """
+        Reset the aqcuired data array
+        
+        TODO: properly initialize the data. It is not straightforward to see what the format of 
+            returned data from task.read is. Based on labview code for both the ttl reset method
+            and the ttl system check method, I would guess it goes something like this:
+                self.data = np.zeros((39,68)) # init in ttl reset data
+                                
+                labview says: data input is 2D and height=39,width=68 (when i change the constant to a control)
+                
+                and the read function is set to read only 1 channel, 1 sample, so presumably it outputs
+                a single value. the array out seems to still be 2D. or maybe it's actually 3D and looks like
+                
+                data = [[0], [0], [0]] where the first two columns are the initialization, and the height/width 
+                    were only because I made the data a control, and that was the control default
+                
+                TODO: try other checks to get an idea of how this is formatted
+        """
+        
+        # TODO: reset data. need to actually create data first
+        # something like
+        # self.data = np.array([0], [0]) # labview does something like this, with False instead of 0. 
+        pass
+        
+    # TODO: call this in PXI.measurement
+    def system_check(self):
+        """
+        I believe this just takes a 1 second data sample. Not clear than 
+        anything else happens. 
+        
+        TODO: need to implement error checking here
+        """
+        
+        if not (self.stop_connections or self.reset_connection) and self.enable:
+            
+            # TODO: daqmx start task
+            self.task.start()
+            
+            # number_of_samples_per_channel unset means 1 sample per channel
+            # 1 second timeout
+            self.task.read(timeout=1)
+            
+            # TODO: get data out and append it to the extant data array
+            # labview comment: low is good, bad is high
+            # careful with the dimensions here. see comment is reset_data docstring above
+            # something like this self.data = np.append(self.data, data)
+            
+            # Stop the task and reset it to the state it was initiially
+            self.task.stop()
+            
+            
+        
     
