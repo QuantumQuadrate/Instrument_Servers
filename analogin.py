@@ -157,3 +157,14 @@ class AnalogInput(Instrument):
             done = self.task.is_task_done()
             
         return done
+        
+        
+     def start(self):
+        """
+        Start the task
+        """
+        
+        if not (self.stop_connections or self.reset_connection) and self.enable:
+            
+            # TODO: daqmx start task
+            self.task.start()

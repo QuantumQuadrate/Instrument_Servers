@@ -251,7 +251,6 @@ class HSDIO(Instrument): # could inherit from an Instrument class if helpful
                                 max(wave.transitions),
                                 data
                             )
-                            
     
     
     def is_done(self)
@@ -274,6 +273,16 @@ class HSDIO(Instrument): # could inherit from an Instrument class if helpful
                     break
 
         return done
+        
+        
+    def start(self):
+        """
+        Start the tasks
+        """
+        
+        if not (self.stop_connections or self.reset_connection) and self.enable:
+        
+            # TODO: niHSDIO Initiate
  
 
     def settings(self, wf_arr, wf_names):

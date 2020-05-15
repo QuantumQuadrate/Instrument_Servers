@@ -125,3 +125,15 @@ class DAQmxDO(Instrument):
                     timeout=10.0) # default
                     
                 self.isInitialized = True
+                
+                
+    def start(self):
+        """
+        Start the task
+        """
+        
+        if not (self.stop_connections or self.reset_connection) and self.enable:
+            
+            # TODO: daqmx start task
+            self.task.start()
+        
