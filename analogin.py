@@ -3,6 +3,8 @@ AnalogInput class for the PXI Server
 SaffmanLab, University of Wisconsin - Madison
 """
 
+# TODO: handle errors where nidaqmx functions are called?
+
 ## modules 
 import nidaqmx
 from nidaqmx.constants import Edge, AcquisitionType, Signal, TerminalConfiguration
@@ -141,7 +143,7 @@ class AnalogInput(Instrument):
                         trigger_edge=self.startTrigger.edge)
                         
                         
-    def is_done(self):
+    def is_done(self) -> bool:
         """
         Check if the tasks being run are completed
         
@@ -169,3 +171,18 @@ class AnalogInput(Instrument):
             
             # TODO: daqmx start task
             self.task.start()
+            
+            
+    def get_data(self):
+        """
+        Call nidaqmx.Task.read function to fill self.data. 
+        
+        self.data will be of a 2D array of floats, with dimensions based on the
+        sample/channel arguments passed to Task.ai_channels.add_ai_voltage_chan
+        """
+        
+        if not (self.stop_connections or self.reset_connection) and self.enable:
+        
+            # dadmx read 2D DBL N channel N sample. use defaults args. 
+            # measurement type inferred from the task virtual channel
+            self.data = self.task.read()

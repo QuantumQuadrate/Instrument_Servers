@@ -253,7 +253,7 @@ class HSDIO(Instrument): # could inherit from an Instrument class if helpful
                             )
     
     
-    def is_done(self)
+    def is_done(self) -> bool:
         """
         Check if the tasks being run are completed
         
