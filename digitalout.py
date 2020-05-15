@@ -126,6 +126,24 @@ class DAQmxDO(Instrument):
                     
                 self.isInitialized = True
                 
+                
+    def is_done(self) -> bool:
+        """
+        Check if the tasks being run are completed
+        
+        Return:
+            'done': True if tasks completed, connection was stopped or reset, or
+                self.enable is False. False otherwise.
+        """
+        
+        done = True
+        if not (self.stop_connections or self.reset_connection) and self.enable:
+        
+            # check if NI task is dones
+            done = self.task.is_task_done()
+            
+        return done
+                
 
     # TODO: call in PXI.start_tasks  
     def start(self):
