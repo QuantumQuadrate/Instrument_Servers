@@ -275,7 +275,6 @@ class HSDIO(Instrument): # could inherit from an Instrument class if helpful
         return done
  
     
-    # TODO: call in PXI.start_tasks
     def start(self):
         """
         Start the tasks
@@ -284,7 +283,7 @@ class HSDIO(Instrument): # could inherit from an Instrument class if helpful
             for session in self.sessions:
                 error_code = self.session.initiate()
                 
-                
+
     def stop(self):
         """
         Abort the session

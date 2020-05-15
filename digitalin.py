@@ -75,7 +75,6 @@ class TTLInput(Instrument):
                 line_grouping=<LineGrouping.CHAN_FOR_ALL_LINES: 1>)                
             
     
-    # TODO: call this in PXI.measurement
     def reset_data(self):
         """
         Reset the aqcuired data array
@@ -101,8 +100,8 @@ class TTLInput(Instrument):
         # self.data = np.array([0], [0]) # labview does something like this, with False instead of 0. 
         pass
         
-    # TODO: call this in PXI.measurement
-    def system_check(self):
+
+    def check(self):
         """
         I believe this just takes a 1 second data sample. Not clear than 
         anything else happens. 
@@ -126,7 +125,3 @@ class TTLInput(Instrument):
             
             # Stop the task and reset it to the state it was initiially
             self.task.stop()
-            
-            
-        
-    
