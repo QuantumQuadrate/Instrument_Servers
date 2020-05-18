@@ -109,21 +109,33 @@ class TCP:
         """
         if not self.stop_connections and msg_str:
             try:
-                self.current_connection.send(self.format_message(msg_str))
+                self.current_connection.send(f"{b'MESG'}{TCP.format_message(msg_str)}")
             except Exception:
                 self.logger.exception("Issue sending message back to CsPy.")
                 self.reset_connection = True
 
-    def format_message(self, message: str) -> str:
+    @staticmethod
+    def format_message(message: str) -> str:
         """
-        Formats message by encoding it in the format "len(message)message"
+        Formats a message according to how CsPy expects to receive it. This is done by preprending
+        the length of the message to the message in byte form
         Args:
-            message : string, message to be sent
+            message : message to be sent
 
         Returns:
             formatted message string
         """
-        return f"{b'MESG'}{struct.pack('!L', len(message))}{message}"
+        return f"{struct.pack('!L', len(message))}{message}"
 
+    @staticmethod
+    def format_data(name, data) -> str:
+        """
+        Formats a bit of data according to how CsPy expects to receive it.
+        Args:
+            name: A description of the data
+            data: The data to be send to CsPy
 
-
+        Returns:
+            formatted string that CsPy can parse
+        """
+        return f"{TCP.format_message(name)}{TCP.format_message(data)}"
