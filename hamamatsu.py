@@ -453,7 +453,7 @@ class Hamamatsu:
                 self.session.attributes("ROI Width"),
                 self.session.attributes("ROI Height")
             ),
-            dtype=int
+            dtype=np.uint16
         )
         self.is_initialized = True
         self.num_images = 0
@@ -519,6 +519,8 @@ class Hamamatsu:
             er_c, bf_ind, img = self.session.extract_buffer(frame_ind)
             self.last_measurement[i, :, :] = img
 
+        # Make certain the type is correct before passing this on to CsPy
+        self.last_measurement = self.last_measurement.astype(np.uint16)
         self.last_frame_acquired = frame_ind
         self.read_camera_temp()
 
