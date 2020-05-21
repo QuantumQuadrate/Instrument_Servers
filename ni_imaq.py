@@ -9,6 +9,7 @@ interface data.
 """
 
 from ctypes import *
+import logging
 import os
 from ctypes import c_uint32
 from typing import Tuple, Callable, TypeVar
@@ -17,30 +18,51 @@ from recordclass import recordclass as rc
 import re
 
 
+class IMAQError(Exception):
+    """
+    Exception raised for errors coming from NI IMAQ drivers
+
+    Attributes:
+        __error_code : Integer code representing the error state
+        __message : message corresponding to code with some traceback info
+    """
+    def __init__(self,error_code,message):
+        self.__error_code = error_code
+        self.__message = message
+
+    @property
+    def error_code(self):
+        return self.__error_code
+
+    @property
+    def message(self):
+        return self.__message
+
+
 class NIIMAQSession:
 
     # Class variables to store constants inside niimaq.h. ==========================================
 
     # timeout values
-    IMG_TIMEOUT_INFINITE = int(0xFFFFFFFF, 16)
+    IMG_TIMEOUT_INFINITE = int(0xFFFFFFFF)
 
     # imgSessionExamineBufferConstants
-    IMG_LAST_BUFFER = int(0xFFFFFFFE, 16)
-    IMG_OLDEST_BUFFER = int(0xFFFFFFFD, 16)
-    IMG_CURRENT_BUFFER = int(0xFFFFFFFC, 16)
+    IMG_LAST_BUFFER = int(0xFFFFFFFE)
+    IMG_OLDEST_BUFFER = int(0xFFFFFFFD)
+    IMG_CURRENT_BUFFER = int(0xFFFFFFFC)
 
     # buffer location specifier
     IMG_HOST_FRAME = 0
     IMG_DEVICE_FRAME = 1
 
-    _IMG_BASE = int(0x3FF60000, 16)
+    _IMG_BASE = int(0x3FF60000)
 
     # Buffer command keys
-    IMG_CMD_LOOP = _IMG_BASE + int(0x02, 16)
-    IMG_CMD_NEXT = _IMG_BASE + int(0x01, 16)
-    IMG_CMD_PASS = _IMG_BASE + int(0x04, 16)
-    IMG_CMD_STOP = _IMG_BASE + int(0x08, 16)
-    IMG_CMD_INVALID = _IMG_BASE + int(0x10, 16)  # Reserved for internal use in c dll
+    IMG_CMD_LOOP = _IMG_BASE + int(0x02)
+    IMG_CMD_NEXT = _IMG_BASE + int(0x01)
+    IMG_CMD_PASS = _IMG_BASE + int(0x04)
+    IMG_CMD_STOP = _IMG_BASE + int(0x08)
+    IMG_CMD_INVALID = _IMG_BASE + int(0x10)  # Reserved for internal use in c dll
 
     BUFFER_COMMANDS = {
         "Loop": IMG_CMD_LOOP,
@@ -50,14 +72,14 @@ class NIIMAQSession:
     }
 
     # Buffer Element Specifier keys
-    IMG_BUFF_ADDRESS = _IMG_BASE + int(0x007E, 16)          # void*
-    IMG_BUFF_COMMAND = _IMG_BASE + int(0x007F, 16)          # uInt32
-    IMG_BUFF_SKIPCOUNT = _IMG_BASE + int(0x0080, 16)        # uInt32
-    IMG_BUFF_SIZE = _IMG_BASE + int(0x0082, 16)             # uInt32
-    IMG_BUFF_TRIGGER = _IMG_BASE + int(0x0083, 16)          # uInt32
-    IMG_BUFF_NUMBUFS = _IMG_BASE + int(0x00B0, 16)          # uInt32
-    IMG_BUFF_CHANNEL = _IMG_BASE + int(0x00Bc, 16)          # uInt32
-    IMG_BUFF_ACTUALHEIGHT = _IMG_BASE + int(0x0400, 16)     # uInt32
+    IMG_BUFF_ADDRESS = _IMG_BASE + int(0x007E)          # void*
+    IMG_BUFF_COMMAND = _IMG_BASE + int(0x007F)          # uInt32
+    IMG_BUFF_SKIPCOUNT = _IMG_BASE + int(0x0080)        # uInt32
+    IMG_BUFF_SIZE = _IMG_BASE + int(0x0082)             # uInt32
+    IMG_BUFF_TRIGGER = _IMG_BASE + int(0x0083)          # uInt32
+    IMG_BUFF_NUMBUFS = _IMG_BASE + int(0x00B0)          # uInt32
+    IMG_BUFF_CHANNEL = _IMG_BASE + int(0x00Bc)          # uInt32
+    IMG_BUFF_ACTUALHEIGHT = _IMG_BASE + int(0x0400)     # uInt32
 
     # Valid for imgGetBufferElement
     ITEM_TYPES = {
@@ -80,14 +102,14 @@ class NIIMAQSession:
     # Attribute key ===========================================================================
     # Image Attribute keys --------------------------------------------------------------------
     # incomplete, add as they become relevant
-    IMG_ATTR_ROI_WIDTH = _IMG_BASE + int(0x01A6, 16)
-    IMG_ATTR_ROI_HEIGHT = _IMG_BASE + int(0x01A7, 16)
-    IMG_ATTR_BYTESPERPIXEL = _IMG_BASE + int(0x0066, 16)
-    IMG_ATTR_ROI_LEFT = _IMG_BASE + int(0x01A4,16)
-    IMG_ATTR_ROI_TOP = _IMG_BASE + int(0x01A5,16)
-    IMG_ATTR_ACQ_IN_PROGRESS = _IMG_BASE + int(0x0074,16)
-    IMG_ATTR_LAST_VALID_FRAME = _IMG_BASE + int(0x00BA,16)  # cumulative buffer index (frame #)
-    IMG_ATTR_LAST_VALID_BUFFER = _IMG_BASE + int(0x0077,16)  # Last valid Buffer index
+    IMG_ATTR_ROI_WIDTH = _IMG_BASE + int(0x01A66)
+    IMG_ATTR_ROI_HEIGHT = _IMG_BASE + int(0x01A76)
+    IMG_ATTR_BYTESPERPIXEL = _IMG_BASE + int(0x00666)
+    IMG_ATTR_ROI_LEFT = _IMG_BASE + int(0x01A4)
+    IMG_ATTR_ROI_TOP = _IMG_BASE + int(0x01A5)
+    IMG_ATTR_ACQ_IN_PROGRESS = _IMG_BASE + int(0x0074)
+    IMG_ATTR_LAST_VALID_FRAME = _IMG_BASE + int(0x00BA)  # cumulative buffer index (frame #)
+    IMG_ATTR_LAST_VALID_BUFFER = _IMG_BASE + int(0x0077)  # Last valid Buffer index
 
     # dict of img keys corresponding to uint32 variables. Be careful of typing when adding variables
     # to dicts
@@ -113,6 +135,8 @@ class NIIMAQSession:
     ROI = TypeVar("ROI", SubArray, FrameGrabberAqRegion)
 
     def __init__(self):
+        self.logger = logging.getLogger(str(self.__class__))
+
         self.imaq = CDLL(os.path.join("C:\Windows\System32", "imaq.dll"))
         self.interface_id = c_uint32(0)
         self.session_id = c_uint32(0)
@@ -136,11 +160,9 @@ class NIIMAQSession:
             traceback_msg: str = None
     ):
         """
-        Checks error_code with self.imaq to get out a descriptive error message and prints(logs)
-        error/warning  if operation was unsuccessful
-        TODO : Proper logging
-        TODO : Proper traceback
-        TODO : Raise Errors and Warnings where appropriate
+        Checks error_code with self.imaq to get out a descriptive error message
+        and logs errors or warnings  if operation was unsuccessful. If the
+        operation caused an IMAQ error and IMAQError is raised.
 
         Args:
             error_code : error code which encodes status of operation.
@@ -167,8 +189,11 @@ class NIIMAQSession:
         else:
             message = f"{code_type} {error_code} in {traceback_msg}:\n {err_msg}"
 
-        print(message)
-        return
+        if error_code < 0:
+            self.logger.error(message)
+            raise IMAQError(error_code, message)
+        else:
+            self.logger.warning(message)
 
     def open_interface(
             self,
@@ -643,7 +668,7 @@ class NIIMAQSession:
             item_type: str,
             value: c_uint32,
             check_error: bool = True
-    ):
+    ) -> int:
         """
         Sets the value for a specified item_type for a buffer in a buffer list
 
@@ -922,38 +947,31 @@ class NIIMAQSession:
         it will be False
         """
 
-        if self.create_buffer_list(num_buffers):
-            return
+        self.create_buffer_list(num_buffers)
         for buf_num in range(self.num_buffers):
-            # Juan's outline based on c ll ring example  -------------------
+            # Based on c ll ring example  -------------------
 
-            if self.compute_buffer_size():
-                return
+            self.compute_buffer_size()
             erc, self.buffers[buf_num] = self.create_buffer()
-            if erc:
-                return
-            if self.set_buf_element2(
-                    buf_num,
-                    "Address",
-                    self.buffers[buf_num]
-                ):
-                return
-            if self.set_buf_element2(
-                    buf_num,
-                    "Size",
-                    c_uint32(self.buffer_size)
-                ):
-                return
+            self.set_buf_element2(
+                buf_num,
+                "Address",
+                self.buffers[buf_num]
+            )
+            self.set_buf_element2(
+                buf_num,
+                "Size",
+                c_uint32(self.buffer_size)
+            )
             if buf_num == self.num_buffers - 1:
                 buf_cmd = self.BUFFER_COMMANDS["Loop"]
             else:
                 buf_cmd = self.BUFFER_COMMANDS["Next"]
-            if self.set_buf_element2(
-                    buf_num,
-                    "Command",
-                    c_uint32(buf_cmd)
-                ):
-                return
+            self.set_buf_element2(
+                buf_num,
+                "Command",
+                c_uint32(buf_cmd)
+            )
         self.buff_list_init = True
 
     def set_roi(
@@ -983,29 +1001,21 @@ class NIIMAQSession:
             raise TypeError("Must pass in FrameGrabberAqRegion of SubArray object")
         top = roi.top
         left = roi.left
-        er = self.get_attribute("ROI Width")
-        if er != 0:
-            return er
+        self.get_attribute("ROI Width")
         acq_width = self.attributes["ROI Width"]
-        er = self.get_attribute("ROI Height")
-        if er != 0:
-            return er
+
+        self.get_attribute("ROI Height")
         acq_height = self.attributes["ROI Height"]
 
         if width < acq_width:
-            er = self.set_attribute2("ROI Width", c_uint32(width))
-            if er != 0:
-                return er
+            self.set_attribute2("ROI Width", c_uint32(width))
+
         if height < acq_height:
-            er = self.set_attribute2("ROI Height", c_uint32(height))
-            if er != 0:
-                return er
-        er = self.set_attribute2("ROI Left", left)
-        if er != 0:
-            return er
-        er = self.set_attribute2("ROI Top", top)
-        if er != 0:
-            return er
+            self.set_attribute2("ROI Height", c_uint32(height))
+
+        self.set_attribute2("ROI Left", left)
+
+        self.set_attribute2("ROI Top", top)
 
         return 0
 
@@ -1143,7 +1153,7 @@ class NIIMAQSession:
         if expected_response == "Nothing" or enc_exp_rsp == enc_rsp:
             return error_code, enc_rsp
         er_msg = f"Serial write {command}. Expected Response {enc_exp_rsp}\n Got {enc_rsp}\n"
-        print(er_msg)  # TODO : use logging
+        self.logger.warning(er_msg)
         return error_code, enc_rsp
 
 

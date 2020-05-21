@@ -12,10 +12,9 @@ camera and initialization of the hardware of said camera.
 from ctypes import *
 import numpy as np
 import xml.etree.ElementTree as ET
-from ni_imaq import NIIMAQSession
+from ni_imaq import NIIMAQSession, IMAQError
 import re
 import logging
-from tcp import format_data
 import struct
 from tcp import TCP
 from recordclass import recordclass as rc
@@ -144,10 +143,9 @@ class Hamamatsu:
                 default = values["Default"]  # the key for the default value
             except KeyError as key_er:
                 self.logger.error(f"Value dictionary for Hamamatsu.{attr} must include" +
-                      "the key \'Default\', where the value is the key of" +
-                      "the default value in the dictionary.")
+                                  "the key \'Default\', where the value is the key of" +
+                                  "the default value in the dictionary.")
                 raise key_er
-                #  This should still throw an error. Code bellow won't execute in this case -Juan
 
             assert node.tag == "camera", "This XML is not tagged for the camera"
 
@@ -185,9 +183,8 @@ class Hamamatsu:
                         assert 0 < gain < 5, ("analogGain must be between 0 "+
                                               " and 5")
                         self.analog_gain = gain
-                    except ValueError as e:  #
-                        # TODO replace with logger
-                        print(f"{e}\n{child.tag} value {child.text} is non-numeric!")
+                    except ValueError as e:
+                        self.logger.error(f"{e}\n{child.tag} value {child.text} is non-numeric!")
                         raise
                         
                 elif child.tag == "exposureTime":
@@ -195,8 +192,7 @@ class Hamamatsu:
                         # can convert scientifically-formatted numbers - good
                         self.exposure_time = float(child.text)
                     except ValueError as e:  #
-                        # TODO replace with logger
-                        print(f"{e}\n{child.tag} value {child.text} is non-numeric!")
+                        self.logger.error(f"{e}\n{child.tag} value {child.text} is non-numeric!")
                         raise
 
                 elif child.tag == "EMGain":
@@ -205,8 +201,7 @@ class Hamamatsu:
                         assert 0 < gain < 255, "EMGain must be between 0 and 255"
                         self.em_gain = gain
                     except ValueError as e:  #
-                        # TODO replace with logger
-                        print(f"{e}\n{child.tag} value {child.text} is non-numeric!")
+                        self.logger.error(f"{e}\n{child.tag} value {child.text} is non-numeric!")
                         raise
                     
                 elif child.tag == "triggerPolarity":
@@ -240,81 +235,71 @@ class Hamamatsu:
                 elif child.tag == "subArrayLeft":
                     try:
                         self.sub_array.left = int(child.text)
-                    except ValueError as e: #
-                        # TODO replace with logger
-                        print(f"{e}\n{child.tag} value {child.text} is non-numeric!")
+                    except ValueError as e:
+                        self.logger.error(f"{e}\n{child.tag} value {child.text} is non-numeric!")
                         raise
 
                 elif child.tag == "subArrayTop":
                     try:
                         self.sub_array.top = int(child.text)
-                    except ValueError as e:  #
-                        # TODO replace with logger
-                        print(f"{e}\n{child.tag} value {child.text} is non-numeric!")
+                    except ValueError as e:
+                        self.logger.error(f"{e}\n{child.tag} value {child.text} is non-numeric!")
                         raise
                         
                 elif child.tag == "subArrayWidth":
                     try:
                         self.sub_array.width = int(child.text)
-                    except ValueError as e:  #
-                        # TODO replace with logger
-                        print(f"{e}\n{child.tag} value {child.text} is non-numeric!")
+                    except ValueError as e:
+                        self.logger.error(f"{e}\n{child.tag} value {child.text} is non-numeric!")
                         raise
                         
                 elif child.tag == "subArrayHeight":
                     try:
                         self.sub_array.height = int(child.text)
-                    except ValueError as e:  #
-                        # TODO replace with logger
-                        print(f"{e}\n{child.tag} value {child.text} is non-numeric!")
+                    except ValueError as e:
+                        self.logger.error(f"{e}\n{child.tag} value {child.text} is non-numeric!")
                         raise
                         
                 elif child.tag == "frameGrabberAcquisitionRegionLeft":
                     try:
                         self.fg_acquisition_region.left = int(child.text)
-                    except ValueError as e:  #
-                        # TODO replace with logger
-                        print(f"{e}\n{child.tag} value {child.text} is non-numeric!")
+                    except ValueError as e:
+                        self.logger.error(f"{e}\n{child.tag} value {child.text} is non-numeric!")
                         raise
                     
                 elif child.tag == "frameGrabberAcquisitionRegionTop":
                     try:
                         self.fg_acquisition_region.top = int(child.text)
-                    except ValueError as e:  #
-                        # TODO replace with logger
-                        print(f"{e}\n{child.tag} value {child.text} is non-numeric!")
+                    except ValueError as e:
+                        self.logger.error(f"{e}\n{child.tag} value {child.text} is non-numeric!")
                         raise
                         
                 elif child.tag == "frameGrabberAcquisitionRegionRight":
                     try:
                         self.fg_acquisition_region.right = int(child.text)
-                    except ValueError as e:  #
-                        # TODO replace with logger
-                        print(f"{e}\n{child.tag} value {child.text} is non-numeric!")
+                    except ValueError as e:
+                        self.logger.error(f"{e}\n{child.tag} value {child.text} is non-numeric!")
                         raise
                         
                 elif child.tag == "frameGrabberAcquisitionRegionBottom":
                     try:
                         self.fg_acquisition_region.bottom = int(child.text)
-                    except ValueError as e:  #
-                        # TODO replace with logger
-                        print(f"{e}\n{child.tag} value {child.text} is non-numeric!")
+                    except ValueError as e:
+                        self.logger.error(f"{e}\n{child.tag} value {child.text} is non-numeric!")
                         raise
                         
                 elif child.tag == "numImageBuffers":
                     try:
                         self.num_img_buffers = int(child.text)
-                    except ValueError as e:  #
-                        # TODO replace with logger
-                        print(f"{e}\n{child.tag} value {child.text} is non-numeric!")
+                    except ValueError as e:
+                        self.logger.error(f"{e}\n{child.tag} value {child.text} is non-numeric!")
                         raise
                     
                 elif child.tag == "shotsPerMeasurement":
                     try:
                         self.shots_per_measurement = int(child.text)
-                    except ValueError as e:  #
-                        # TODO replace with logger
-                        print(f"{e}\n{child.tag} value {child.text} is non-numeric!")
+                    except ValueError as e:
+                        self.logger.error(f"{e}\n{child.tag} value {child.text} is non-numeric!")
                         raise
                         
                 elif child.tag == "forceImagesToU16":
@@ -324,8 +309,7 @@ class Hamamatsu:
                     self.images_to_U16 = force
                     
                 else:
-                    # TODO: replace with logger
-                    print(f"Node {child.tag} is not a valid Hamamatsu attribute")
+                    self.logger.warning(f"Node {child.tag} is not a valid Hamamatsu attribute")
             
     def init(self):
         """
@@ -345,108 +329,124 @@ class Hamamatsu:
         if self.session.session_id.value != 0:
             self.session.close()
 
-        if self.session.buff_list_init:
-            self.session.dispose_buffer_list()
-
-        # "img0" really shouldn't be hard-coded but it is in labview so we keep for now
-        self.session.open_interface("img0")
-        self.session.open_session()
+        try:
+            # "img0" really shouldn't be hard-coded but it is in labview so we keep for now
+            self.session.open_interface("img0")
+            self.session.open_session()
+        except IMAQError as e:
+            self.logger.error(e)
+            self.is_initialized = False
+            return
+            # TODO :
+            #   stop execution of function
+            #   ready message for sending to cspy
 
         # call the Hamamatsu serial function to set the Hamamatsu settings
-        self.session.hamamatsu_serial(self.cooling, self.cooling)
-        self.session.hamamatsu_serial(self.fan, self.fan)
-        self.session.hamamatsu_serial(self.scan_speed, self.scan_speed)
+        try:
+            self.session.hamamatsu_serial(self.cooling, self.cooling)
+            self.session.hamamatsu_serial(self.fan, self.fan)
+            self.session.hamamatsu_serial(self.scan_speed, self.scan_speed)
 
-        self.session.hamamatsu_serial(
-            self.external_trigger_source,
-            self.external_trigger_source)
+            self.session.hamamatsu_serial(
+                self.external_trigger_source,
+                self.external_trigger_source)
 
-        # set trigger mode to external
-        # TODO : set this mode by xml parameter
-        self.session.hamamatsu_serial("AMD E", "AMD E")
+            # set trigger mode to external
+            # TODO : set this mode by xml parameter
+            self.session.hamamatsu_serial("AMD E", "AMD E")
 
-        # set the external trigger mode
-        self.session.hamamatsu_serial(
-            self.external_trigger_mode,
-            self.external_trigger_mode
-        )
+            # set the external trigger mode
+            self.session.hamamatsu_serial(
+                self.external_trigger_mode,
+                self.external_trigger_mode
+            )
 
-        self.session.hamamatsu_serial(
-            self.trigger_polarity,
-            self.trigger_polarity
-        )
+            self.session.hamamatsu_serial(
+                self.trigger_polarity,
+                self.trigger_polarity
+            )
 
-        # labview uses "Number to Fraction String Format VI" to convert the
-        # exposure time to a string; as far as I can tell this formatting
-        # accomplishes the same.
-        exposure = "AET\s{.6f}".format(self.exposure_time)
-        self.session.hamamatsu_serial(exposure, exposure)
+            # labview uses "Number to Fraction String Format VI" to convert the
+            # exposure time to a string; as far as I can tell this formatting
+            # accomplishes the same.
+            exposure = "AET\s{.6f}".format(self.exposure_time)
+            self.session.hamamatsu_serial(exposure, exposure)
 
-        # labview uses "Number to Decimal String VI" to convert the
-        # EMGain to a string; as far as I can tell this formatting
-        # accomplishes the same thing in this use case
-        emgain = f"EMG\s{self.em_gain}"
-        self.session.hamamatsu_serial(emgain, emgain)
+            # labview uses "Number to Decimal String VI" to convert the
+            # EMGain to a string; as far as I can tell this formatting
+            # accomplishes the same thing in this use case
+            emgain = f"EMG\s{self.em_gain}"
+            self.session.hamamatsu_serial(emgain, emgain)
 
-        analog_gain = f"CEG\s{self.analog_gain}"
-        self.session.hamamatsu_serial(analog_gain,analog_gain)
+            analog_gain = f"CEG\s{self.analog_gain}"
+            self.session.hamamatsu_serial(analog_gain,analog_gain)
 
-        self.read_camera_temp()
+            self.read_camera_temp()
 
-        # last frame acquired. first actual frame will be zero.
-        self.last_frame_acquired = -1
+            # last frame acquired. first actual frame will be zero.
+            self.last_frame_acquired = -1
 
-        self.session.hamamatsu_serial(self.scan_mode, self.scan_mode)
+            self.session.hamamatsu_serial(self.scan_mode, self.scan_mode)
 
-        if self.scan_mode in self.SCAN_MODE_VALUES.values():
+            if self.scan_mode in self.SCAN_MODE_VALUES.values():
 
-            if self.scan_mode == "SMD S":  # superPixelBinning
+                if self.scan_mode == "SMD S":  # superPixelBinning
 
-                self.session.hamamatsu_serial(
-                    self.super_pixel_binning,
-                    self.super_pixel_binning
-                )
+                    self.session.hamamatsu_serial(
+                        self.super_pixel_binning,
+                        self.super_pixel_binning
+                    )
 
-            elif self.scan_mode == "SMD A":  # sub-array
+                elif self.scan_mode == "SMD A":  # sub-array
 
-                sub_array_left = ("SHO\s" +
-                                  str(self.sub_array.left))
+                    sub_array_left = ("SHO\s" +
+                                      str(self.sub_array.left))
 
-                self.session.hamamatsu_serial(
-                    sub_array_left,
-                    sub_array_left
-                )
+                    self.session.hamamatsu_serial(
+                        sub_array_left,
+                        sub_array_left
+                    )
 
-                sub_array_top = ("SVO\s" +
-                                 str(self.sub_array.top))
+                    sub_array_top = ("SVO\s" +
+                                     str(self.sub_array.top))
 
-                self.session.hamamatsu_serial(
-                    sub_array_top,
-                    sub_array_top
-                )
+                    self.session.hamamatsu_serial(
+                        sub_array_top,
+                        sub_array_top
+                    )
 
-                sub_array_width = ("SHW\s" +
-                                   str(self.sub_array.width))
+                    sub_array_width = ("SHW\s" +
+                                       str(self.sub_array.width))
 
-                self.session.hamamatsu_serial(
-                    sub_array_width,
-                    sub_array_width
-                )
+                    self.session.hamamatsu_serial(
+                        sub_array_width,
+                        sub_array_width
+                    )
 
-                sub_array_height = ("SVW\s" +
-                                    str(self.sub_array.height))
+                    sub_array_height = ("SVW\s" +
+                                        str(self.sub_array.height))
 
-                self.session.hamamatsu_serial(
-                    sub_array_height,
-                    sub_array_height
-                )
-        # default is to do nothing
+                    self.session.hamamatsu_serial(
+                        sub_array_height,
+                        sub_array_height
+                    )
+            # default is to do nothing
+        except IMAQError as e:
+            ms = f"Error writing camera settings {e.message}. Many camera settings likely not set."
+            self.logger.error(ms, exc_info=True)
+            return
 
-        self.session.set_roi(self.fg_acquisition_region)
+        try:
+            self.session.set_roi(self.fg_acquisition_region)
+        except IMAQError as e:
+            ms = f"Error: ROI not set correctly\n {e.message}"
+            self.logger.warning(ms, exc_info=True)
 
-        self.session.setup_buffers(num_buffers=self.num_img_buffers)
-        if not self.session.buff_list_init:
-            pass  # TODO : deal with this error case
+        try:
+            self.session.setup_buffers(num_buffers=self.num_img_buffers)
+        except IMAQError as e:
+            ms = f"Buffer list not initialized correctly\n {e.message}"
+            self.logger.error(ms,exc_info=True)
 
         # session attributes set in set_roi
         self.last_measurement = np.zeros(
@@ -535,7 +535,12 @@ class Hamamatsu:
 
         if self.enable:
             msg_in = "?TMP"
-            er_c, msg_out = self.session.hamamatsu_serial(msg_in)
+            try:
+                er_c, msg_out = self.session.hamamatsu_serial(msg_in)
+            except IMAQError as e:
+                self.logger.warning(e.message, exc_info=True)
+                self.camera_temp = np.inf
+                return
 
             m = re.match(r"TMP (\d+)\.(\d+)", msg_out)
             self.camera_temp = float("{}.{}".format(m.group(1), m.group(2)))

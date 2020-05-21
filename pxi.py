@@ -205,9 +205,17 @@ class PXI:
                     
                 elif child.tag == "HSDIO":
                     # set up the HSDIO
-                    #self.hsdio.load_xml(child)
-                    #self.hsdio.init()
-                    #self.hsdio.update()
+                    try:
+                        self.hsdio.load_xml(child)
+                    except e:
+                        # TODO:
+                        #   don't complete elif
+                        #   log error and traceback
+                        #   send message to cspy
+                        #   let cspy try again with new data
+                        pass
+                    self.hsdio.init()
+                    self.hsdio.update()
                     pass
                 elif child.tag == "TTL":
                     # TODO: implement TTL class
