@@ -12,7 +12,7 @@ import xml.etree.ElementTree as ET
 import os
 import struct
 import platform # for checking the os bit
-import logger
+import logging
 from ni_hsdio import HsdioSession
 
 ## local class imports
@@ -20,7 +20,7 @@ from trigger import Trigger, StartTrigger
 from waveform import Waveform
 
 
-class HSDIO: # could inherit from an Instrument class if helpful
+class HSDIO:  # could inherit from an Instrument class if helpful
 
     if platform.machine().endswith("64"):
         programsDir32 = "Program Files (x86)"

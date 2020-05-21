@@ -14,6 +14,7 @@ import numpy as np
 import xml.etree.ElementTree as ET
 from ni_imaq import NIIMAQSession
 import re
+import logging
 from tcp import format_data
 from recordclass import recordclass as rc
 
@@ -54,6 +55,7 @@ class Hamamatsu:
     def __init__(self, pxi):
 
         self.pxi = pxi
+        self.logger = logging.getLogger(str(self.__class__))
 
         # Labview Camera variables
         self.is_initialized = False
@@ -138,11 +140,11 @@ class Hamamatsu:
             """
             try: 
                 default = values["Default"]  # the key for the default value
-            except KeyError: 
-                # TODO: replace with logger
-                print(f"Value dictionary for Hamamatsu.{attr} must include" +
+            except KeyError as key_er:
+                self.logger.error(f"Value dictionary for Hamamatsu.{attr} must include" +
                       "the key \'Default\', where the value is the key of" +
                       "the default value in the dictionary.")
+                raise key_er
                 #  This should still throw an error. Code bellow won't execute in this case -Juan
 
             assert node.tag == "camera", "This XML is not tagged for the camera"
@@ -150,9 +152,8 @@ class Hamamatsu:
             if node_text in values:
                 setattr(self, attr, values[node_text])
             else:
-                # TODO: replace with logger
-                print(f"Invalid {attr} setting {node_text}; using {default} " +
-                      f"({values[default]}) instead.")
+                self.logger.warning(f"Invalid {attr} setting {node_text}; using {default} " +
+                                    f"({values[default]}) instead.")
                 setattr(self, attr, values[default])
 
         # in the labview class, all of the settings that get updated here are
