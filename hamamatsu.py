@@ -57,6 +57,7 @@ class Hamamatsu:
 
         self.pxi = pxi
         self.logger = logging.getLogger(str(self.__class__))
+        self.measurement_success = False  # Tracks whether self.last_measurement is useful.
 
         # Labview Camera variables
         self.is_initialized = False
@@ -446,7 +447,8 @@ class Hamamatsu:
             self.session.setup_buffers(num_buffers=self.num_img_buffers)
         except IMAQError as e:
             ms = f"Buffer list not initialized correctly\n {e.message}"
-            self.logger.error(ms,exc_info=True)
+            self.logger.error(ms, exc_info=True)
+            return
 
         # session attributes set in set_roi
         self.last_measurement = np.zeros(
@@ -455,7 +457,7 @@ class Hamamatsu:
                 self.session.attributes("ROI Width"),
                 self.session.attributes("ROI Height")
             ),
-            dtype=int
+            dtype=np.uint16
         )
         self.is_initialized = True
         self.num_images = 0
@@ -472,56 +474,79 @@ class Hamamatsu:
         if not self.enable:
             return
         # begin asynchronous acquisition
-        self.session.session_acquire(asynchronous=True)
-        err_c, trig_mode = self.session.hamamatsu_serial("?AMD")
+        try:
+            self.session.session_acquire(asynchronous=True)
+        except IMAQError as e:
+            self.logger.error(e.message,exc_info=True)
+            return
+
+        try:
+            err_c, trig_mode = self.session.hamamatsu_serial("?AMD")
+        except IMAQError as e:
+            self.logger.warning(e.message)
+            trig_mode = "ERROR GETTING TRIG MODE"
         '''
         This function is called in labview and these variables are set (locally?) but they're not used in the scope, 
         just broken out as indicators. I wonder if scope in labview is somehow different from what I imagine
         '''
-        err_c, acquiring, last_buffer_index, last_buffer_number = self.session.status()
-        # TODO : use logging.debug
-        print(f"trig mode = {trig_mode}\n"
-              f"acquiring? = {acquiring}\n"
-              f"last buffer acquired image number = {last_buffer_number}")
+        try:
+            err_c, acquiring, last_buffer_index, last_buffer_number = self.session.status()
+        except IMAQError as e:
+            self.logger.warning(e.message)
+            acquiring = "ERROR GETTING AQUIRING STATUS"
+            last_buffer_number = "ERROR GETTING LAST BUFFER NUMBER"
+
+        self.logger.debug(f"trig mode = {trig_mode}\n"
+                          f"acquiring? = {acquiring}\n"
+                          f"last buffer acquired image number = {last_buffer_number}")
 
     def minimal_acquire(self):
         """
         Writes data from session's image buffers to local image array (self.last_measurement)
         """
-
+        self.measurement_success = False
         if self.stop_connections or self.reset_connection:
             return
 
         if not self.enable:
             return
-        er_c, session_acquiring, last_buf_ind, last_buf_num = self.session.status()
+        try:
+            er_c, session_acquiring, last_buf_ind, last_buf_num = self.session.status()
+        except IMAQError as e:
+            '''The rest of the function will not work as intended, maybe best to return without 
+            updating data? But how will the rest of the program deal with that issue?'''
+            self.logger.error(e.message, exc_info=True)
+            return
         bf_dif = last_buf_num - self.last_frame_acquired
         not_enough_buffers = bf_dif > self.num_img_buffers
 
-        # TODO : use logging.debug
-        print(f"Last Frame : {self.last_frame_acquired}\n"
-              f"New Frame : {last_buf_num}\n"
-              f"Difference : {bf_dif}")
+        self.logger.debug(f"Last Frame : {self.last_frame_acquired}\n"
+                          f"New Frame : {last_buf_num}\n"
+                          f"Difference : {bf_dif}")
         if not session_acquiring:
-            er_msg = "In session.status() NOT acquiring."
-            raise SomeError(er_msg)  # TODO : Replace placeholder
+            ms = "In session.status() NOT acquiring."
+            self.logger.error(ms, exc_info=True)
+            return
         if last_buf_num != self.last_frame_acquired and last_buf_num != -1 and not_enough_buffers:
-            er_msg = "The number of images taken exceeds the number of buffers alloted." + \
+            ms = "The number of images taken exceeds the number of buffers alloted." + \
                 "Images have been lost.  Increase the number of buffers."
-            raise SomeError(er_msg)  # TODO : Replace placeholder
-            # TODO : Use logger
+            self.logger.error(ms, exc_info=True)
+            return
 
         frame_ind = self.last_frame_acquired
         for i in range(bf_dif):
             frame_ind += 1
-            # Why is this in the labview code? Should be a flag for you verbose logging is maybe?
-            # TODO : Use logging.debug
-            print("True: Acquiring a new image available\n"
-                  f" Reading buffer number {frame_ind}")
-            er_c, bf_ind, img = self.session.extract_buffer(frame_ind)
+            self.logger.debug("True: Acquiring a new image available\n"
+                              f" Reading buffer number {frame_ind}")
+            try:
+                er_c, bf_ind, img = self.session.extract_buffer(frame_ind)
+            except IMAQError as e:
+                self.logger.error(e.message, exc_info=True)
+                return
             self.last_measurement[i, :, :] = img
 
         # Make certain the type is correct before passing this on to CsPy
+        self.measurement_success = True
         self.last_measurement = self.last_measurement.astype(np.uint16)
         self.last_frame_acquired = frame_ind
         self.read_camera_temp()
@@ -557,6 +582,10 @@ class Hamamatsu:
             return ""
 
         if not self.enable:
+            return ""
+
+        # Deal with the case where the last call to minimal acquire was unsuccessful
+        if not self.measurement_success:
             return ""
 
         hm = "Hamamatsu"

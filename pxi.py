@@ -29,7 +29,7 @@ from keylistener import KeyListener
 
 #### local device classes
 from hsdio import HSDIO
-#from hamamatsu import Hamamatsu
+from hamamatsu import Hamamatsu,IMAQError
 from tcp import TCP
 
 
@@ -288,7 +288,6 @@ class PXI:
         self.return_data = ""
         self.return_data_queue = Queue(0)
 
-
     def data_to_xml(self):
         """
         Convert responses from devices to xml and append to self.return_data_str
@@ -303,16 +302,26 @@ class PXI:
         
         return_data_str = ""
 
-        # the devices that have a data_out method
+        '''
+        I'm going to write these out explicitly for now. We can implement a large instrument list
+        and use abstract classes to simplify methods like this in the near future. Until then, I think
+        it's best to write it out.
+        -Juan
+                # the devices that have a data_out method
         data_spawns = []
 
         for spawn in data_spawns:
             # TODO: implement data_out methods in the relevant classes
-            self.return_data += spawn.data_out()
+            self.return_data_str += spawn.data_out()
+        '''
+
+        # return_data_str += self.hamamatsu.data_out()  # TODO : Implement
+        # return_data_str += self.counters.data_out()  # TODO : Implement
+        # return_data_str += self.ttl.data_out()  # TODO : Implement
+        # return_data_str += self.analog_input.data_out()  # TODO : Implement
+        # return_data_str += self.demo.data_out()  # TODO : Implement
 
         return return_data_str
-
-            
 
     def measurement(self):
         """
@@ -322,12 +331,13 @@ class PXI:
             'return_data_queue': (Queue) the responses received from the device
                 classes
         """
-        
+
+        return_data = ""
         if not (self.stop_connections or self.exit_measurement):
 
             # TODO: implement these methods
             self.reset_data()
-            self.system_check()
+            self.system_checks()
             self.start_tasks()
 
             _is_done = False
@@ -343,30 +353,52 @@ class PXI:
             self.get_data() # TODO: implement 
             self.system_checks() # TODO: implement 
             self.stop_tasks() # TODO: implement 
-            self.data_to_xml()
+            return_data = self.data_to_xml()
+        return return_data
+
+    '''
+    Note : This is the entirety of what the following two functions do in labview. They can, in 
+    principle, be expanded for other devices with similar needs. - Juan
+    '''
+
+    def reset_data(self):
+        """
+        Resets data on devices which need to be reset.
+
+        So far only ttl is reset in labview code.
+        """
+        # self.ttl.reset_data()  # TODO : implement this
+        pass
 
     def system_checks(self):
+        """
+        This is all this function does in the labview.
+        """
+        # self.ttl.ttl_check()  # TODO: Implement
+        pass
+
+    def start_tasks(self):
+        # self.counters.start()  # TODO : Implement
+        # self.daqmx_do.start()  # TODO : Implement
+        # self.hsdio.start()  # TODO : Implement
+        # self.analog_input.start()  # TODO : Implement
+        # self.analog_output.start()  # TODO : Implement
+        # self.reset_timeout()  # TODO : Implement
         pass
 
     def stop_tasks(self):
+        # self.counters.stop()  # TODO : Implement
+        # self.hsdio.stop()  # TODO : Implement
+        # self.daqmx_do.stop()  # TODO : Implement
+        # self.analog_input.stop()  # TODO : Implement
+        # self.analog_output.stop()  # TODO : Implement
         pass
-    
+
     def get_data(self):
+        # self.counters.get_data()
+        # self.hamamatsu.minimal_acquire()
+        # self.analog_input.get_data()  # TODO : Implement
         pass
-
-
-    def reset_data(self):
-        pass
-
-
-    def system_check(self):
-        pass
-
-
-    def start_tasks(self):
-        pass
-
-
 
     def is_done(self):
         """
@@ -396,7 +428,6 @@ class PXI:
                 #    done = False
                 #    break
         return done, 0
-
    
     def on_key_press(self, key):
         """
@@ -425,7 +456,6 @@ class PXI:
 
         else:
             self.logger.info("Not a valid keypress. Type \'h\' for help.")
-
 
     # This decorator could be a nice way of handling timeouts across this class
     # without the need to put time.time calls explicitly in loops in various
