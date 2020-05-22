@@ -17,6 +17,7 @@ import logging
 
 #### local class imports
 from instrumentfuncs import str_to_bool
+from tcp import format_message
 
 
 class TTLInput(Instrument):
@@ -72,7 +73,7 @@ class TTLInput(Instrument):
             self.task.di_channels.add_di_chan(
                 lines=self.lines
                 name_to_assign_to_lines=u'', 
-                line_grouping=<LineGrouping.CHAN_FOR_ALL_LINES: 1>)                
+                line_grouping=<LineGrouping.CHAN_FOR_ALL_LINES: 1>)
             
     
     def reset_data(self):
@@ -125,3 +126,19 @@ class TTLInput(Instrument):
             
             # Stop the task and reset it to the state it was initiially
             self.task.stop()
+            
+            
+    def data_out(self):
+        """
+        Convert the received data into a specially-formatted string
+        """
+        
+        if not (self.stop_connections or self.reset_connection) and self.enable:
+        
+            # flatten the data and convert to a str 
+            data_shape = self.data.shape
+            flat_data = np.reshape(self.data, np.prod(data_shape))
+            
+            shape_str = ",".join([str(x) for x in data_shape])
+            
+            # cody says probably do something like this to convert to byte string: struct.pack("!L",length)

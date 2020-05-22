@@ -192,3 +192,10 @@ class AnalogInput(Instrument):
             # dadmx read 2D DBL N channel N sample. use defaults args. 
             # measurement type inferred from the task virtual channel
             self.data = self.task.read()
+            
+            
+    def data_out(self):
+        """
+        Convert the received data into a specially-formatted string
+        """
+        pass
