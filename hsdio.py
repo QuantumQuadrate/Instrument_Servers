@@ -58,13 +58,13 @@ class HSDIO:  # could inherit from an Instrument class if helpful
                                    end script"""
         self.scriptTriggers = []
         self.startTrigger = StartTrigger()
-
+        self.description = ""
 
         # These two have are related to one another, each session is attached to a handle, each handle can support man
         # sessions. Sessions now have an attribute HsdioSession.handle (a python string)
-        self.instrumentHandles = []  # array to hold instrument handles
-        self.sessions = []  # array to hold HsdioSession objects
-        self.waveformArr = []
+        self.instrumentHandles: Array[str] = []  # array to hold instrument handles
+        self.sessions: Array[HsdioSession] = []  # array to hold HsdioSession objects
+        self.waveformArr: Array[Waveform] = []
 
         # whether or not we've actually populated the attributes above
         self.isInitialized = False
@@ -85,7 +85,6 @@ class HSDIO:  # could inherit from an Instrument class if helpful
     @stop_connections.setter
     def stop_connections(self, value):
         self.pxi.stop_connections = value
-        
 
     def load_xml(self, node):
         """
@@ -136,7 +135,7 @@ class HSDIO:  # could inherit from an Instrument class if helpful
                         trigger_node = child
 
                         # for each line of script triggers
-                        for child in trigger_node:
+                        for child in trigger_node:  # TODO : change child to not shadow outer scope
 
                             if type(child) == ET.Element:
 
@@ -146,7 +145,7 @@ class HSDIO:  # could inherit from an Instrument class if helpful
 
                 elif child.tag == "waveforms":
 
-                    self.logger.info("found a waveform")
+                    self.logger.debug("found a waveform")
                     
                     wvforms_node = child
 
@@ -162,7 +161,7 @@ class HSDIO:  # could inherit from an Instrument class if helpful
                                 self.waveformArr.append(wvform)
 
                 elif child.tag == "script":
-                    self.pulseGenScript
+                    self.pulseGenScript = # TODO : What goes here?
 
                 elif child.tag == "startTrigger":
                     self.startTrigger = StartTrigger()

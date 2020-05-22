@@ -2,6 +2,28 @@ from ctypes import *
 import os
 import struct
 import platform # for checking the os bitness
+import logging
+
+
+class HSDIOError(Exception):
+    """
+    Exception raised for errors coming from NI HSDIO drivers
+
+    Attributes:
+        __error_code : Integer code representing the error state
+        __message : message corresponding to the error_code with some traceback info
+    """
+    def __init__(self, error_code, message):
+        self.__error_code = error_code
+        self.__message = message
+
+    @property
+    def error_code(self):
+        return self.__error_code
+
+    @property
+    def message(self):
+        return self.__message
 
 
 class HsdioSession:
@@ -25,6 +47,7 @@ class HsdioSession:
             handle :  address of device to be accessed as it shows up in NI MAX (e.g. "Dev1")
         """
 
+        self.logger = logging.getLogger(str(self.__class__))
         # Quick test for bitness
         self.bitness = struct.calcsize("P") * 8
         if self.bitness == 32:
@@ -45,11 +68,6 @@ class HsdioSession:
         Checks error_code against NI HSDIO built in error codes, prints (should become logs) error
         if operation was unsuccessful.
 
-        TODO : Make this do proper traceback
-        TODO : Setup logging
-        TODO : Raise Errors and Warnings where appropriate
-
-
         Args:
             error_code: error code which reports status of operation.
 
@@ -61,27 +79,31 @@ class HsdioSession:
             return
 
         # unsure this will work, c function requires buffer array of length 256
-        err_msg = c_char_p("".encode("utf-8"))
+        c_err_msg = c_char_p("".encode("utf-8"))
 
         self.hsdio.niHSDIO_error_message(
             self.vi,              # ViSession
             c_int32(error_code),  # ViStatus
-            err_msg               # ViChar[256]
+            c_err_msg               # ViChar[256]
         )
 
+        err_msg = c_err_msg.value
         if error_code < 0:
-            message = "Error Code"
+            code_type = "Error Code"
         elif error_code > 0:
-            message = "Warning Code"
+            code_type = "Warning Code"
         else:
-            message = ""
-        message += " {} : {}"
-        if traceback_msg is not None:
-            message += "\n{}"
+            code_type = ""
+        if traceback_msg is None:
+            message = f"{code_type} {error_code} :\n {err_msg}"
+        else:
+            message = f"{code_type} {error_code} in {traceback_msg}:\n {err_msg}"
 
-        message = message.format(error_code, err_msg.value, traceback_msg)
-
-        print(message)
+        if error_code < 0:
+            self.logger.error(message)
+            raise HSDIOError(error_code, message)
+        else:
+            self.logger.warning(message)
         return
 
     def init_generation_sess(
@@ -411,6 +433,7 @@ class HsdioSession:
                 negative values = Errors
         """
 
+        # TODO : Define these values as class variables
         allowed_edges = [12, 13]
         assert edge in allowed_edges
 
