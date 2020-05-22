@@ -1,6 +1,6 @@
 import socket
+import struct
 import logging
-from queue import Queue, Empty
 import threading
 
 
@@ -65,7 +65,7 @@ class TCP:
         listens for a message from cspy over the network.
 
         messages from cspy are encoded in the following way:
-            message = 'MESG' + str(len(body)) + body
+            message = b'MESG' + str(len(body)) + body
 
         """
         # Read first 4 bytes looking for a specific message header
@@ -100,11 +100,42 @@ class TCP:
                 self.reset_connection = True
                 self.logger.info("reset connection true")
 
-
     def send_message(self, msg_str=None):
-        # if msg_str is none, just send the return data?
-        pass
+        """
+        Send a message back to CsPy via the current connection.
 
-    # This method returns the data as well as updates
-    # 'return_data_str', so having a return seems
-    # uneccesary
+        Args:
+            msg_str: The body of the message to send to CsPy
+        """
+        if not self.stop_connections and msg_str:
+            try:
+                self.current_connection.send(f"{b'MESG'}{TCP.format_message(msg_str)}")
+            except Exception:
+                self.logger.exception("Issue sending message back to CsPy.")
+                self.reset_connection = True
+
+    @staticmethod
+    def format_message(message: str) -> str:
+        """
+        Formats a message according to how CsPy expects to receive it. This is done by preprending
+        the length of the message to the message in byte form
+        Args:
+            message : message to be sent
+
+        Returns:
+            formatted message string
+        """
+        return f"{struct.pack('!L', len(message))}{message}"
+
+    @staticmethod
+    def format_data(name, data) -> str:
+        """
+        Formats a bit of data according to how CsPy expects to receive it.
+        Args:
+            name: A description of the data
+            data: The data to be send to CsPy
+
+        Returns:
+            formatted string that CsPy can parse
+        """
+        return f"{TCP.format_message(name)}{TCP.format_message(data)}"
