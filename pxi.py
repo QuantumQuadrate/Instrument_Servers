@@ -2,7 +2,7 @@
 PXI class for the PXI Server
 SaffmanLab, University of Wisconsin - Madison
 
-For receiving xml-wrapped messages from CsPy over a TCP/IP connection, 
+For receiving xml-wrapped messages from CsPy over a TCP/IP connection,
 updating the relevant PXI device classes with the parsed xml, and returning
 responses from hardware to CsPy. 
 """
@@ -42,8 +42,6 @@ class PXI:
 
     def __init__(self, address: Tuple[str, int]):
         self.logger = logging.getLogger(str(self.__class__))
-
-        #Globals from LabVIEW
         self._stop_connections = False
         self._reset_connection = False
         self.cycle_continuously = True
@@ -53,25 +51,25 @@ class PXI:
         self.measurement_timeout = 0
 
         self.keylisten_thread = None
-        
+
         # queues. 0 indicates no maximum queue length enforced.
-        self.command_queue = Queue(0) 
+        self.command_queue = Queue(0)
         self.return_data_queue = Queue(0)
-        
-        self.return_data_str = "" # this seems to exist primarily for debugging
-        
-        self.element_tags = [] # for debugging
-        
+
+        self.return_data_str = ""  # this seems to exist primarily for debugging
+
+        self.element_tags = []  # for debugging
+
         # instantiate the device objects
         self.hsdio = HSDIO(self)
         self.tcp = TCP(self, address)
         self.hamamatsu = Hamamatsu()
         # TODO: implement these classes
-        self.counters = None#Counters()
-        self.analog_input = None#AnalogOutput(self)
-        self.analog_output = None#AnalogInput(self)
-        self.ttl = None#TTL()
-
+        self.counters = None  # Counters()
+        self.analog_input = None  # AnalogOutput(self)
+        self.analog_output = None  # AnalogInput(self)
+        self.ttl = None  # TTL()
+        self.daqmx_do = None # DAQMX_DO()
 
     @property
     def stop_connections(self) -> bool:
@@ -123,17 +121,15 @@ class PXI:
         """
 
         while not self.stop_connections:
-
             try:
                 # dequeue xml; non-blocking
                 xml_str = self.command_queue.get(block=False, timeout=0)
                 self.parse_xml(xml_str)
 
             except Empty:
-
                 # TODO add these variables to constructor
                 self.exit_measurement = False
-                self.return_data = ""  # reset the list
+                self.return_data_str = ""  # reset the list
 
                 if self.cycle_continuously:
                     # This method returns the data as well as updates
@@ -164,19 +160,18 @@ class PXI:
         """
         
         self.exit_measurement = False
-        self.element_tags = [] # clear the list of received tags
-        
+        self.element_tags = []  # clear the list of received tags
+
         # get the xml root
         root = ET.fromstring(xml_str)
         if root.tag != "LabView":
             self.logger.info("Not a valid msg for the pxi")
-            
+
         else:
             # loop non-recursively over children in root
-            for child in root: 
-            
+            for child in root:
                 self.element_tags.append(child)
-                
+
                 if child.tag == "measure":
                     if self.return_data_queue.empty():
                         # if no data ready, take one measurement
@@ -189,8 +184,8 @@ class PXI:
                         # is a Queue instance and the former is filled elsewhere
                         # with a string built from concatenated xml.
                         #
-                        #self.return_data_str = str(return_data_queue
-                        
+                        # self.return_data_str = str(return_data_queue
+
                 elif child.tag == "pause":
                     # TODO: set state of server to 'pause';
                     # i don't know if this a feature that currently gets used,
@@ -216,6 +211,9 @@ class PXI:
                         pass
                     self.hsdio.init()
                     self.hsdio.update()
+                    # self.hsdio.load_xml(child)
+                    # self.hsdio.init()
+                    # self.hsdio.update()
                     pass
                 elif child.tag == "TTL":
                     # TODO: implement TTL class
@@ -292,6 +290,7 @@ class PXI:
         self.return_data = ""
         self.return_data_queue = Queue(0)
 
+
     def data_to_xml(self):
         """
         Convert responses from devices to xml and append to self.return_data_str
@@ -303,7 +302,7 @@ class PXI:
         Returns:
             'return_data_str': (str) concatenated string of xml-formatted data
         """
-        
+
         return_data_str = ""
 
         '''
@@ -319,13 +318,15 @@ class PXI:
             self.return_data_str += spawn.data_out()
         '''
 
-        # return_data_str += self.hamamatsu.data_out()
-        # return_data_str += self.counters.data_out()  # TODO : Implement
-        # return_data_str += self.ttl.data_out()  # TODO : Implement
-        # return_data_str += self.analog_input.data_out()  # TODO : Implement
-        # return_data_str += self.demo.data_out()  # TODO : Implement
+        #return_data_str += self.hamamatsu.data_out()  # TODO : Implement
+        #return_data_str += self.counters.data_out()  # TODO : Implement
+        #return_data_str += self.ttl.data_out()  # TODO : Implement
+        #return_data_str += self.analog_input.data_out()  # TODO : Implement
+        #return_data_str += self.demo.data_out()  # TODO : Implement
 
         return return_data_str
+
+            
 
     def measurement(self):
         """
@@ -335,14 +336,13 @@ class PXI:
             'return_data_queue': (Queue) the responses received from the device
                 classes
         """
-
-        return_data = ""
+        
         if not (self.stop_connections or self.exit_measurement):
 
             # TODO: implement these methods
             self.reset_data()
             self.system_checks()
-            self.start_tasks()
+            self.start_tasks()  # TODO : Implement
 
             _is_done = False
             _is_error = False
@@ -354,11 +354,12 @@ class PXI:
                 _is_done, error_out = self.is_done()
                 #_is_error = error_out["IsError?"] # TODO implement somehow
 
-            self.get_data() # TODO: implement 
-            self.system_checks() # TODO: implement 
-            self.stop_tasks() # TODO: implement 
+            self.get_data()
+            self.system_checks()
+            self.stop_tasks()  # TODO: implement
             return_data = self.data_to_xml()
         return return_data
+
 
     '''
     Note : This is the entirety of what the following two functions do in labview. They can, in 
@@ -375,29 +376,11 @@ class PXI:
         pass
 
     def system_checks(self):
-        """
-        This is all this function does in the labview.
-        """
-        # self.ttl.ttl_check()  # TODO: Implement
-        pass
-
-    def start_tasks(self):
-        # self.counters.start()  # TODO : Implement
-        # self.daqmx_do.start()  # TODO : Implement
-        # self.hsdio.start()  # TODO : Implement
-        # self.analog_input.start()  # TODO : Implement
-        # self.analog_output.start()  # TODO : Implement
-        # self.reset_timeout()  # TODO : Implement
         pass
 
     def stop_tasks(self):
-        # self.counters.stop()  # TODO : Implement
-        # self.hsdio.stop()  # TODO : Implement
-        # self.daqmx_do.stop()  # TODO : Implement
-        # self.analog_input.stop()  # TODO : Implement
-        # self.analog_output.stop()  # TODO : Implement
         pass
-
+    
     def get_data(self):
         # self.counters.get_data()
         try:
@@ -435,7 +418,17 @@ class PXI:
                 #    done = False
                 #    break
         return done, 0
-   
+
+    def reset_timeout(self):
+        """
+        Seems to change a global variable 'Timeout Elapses at' to the current time + timeout
+        Will that work here?
+        Returns:
+
+        """
+        # TODO: Implement
+        pass
+
     def on_key_press(self, key):
         """
         Determines what happens for key presses in the command prompt.
@@ -464,6 +457,7 @@ class PXI:
         else:
             self.logger.info("Not a valid keypress. Type \'h\' for help.")
 
+
     # This decorator could be a nice way of handling timeouts across this class
     # without the need to put time.time calls explicitly in loops in various
     # methods, although that could be done. This would return a wrapper that 
@@ -476,33 +470,5 @@ class PXI:
         Check if function call in PXI class takes longer than a maximum time
 
         To be used as a decorator for functions in this class to 
-        """
-        pass
-
-    def handle_errors(self, error, traceback_str):
-        """
-        Placeholder function for error handling in pxi class
-
-        General Error handling philosophy for errors from instruments:
-            Instrument should log any error with a useful message detailing the source of the error
-            If error should halt instrument activity, error should be raised to pxi class
-                Use logger.error(msg,exc_info=True) to log error with traceback
-            If error should not halt instrument activity, use logger.warning(msg,exc_info=t/f)
-                (t/f = with/without traceback)
-            When error is raised to pxi class, this function should be called
-            This function should send a message to the terminal output as well as to cspy, warning
-                the user that an error has occurred and that the PXI settings should be updated
-            The acquisition of data should stop, data sent back should be empty or useless
-            Devices which output signals (e.g Analog out, hsdio) should continue to cycle if they
-                can
-            Self.is_error should be set to True, regular operation can only resume once it is set
-                to false when PXI settings have been updated
-
-        It's entirely likely that this function won't be able to implement all of that, and instead
-            changes to the code above will need to take place. In either case this is here to detail
-            the error handling plan.
-        Args:
-            error : The error that was raised. Maybe it's useful to keep it around
-            traceback_str : string useful for traceback
         """
         pass

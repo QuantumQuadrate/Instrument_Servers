@@ -14,44 +14,29 @@ import logging
 from recordclass import recordclass as rc
 
 ## local imports
+from instrument import Instrument
 from trigger import StartTrigger
 from instrumentfuncs import *
 
-class AnalogOutput:
+class AnalogOutput(Instrument):
 
     ExportTrigger = rc('ExportTrigger', ('exportStartTrigger', 'outputTerminal'))
     ExternalClock = rc('ExternalClock', ('useExternalClock', 'source', 'maxClockRate'))
     
     def __init__(self, pxi):
+        super().__init__(pxi, "AnalogOutput")
         self.logger = logging.getLogger(str(self.__class__))
-        self.pxi = pxi
-        self.enable = False
         self.physicalChannels = ""
         self.minValue = -10
         self.maxValue = 10
         self.sampleRate = 0
         self.waveforms = None
         self.exportTrigger = self.ExportTrigger(False, None)
-        self.externalClock = self.ExportTrigger(False, '', 0)
+        self.externalClock = self.ExternalClock(False, '', 0)
         self.startTrigger = StartTrigger()
         self.task = None
         self.isInitialized = False
 
-    @property
-    def reset_connection(self) -> bool:
-        return self.pxi.reset_connection
-
-    @reset_connection.setter
-    def reset_connection(self, value):
-        self.pxi.reset_connection = value
-
-    @property
-    def stop_connections(self) ->bool:
-        return self.pxi.stop_connections
-
-    @stop_connections.setter
-    def stop_connections(self, value):
-        self.pxi.stop_connections = value
 
     def wave_from_str(self, wave_str, delim=' '):
         """
@@ -93,7 +78,7 @@ class AnalogOutput:
             node.tag == "AnalogOutput"
         """
         
-        assert node.tag == "AnalogOutput"
+        assert node.tag == self.expectedRoot, f"Expected xml tag {self.expectedRoot}"
 
         for child in node: 
 
