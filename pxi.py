@@ -50,6 +50,7 @@ class PXI:
         self.exit_measurement = False
         self.return_data = ""
         self.queued_return_data = ""
+        self.measurement_timeout = 0
 
         self.keylisten_thread = None
         
@@ -244,9 +245,14 @@ class PXI:
                 elif child.tag == "camera":
                     pass
                     # set up the Hamamatsu camera
-                    #self.hamamatsu.load_xml(child)
-                    #self.hamamatsu.init()
-                    
+                    try:
+                        self.hamamatsu.load_xml(child)  # Raises ValueError
+                        self.hamamatsu.init()  # Raises IMAQErrors
+                    except (ValueError, IMAQError) as e:
+                        # TODO : Deal with error reasonably
+                        #   Don't execute self.hamamatsu.init
+                        pass
+
                 elif child.tag == "AnalogOutput":
                     # TODO: implement analog_output class
                     # set up the analog_output
@@ -315,7 +321,7 @@ class PXI:
             self.return_data_str += spawn.data_out()
         '''
 
-        # return_data_str += self.hamamatsu.data_out()  # TODO : Implement
+        # return_data_str += self.hamamatsu.data_out()
         # return_data_str += self.counters.data_out()  # TODO : Implement
         # return_data_str += self.ttl.data_out()  # TODO : Implement
         # return_data_str += self.analog_input.data_out()  # TODO : Implement

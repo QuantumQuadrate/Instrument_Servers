@@ -143,6 +143,10 @@ class Hamamatsu:
             try: 
                 default = values["Default"]  # the key for the default value
             except KeyError as key_er:
+                ''' 
+                This currently goes uncaught in upstream calls. Its an error having to do with 
+                the code that's been written so I think it should actually stop execution
+                '''
                 self.logger.error(f"Value dictionary for Hamamatsu.{attr} must include" +
                                   "the key \'Default\', where the value is the key of" +
                                   "the default value in the dictionary.")
@@ -337,7 +341,7 @@ class Hamamatsu:
         except IMAQError as e:
             self.logger.error(e)
             self.is_initialized = False
-            return
+            raise
             # TODO :
             #   stop execution of function
             #   ready message for sending to cspy
@@ -448,7 +452,7 @@ class Hamamatsu:
         except IMAQError as e:
             ms = f"Buffer list not initialized correctly\n {e.message}"
             self.logger.error(ms, exc_info=True)
-            return
+            raise
 
         # session attributes set in set_roi
         self.last_measurement = np.zeros(
@@ -605,7 +609,7 @@ class Hamamatsu:
         return hm_str
 
 
-def u16_ar_to_str(ar: np.ndarray) -> str:
+def u16_ar_to_str(ar: np.ndarray) -> str:  # Should the type hint on the return be modified?
     """
     Converts ar to a string encoded as useful for parsing xml messages sent back to cspy
 
