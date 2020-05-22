@@ -14,6 +14,7 @@ import struct
 import platform # for checking the os bit
 import logging
 from ni_hsdio import HsdioSession
+from typing import List
 
 ## local class imports
 from instrumentfuncs import str_to_bool
@@ -53,9 +54,9 @@ class HSDIO(Instrument): # could inherit from an Instrument class if helpful
 
         # These two have are related to one another, each session is attached to a handle, each handle can support man
         # sessions. Sessions now have an attribute HsdioSession.handle (a python string)
-        self.instrumentHandles: Array[str] = []  # array to hold instrument handles
-        self.sessions: Array[HsdioSession] = []  # array to hold HsdioSession objects
-        self.waveformArr: Array[Waveform] = []
+        self.instrumentHandles: List[str] = []  # List to hold instrument handles
+        self.sessions: List[HsdioSession] = []  # List to hold HsdioSession objects
+        self.waveformArr: List[HSDIOWaveform] = []
 
         # whether or not we've actually populated the attributes above
         self.isInitialized = False
