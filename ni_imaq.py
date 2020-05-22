@@ -26,7 +26,7 @@ class IMAQError(Exception):
         __error_code : Integer code representing the error state
         __message : message corresponding to code with some traceback info
     """
-    def __init__(self,error_code,message):
+    def __init__(self, error_code, message):
         self.__error_code = error_code
         self.__message = message
 

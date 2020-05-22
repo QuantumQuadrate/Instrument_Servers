@@ -29,7 +29,7 @@ from keylistener import KeyListener
 
 #### local device classes
 from hsdio import HSDIO
-from hamamatsu import Hamamatsu,IMAQError
+from hamamatsu import Hamamatsu, IMAQError
 from tcp import TCP
 
 
@@ -65,7 +65,7 @@ class PXI:
         # instantiate the device objects
         self.hsdio = HSDIO(self)
         self.tcp = TCP(self, address)
-        #self.hamamatsu = Hamamatsu()
+        self.hamamatsu = Hamamatsu()
         # TODO: implement these classes
         self.counters = None#Counters()
         self.analog_input = None#AnalogOutput(self)
@@ -119,7 +119,7 @@ class PXI:
 
         This function handles the switching between updating devices and
         getting data from them, while the bulk of the work is done in the
-        hierarchy of methods in self.parse_xml and self.measurment.
+        hierarchy of methods in self.parse_xml and self.measurement.
         """
 
         while not self.stop_connections:
@@ -149,7 +149,6 @@ class PXI:
         self.keylisten_thread.setDaemon(True)
         self.logger.info("starting keylistener")
         self.keylisten_thread.start()
-
 
     def parse_xml(self, xml_str):
         """
@@ -249,8 +248,7 @@ class PXI:
                         self.hamamatsu.load_xml(child)  # Raises ValueError
                         self.hamamatsu.init()  # Raises IMAQErrors
                     except (ValueError, IMAQError) as e:
-                        # TODO : Deal with error reasonably
-                        #   Don't execute self.hamamatsu.init
+                        self.handle_errors(e, "initializing hamamatsu")
                         pass
 
                 elif child.tag == "AnalogOutput":
@@ -402,7 +400,10 @@ class PXI:
 
     def get_data(self):
         # self.counters.get_data()
-        # self.hamamatsu.minimal_acquire()
+        try:
+            self.hamamatsu.minimal_acquire()
+        except (IMAQError, AssertionError) as e:
+            self.handle_errors(e, "hamamatsu minimal_acquire")
         # self.analog_input.get_data()  # TODO : Implement
         pass
 
@@ -475,5 +476,33 @@ class PXI:
         Check if function call in PXI class takes longer than a maximum time
 
         To be used as a decorator for functions in this class to 
+        """
+        pass
+
+    def handle_errors(self, error, traceback_str):
+        """
+        Placeholder function for error handling in pxi class
+
+        General Error handling philosophy for errors from instruments:
+            Instrument should log any error with a useful message detailing the source of the error
+            If error should halt instrument activity, error should be raised to pxi class
+                Use logger.error(msg,exc_info=True) to log error with traceback
+            If error should not halt instrument activity, use logger.warning(msg,exc_info=t/f)
+                (t/f = with/without traceback)
+            When error is raised to pxi class, this function should be called
+            This function should send a message to the terminal output as well as to cspy, warning
+                the user that an error has occurred and that the PXI settings should be updated
+            The acquisition of data should stop, data sent back should be empty or useless
+            Devices which output signals (e.g Analog out, hsdio) should continue to cycle if they
+                can
+            Self.is_error should be set to True, regular operation can only resume once it is set
+                to false when PXI settings have been updated
+
+        It's entirely likely that this function won't be able to implement all of that, and instead
+            changes to the code above will need to take place. In either case this is here to detail
+            the error handling plan.
+        Args:
+            error : The error that was raised. Maybe it's useful to keep it around
+            traceback_str : string useful for traceback
         """
         pass
