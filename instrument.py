@@ -48,9 +48,8 @@ class Instrument(ABC):
     def stop_connections(self, value):
         self.pxi.stop_connections = value
    
-    
     @abstractmethod
-    def load_xml(self, node)
+    def load_xml(self, node):
         """
         Initialize the instrument class attributes from XML received from CsPy
         
@@ -59,20 +58,24 @@ class Instrument(ABC):
             node.tag == self.expectedRoot
         """
         
-        assert node.tag == self.expectedRoot
+        if not (self.stop_connections or self.reset_connection):
+        
+            assert node.tag == self.expectedRoot, f"Expected xml tag {self.expectedRoot}"
 
-        for child in node: 
+            for child in node: 
 
-            if type(child) == ET.Element:
-            
-                if child.tag == "enable":
-                    self.enable = str_to_bool(child.text)
-            
-                # elif child.tag == "someOtherProperty":
-                    # self.thatProperty = child.text
+                if type(child) == ET.Element:
                 
-                else:
-                    self.logger.warning(f"Unrecognized XML tag \'{child.tag}\' in <{self.expectedRoot}>")
+                    if child.tag == "enable":
+                        self.enable = str_to_bool(child.text)
+                
+                    # elif child.tag == "someOtherProperty":
+                        # self.thatProperty = child.text
+                    
+                    else:
+                        # TODO handle unexpected tag case
+                        # self.logger.warning(f"Unrecognized XML tag \'{child.tag}\' in <{self.expectedRoot}>")
+                        pass
                     
     @abstractmethod
     def init(self):
@@ -83,6 +86,7 @@ class Instrument(ABC):
         if not (self.stop_connections or self.reset_connection):
             pass
                     
+            
     
         
         
