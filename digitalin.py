@@ -5,19 +5,20 @@ SaffmanLab, University of Wisconsin - Madison
 For parsing XML strings which setup NI DAQ hardware for reading digital input.
 """
 
-#### built-in modules
+## built-in modules
 import xml.etree.ElementTree as ET
 
-#### third-party modules
+## third-party modules
 import numpy as np # for arrays
 import nidaqmx
 from nidaqmx.constants import Edge, AcquisitionType, Signal, TerminalConfiguration
 import nidaqmx
 import logging
+import struct
 
-#### local class imports
+## local class imports
 from instrumentfuncs import str_to_bool
-from tcp import format_message
+import TCP
 
 
 class TTLInput(Instrument):
@@ -25,6 +26,7 @@ class TTLInput(Instrument):
     def __init__(self, pxi):
         super().__init__(pxi, "TTL")
         self.logger = logging.getLogger(str(self.__class__))
+        self.data_string = ""
         self.task = None
         self.lines = ""
         
@@ -140,5 +142,9 @@ class TTLInput(Instrument):
             flat_data = np.reshape(self.data, np.prod(data_shape))
             
             shape_str = ",".join([str(x) for x in data_shape])
-            
-            # cody says probably do something like this to convert to byte string: struct.pack("!L",length)
+            data_bytes = struct.pack('!L', "".join([str(x) for x in flat_data]))
+                        
+            self.data_string = TCP.format_data('TTL/dimensions', shape_str) + \
+                TCP.format_data('TTL/data', data_bytes)
+                
+            return self.data_string
