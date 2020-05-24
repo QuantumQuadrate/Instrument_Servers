@@ -1,6 +1,6 @@
 import socket
+import struct
 import logging
-from queue import Queue, Empty
 import threading
 
 
@@ -65,7 +65,7 @@ class TCP:
         listens for a message from cspy over the network.
 
         messages from cspy are encoded in the following way:
-            message = 'MESG' + str(len(body)) + body
+            message = b'MESG' + str(len(body)) + body
 
         """
         # Read first 4 bytes looking for a specific message header
@@ -100,48 +100,42 @@ class TCP:
                 self.reset_connection = True
                 self.logger.info("reset connection true")
 
-
     def send_message(self, msg_str=None):
-        # if msg_str is none, just send the return data?
-        pass
+        """
+        Send a message back to CsPy via the current connection.
 
+        Args:
+            msg_str: The body of the message to send to CsPy
+        """
+        if not self.stop_connections and msg_str:
+            try:
+                self.current_connection.send(f"{b'MESG'}{TCP.format_message(msg_str)}")
+            except Exception:
+                self.logger.exception("Issue sending message back to CsPy.")
+                self.reset_connection = True
 
-'''
-This placement emulates the file structure of the labview code, although I 
-don't think this is the best place for these functions
--Juan
-'''
-# TODO : Implement
+    @staticmethod
+    def format_message(message: str) -> str:
+        """
+        Formats a message according to how CsPy expects to receive it. This is done by preprending
+        the length of the message to the message in byte form
+        Args:
+            message : message to be sent
 
+        Returns:
+            formatted message string
+        """
+        return f"{struct.pack('!L', len(message))}{message}"
 
-def format_message(message: str) -> str:
-    """
-    Formats message by encoding it in the format "len(message)message"
-    Args:
-        message : string, message to be sent
+    @staticmethod
+    def format_data(name, data) -> str:
+        """
+        Formats a bit of data according to how CsPy expects to receive it.
+        Args:
+            name: A description of the data
+            data: The data to be send to CsPy
 
-    Returns:
-        formatted message string
-
-    TODO : Verify functionallity matches labview! The output of the concatinated
-        string is not just an int, but an encoding of that int. I'd like to take some
-        time to dig into this
-        uint32 bit big endian
-    """
-    l = len(message)
-    return f"{l}{message}"
-
-
-def format_data(name: str, data: str) -> str:
-    """
-    Formats data for output to xml
-    Args:
-        name : name of field to be populated
-        data : data in field to be populated
-
-    Returns: formatted string
-    TODO : I don't trust this (I wrote it haha) we need to do some testing on
-        the labview end to make sure this functionality is consistent.
-    """
-
-    return f"{format_message(name)}{format_message(data)}"
+        Returns:
+            formatted string that CsPy can parse
+        """
+        return f"{TCP.format_message(name)}{TCP.format_message(data)}"
