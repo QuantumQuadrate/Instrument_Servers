@@ -54,7 +54,7 @@ def int_from_str(numstr):
     Returns:
         'num': (int) a signed integer, if found
 
-    Rasies:
+    Raises:
         ValueError if there is no leading integer in the string
 
     """
