@@ -13,47 +13,52 @@ import re
 
 
 def str_to_bool(boolstr):
-        """ 
-        return True or False case-insensitively for a string 'true' or 'false'
+    """
+    return True or False case-insensitively for a string 'true' or 'false'
 
-        Args: 
-            'boolstr': string to be converted; not case-sensitive
-        Return:
-            'boolean': True or False. 
-        """
-        boolstr = boolstr.lower()
-        if boolstr == "true":
-            return True
-        elif boolstr == "false":
-            return False
-        else:
-            print("Expected a string 'true' or 'false' but received {boolstr}")
-            raise
+    Args:
+        'boolstr': string to be converted; not case-sensitive
+
+    Returns:
+        boolean valued True or False.
+
+    Raises:
+        ValueError if the provided string isn't recognized as true or false.
+    """
+    boolstr = boolstr.lower()
+    if boolstr == "true":
+        return True
+    elif boolstr == "false":
+        return False
+    else:
+        raise ValueError(f"Expected a string 'true' or 'false' but received {boolstr}")
 
 
 def int_from_str(numstr): 
     """ 
-    Returns a signed integer ancored to beginning of a string
-    
-    behaves like LabVIEW Number from String VI (with the VI defaults
-    
+    Returns a signed integer anchored to beginning of a string
+    behaves like LabVIEW Number from String VI (with the VI defaults)
+
+    Example input/output pairs:
+
+    Input     | Output
+    -----------------
+    '-4.50A'  | -4
+    '31415q' | 31415
+    'ph7cy'   | None, throws ValueError
+
+
     Args:
         'numstr': a string which may contain a signed number at the beginning
     
     Returns:
         'num': (int) a signed integer, if found
-    
-        Example input/output pairs:
-        
-            Input     | Output
-            -----------------
-            '-4.50A'  | -4.5
-            '31415q' | 31415
-            'ph7cy'   | None, throws ValueError
+
+    Rasies:
+        ValueError if there is no leading integer in the string
+
     """
     try:
         return int(re.findall("^-?\d+", numstr)[0])
-    except ValueError as e:
-        # TODO: replace with logger
-        print(f'String {numstr} is non-numeric. \n {e}')
-        raise
+    except IndexError:
+        raise ValueError(f'String {numstr} is non-numeric.')
