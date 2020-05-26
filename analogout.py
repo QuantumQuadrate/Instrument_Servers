@@ -204,7 +204,7 @@ class AnalogOutput(Instrument):
                 self.task.write(self.waveforms)
                 
                 
-    def is_done(self):
+    def is_done(self) -> bool:
         """
         Check if the tasks being run are completed
         

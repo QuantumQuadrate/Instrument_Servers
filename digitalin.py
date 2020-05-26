@@ -71,43 +71,33 @@ class TTLInput(Instrument):
                 
             self.task = nidaqmx.Task() # might be task.Task()
             
-            # Create a digital input channel
+            # Create a digital input channel.
+            # Number of samples_per channel unspecified, so returns only one 
+            #   sample at a time
+            # Line grouping is 1 Channel for All Lines, so samples returned by 
+            #   task.read will be of type int
             self.task.di_channels.add_di_chan(
                 lines=self.lines
-                name_to_assign_to_lines=u'', 
+                name_to_assign_to_lines=u'', # this looks like a typo but came from nidaqmx docs...
                 line_grouping=<LineGrouping.CHAN_FOR_ALL_LINES: 1>)
             
     
     def reset_data(self):
         """
-        Reset the aqcuired data array
-        
-        TODO: properly initialize the data. It is not straightforward to see what the format of 
-            returned data from task.read is. Based on labview code for both the ttl reset method
-            and the ttl system check method, I would guess it goes something like this:
-                self.data = np.zeros((39,68)) # init in ttl reset data
-                                
-                labview says: data input is 2D and height=39,width=68 (when i change the constant to a control)
-                
-                and the read function is set to read only 1 channel, 1 sample, so presumably it outputs
-                a single value. the array out seems to still be 2D. or maybe it's actually 3D and looks like
-                
-                data = [[0], [0], [0]] where the first two columns are the initialization, and the height/width 
-                    were only because I made the data a control, and that was the control default
-                
-                TODO: try other checks to get an idea of how this is formatted
+        Reset the aqcuired data array to an empty array []
         """
         
-        # TODO: reset data. need to actually create data first
-        # something like
-        # self.data = np.array([0], [0]) # labview does something like this, with False instead of 0. 
-        pass
-        
+        # labview initializes an empty binary 2D array. 
+        # the array properties in labview give a width,height of something like 38,64 but
+        # don't think it's initializing an array of that size-- just stating the default capacity
+        # of that data type, because all of the elements are greyed out
+        self.data = np.array([]) 
+                
 
+    # TODO: see what kind of data we actually get when this runs
     def check(self):
         """
-        I believe this just takes a 1 second data sample. Not clear than 
-        anything else happens. 
+        Check for data. Waits up to 1 second for data to become available.
         
         TODO: need to implement error checking here
         """
@@ -119,26 +109,32 @@ class TTLInput(Instrument):
             
             # number_of_samples_per_channel unset means 1 sample per channel
             # 1 second timeout
-            self.task.read(timeout=1)
+            data = self.task.read(timeout=1)
             
-            # TODO: get data out and append it to the extant data array
-            # labview comment: low is good, bad is high
-            # careful with the dimensions here. see comment is reset_data docstring above
-            # something like this self.data = np.append(self.data, data)
+            #for debugging:
+            self.logger.debug('TTL Data out: ', data)
+            
+            # get data out and append it to the extant data array
+            # i think this ends up being an array of dimensions (1, samples)
+            # so it is technically 2D as each newly acquired datum is a column
+            self.data = np.append(self.data, data)
             
             # Stop the task and reset it to the state it was initiially
             self.task.stop()
             
             
-    def data_out(self):
+    def data_out(self) -> str:
         """
-        Convert the received data into a specially-formatted string
+        Convert the received data into a specially-formatted string for CsPy
+        
+        Returns:
+            the instance's data string, formatted for reception by CsPy
         """
         
         if not (self.stop_connections or self.reset_connection) and self.enable:
         
             # flatten the data and convert to a str 
-            data_shape = self.data.shape
+            data_shape = self.data.shape # default is (1, 2)... where is data actually received?
             flat_data = np.reshape(self.data, np.prod(data_shape))
             
             shape_str = ",".join([str(x) for x in data_shape])

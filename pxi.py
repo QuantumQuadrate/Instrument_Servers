@@ -284,22 +284,23 @@ class PXI:
         return_data_str = ""
 
         '''
-        I'm going to write these out explicitly for now. We can implement a large instrument list
-        and use abstract classes to simplify methods like this in the near future. Until then, I think
-        it's best to write it out.
-        -Juan
-                # the devices that have a data_out method
-        data_spawns = []
+        Once all data_out methods are implemented, could do something like this:
+        
+        # the devices that have a data_out method
+        data_devices = [self.counters, self.ttl, self.analog_input]
 
-        for spawn in data_spawns:
-            # TODO: implement data_out methods in the relevant classes
-            self.return_data_str += spawn.data_out()
+        for dev in data_devices:
+            try:
+                self.return_data_str += dev.data_out()
+            except Exception as e:
+                self.logger.error(f"encountered error in {dev}.data_out: \n {e}")
         '''
-
+        
+        
         #return_data_str += self.hamamatsu.data_out()  # TODO : Implement
-        #return_data_str += self.counters.data_out()  # TODO : Implement
-        #return_data_str += self.ttl.data_out()  # TODO : Implement
-        #return_data_str += self.analog_input.data_out()  # TODO : Implement
+        return_data_str += self.counters.data_out()
+        return_data_str += self.ttl.data_out()
+        return_data_str += self.analog_input.data_out()
         #return_data_str += self.demo.data_out()  # TODO : Implement
 
         return return_data_str
@@ -335,27 +336,21 @@ class PXI:
             return_data = self.data_to_xml()
         return return_data
 
-
-    '''
-    Note : This is the entirety of what the following two functions do in labview. They can, in 
-    principle, be expanded for other devices with similar needs. - Juan
-    '''
-
     def reset_data(self):
         """
         Resets data on devices which need to be reset.
 
         For now, only applies to TTL
         """
-        # self.ttl.reset_data()  # TODO : skeleton exists; see TTLInput.reset_data
-        pass
+        self.ttl.reset_data() 
 
     def system_checks(self):
         """
-        This is all this function does in the labview.
+        Check devices. 
+        
+        For now, only applies to TTL
         """
-        # self.ttl.check()  # TODO: mostly done. see TTLInput.check
-        pass
+        self.ttl.check() 
 
     def start_tasks(self):
         """
@@ -383,7 +378,7 @@ class PXI:
         # self.hamamatsu.minimal_acquire()  # TODO : Implement
         self.analog_input.get_data()
 
-    def is_done(self):
+    def is_done(self) -> bool:
         """
         Check if devices running processes are done yet
 
@@ -409,7 +404,7 @@ class PXI:
                    done = False
                    break
                    
-        return done, 0
+        return done, 0 # why is there a zero here?
 
     def reset_timeout(self):
         """
@@ -448,18 +443,3 @@ class PXI:
 
         else:
             self.logger.info("Not a valid keypress. Type \'h\' for help.")
-
-    # This decorator could be a nice way of handling timeouts across this class
-    # without the need to put time.time calls explicitly in loops in various
-    # methods, although that could be done. This would return a wrapper that
-    # would probably have to do something like run the decorated function in
-    # a different thread than the timer so it could stop that thread when the
-    # time runs out; maybe there's a nicer way to do this. open to suggestions.
-    @classmethod
-    def master_timeout(func):
-        """
-        Check if function call in PXI class takes longer than a maximum time
-
-        To be used as a decorator for functions in this class to
-        """
-        pass
