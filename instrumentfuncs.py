@@ -12,23 +12,20 @@ instrument class.
 import re
 
 
-def str_to_bool(boolstr):
-        """ 
-        return True or False case-insensitively for a string 'true' or 'false'
+def str_to_bool(boolstr: str) -> bool:
+    """
+    return True or False case-insensitively for a string 'true' or 'false'
 
-        Args: 
-            'boolstr': string to be converted; not case-sensitive
-        Return:
-            'boolean': True or False. 
-        """
-        boolstr = boolstr.lower()
-        if boolstr == "true":
-            return True
-        elif boolstr == "false":
-            return False
-        else:
-            print("Expected a string 'true' or 'false' but received {boolstr}")
-            raise
+    If boolstr is not 'true' or 'false' this function will raise a KeyError
+
+    Args:
+        'boolstr': string to be converted; not case-sensitive
+    Return:
+        'boolean': True or False.
+    """
+    conv = {"true": True,
+            "false": False}
+    return conv[boolstr.lower()]
 
 
 def int_from_str(numstr): 
