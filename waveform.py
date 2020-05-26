@@ -10,6 +10,7 @@ from ctypes import *
 import numpy as np
 from abc import ABC, abstractmethod
 import logging
+import xml.etree.ElementTree as ET
 
 
 class Waveform(ABC):
@@ -20,7 +21,13 @@ class Waveform(ABC):
     implemented explicitly in the child class. 
     """
 
-    def __init__(self, name="", transitions=None, states=None,data_format=None):
+    '''
+    I would like to get rid of the optional arguments here. They are not used with the 
+    calls to HSDIOWaveform(), are they used with the calls to DAQMXWaveform()? Or in the tests?
+            -Juan
+    '''
+
+    def __init__(self, name="", transitions=None, states=None, data_format=None):
         self.name = name
         self.transitions = transitions
         self._length = 0
@@ -77,7 +84,7 @@ class Waveform(ABC):
                                     
     def __repr__(self):  # mostly for debugging
         return (f"Waveform(name={self.name}, transitions={self.transitions}, "
-                   f"states={self.states}")
+                f"states={self.states}")
                 
         
 class DAQmxDOWaveform(Waveform):
@@ -107,12 +114,12 @@ class DAQmxDOWaveform(Waveform):
                 t = np.array([x for x in child.text.split(" ")], 
                              dtype=c_uint32)
                 self.transitions = t
-                self.length(len(self.transitions))
+                self.length = len(self.transitions)
 
             elif child.tag == "states":
-                states= np.array([[int(x) for x in line.split(" ")] 
+                states = np.array([[int(x) for x in line.split(" ")]
                                   for line in child.text.split("\n")],
-                                 dtype=c_uint32)
+                                  dtype=c_uint32)
                 self.states = states
 
             else:
@@ -124,13 +131,15 @@ class HSDIOWaveform(Waveform):
     Waveform class for use in the HSDIO class
     """
     
-    def __init__(self, name="", transitions=None, states=None, data_format=None):
+    def __init__(self, name="", transitions=None, states=None, data_format=None, node: ET.ElementTree = None):
         super().__init__(name, transitions, states, data_format)
         self.logger = logging.getLogger(str(self.__class__))
-        if self.states is not None:
-            assert len(self.states[0]) % 32 == 0  # this assertion my be a little late
-            
-    def init_from_xml(self, node): # equivalent to load waveform in labVIEW
+        if self.states is not None and node is None:
+            self.check_state_len()
+        if node is not None:
+            self.init_from_xml(node)
+
+    def init_from_xml(self, node):  # equivalent to load waveform in labVIEW
         """     
         re-initialize attributes for existing Waveformfrom children of node. 
         'node' is of type xml.etree.ElementTree.Element, with tag="waveform"
@@ -149,14 +158,13 @@ class HSDIOWaveform(Waveform):
                 self.length = len(self.transitions)
 
             elif child.tag == "states":
-                states= np.array([[int(x) for x in line.split(" ")] 
+                states = np.array([[int(x) for x in line.split(" ")]
                                   for line in child.text.split("\n")],
-                                 dtype=c_uint32)
+                                  dtype=c_uint32)
                 self.states = states
-                assert len(self.states[0]) % 32 == 0
 
             else:
-                self.logger.warning("Invalid Waveform attribute") # TODO: replace with logger
+                self.logger.warning("Invalid Waveform attribute")
 
     def decompress(
             self,
@@ -238,7 +246,6 @@ class HSDIOWaveform(Waveform):
             self.logger.error("You shouldn't be here, you used the wrong input for data_format")
             return
 
-
         self.data_format = data_format
         self.wvfm = wvfm
 
@@ -291,4 +298,9 @@ class HSDIOWaveform(Waveform):
             wave_array[d] = Waveform(self.name, self.transitions, new_states, self.data_format)
 
         return wave_array
-    
+
+    def check_state_len(self):
+        cl_str = str(self.__class__.__name__)
+        state_len = self.states.shape[0]
+        as_ms = f"len({cl_str}.states[0]) = {state_len}; it's not divisible by 32!"
+        assert state_len == 0, as_ms

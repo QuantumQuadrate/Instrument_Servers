@@ -72,7 +72,7 @@ class AnalogInput(Instrument):
                     self.source = child.text
                     
                 elif child.tag == "waitForStartTrigger":
-                    self.startTrigger.waitForStartTrigger = str_to_bool(child.text)
+                    self.startTrigger.wait_for_start_trigger = str_to_bool(child.text)
                     
                 elif child.tag == "triggerSource":
                     self.startTrigger.source = child.text
@@ -135,7 +135,7 @@ class AnalogInput(Instrument):
                     samps_per_chan=samplesPerMeasurement) 
                 
                 # Setup start trigger if configured to wait for one
-                if self.startTrigger.waitForStartTrigger:
+                if self.startTrigger.wait_for_start_trigger:
                     self.start_trigger.cfg_dig_edge_start_trig(
                         trigger_source = self.startTrigger.source,
                         trigger_edge=self.startTrigger.edge)

@@ -21,6 +21,7 @@ from recordclass import recordclass as rc
 
 
 class Hamamatsu:
+    # TODO : Make this inherit from instrument class
     """
     Class to control the operation of the Hamamatsu camera using the NI IMAQ drivers
 
@@ -155,7 +156,7 @@ class Hamamatsu:
 
             assert node.tag == "camera", "This XML is not tagged for the camera"
 
-            if node_text in values:
+            if node_text in values.keys():
                 setattr(self, attr, values[node_text])
             else:
                 self.logger.warning(f"Invalid {attr} setting {node_text}; using {default} " +

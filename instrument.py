@@ -15,21 +15,156 @@ For example usage, go look at implementation in hsdio.py, analogin.py, etc.
 import xml.etree.ElementTree as ET
 from abc import ABC, abstractmethod
 from instrumentfuncs import str_to_bool
+import logging
+import re
 
-class Instrument(ABC):
+
+class XMLLoader(ABC):
+    """
+    Class for all classes that load from an xml
+    TODO : tag classes that can be wrapped into this
+    """
+    def __init__(self, node: ET.Element = None):
+        """
+        Args:
+            node : optional node so that a second call to load_xml does not have to be made
+        """
+        self.logger = logging.getLogger(str(self.__class__.__name__))
+        if node is not None:
+            self.load_xml(node)
+
+    @abstractmethod
+    def load_xml(self, node: ET.Element):
+        """
+        Initialize the instrument class attributes from XML received from CsPy
+
+         Args:
+            'node': type is ET.Element. tag should match self.expectedRoot
+            node.tag == self.expectedRoot
+        """
+        pass
+
+    def str_to_bool(self, boolstr: str) -> bool:
+        # TODO : Replace usages of instrumentfuncs versions with this one
+        """
+        return True or False case-insensitively for a string 'true' or 'false'
+
+        If boolstr is not 'true' or 'false' this function will raise a KeyError
+
+        Args:
+            'boolstr': string to be converted; not case-sensitive
+        Return:
+            'boolean': True or False.
+        """
+        conv = {"true": True,
+                "false": False}
+        try:
+            ret = conv[boolstr.lower()]
+        except ValueError as e:
+            m = f"{e}\nboolstr = {boolstr} is non-boolean!"
+            self.logger.error(m, exc_info=True)
+            raise
+        return conv[boolstr.lower()]
+
+    def str_to_int(self, num_str: str) -> int:
+        # TODO : replace usages of instrumentfuncs version with this one
+        """
+        return a signed integer anchored to the beginning of num_str
+
+        Args:
+            num_str : a signed integer, if found
+
+                Example input/output pairs:
+
+                    Input     | Output
+                    -----------------
+                    '-4.50A'  | -4
+                    '31415q' | 31415
+                    'ph7cy'   | None, throws IndexError
+
+        Returns:
+            integer value encoded in num_str
+        """
+        try:
+            ret = int(re.findall("^-?\d+", num_str)[0])
+        except IndexError as e:
+            self.logger.error(f"{e}\nnum_str = {num_str} is non numeric!", exc_info=True)
+            raise
+        return ret
+
+    def str_to_float(self, num_str: str) -> float:
+        """
+        Return a float based on input string, handle errors gracefully
+        Args:
+            num_str : floating point number encoded in a string.
+                Example i/o pairs:
+
+                    Input   | Output
+                    '6.345' | 6.345
+                    '-924.3'| -924.3
+                    'a775'  | None, throws ValueError
+        Returns:
+            float value encoded in num_str
+        """
+        try:
+            ret = float(num_str)
+        except ValueError as e:
+            self.logger.error(f"{e}\nnum_str = {num_str} is non numeric!", exc_info=True)
+            raise
+        return ret
+
+    def set_by_dict(self, attr: str, node_text: str, values: {str: str}):
+        """
+        Set the class a attribute attr based on the node_text
+
+        Class attribute is set based on node_text, using a dictionary of
+        values for the attribute. If node_text is not a key in the
+        dictionary, a default value specified in the dictionary itself will
+        be used.
+
+        Args:
+            'attr': the name of the attribute to be set, which is
+                also the node tag.
+            'node_text': the text of the node whose tag  is 'attr'
+            'values': dictionary of values, where at least one key
+                is "Default", whose value is the key for the default value
+                in the dictionary
+        """
+        try:
+            default = values["Default"]
+        except KeyError as key_er:
+            cl_str = str(self.__class__.__name__)
+            self.logger.error(f"Value dictionary for {attr} must include" +
+                              "the key \'Default\', where the value is the key of" +
+                              "the default value in the dictionary.",
+                              exc_info=True)
+            raise key_er
+
+        try:
+            setattr(self, attr, values[node_text])
+        except KeyError as er:
+            self.logger.warning(
+                f"{er}\n {attr} value {node_text} should be in {values.keys()}"
+                f"\nKeeping default {default} value {values[default]}"
+            )
+            setattr(self, attr, values[default])
+
+
+class Instrument(XMLLoader):
     
-    def __init__(self, pxi, expectedRoot):
+    def __init__(self, pxi, expected_root, node: ET.ElementTree = None):
         """
         Constructor for the Instrument abstract base class
         
         Args:
             'pxi': reference to the parent PXI instance
             'expectedRoot': the xml tag corresponding to your instrument. This 
-            should be in the xml sent by CsPy to talk to setup this device.
+                should be in the xml sent by CsPy to talk to setup this device.
+            'node': xml node if available, if passed self.load_xml is called in __init__
         """
-        
+        super().__init__(node)
         self.pxi = pxi
-        self.expectedRoot = expectedRoot 
+        self.expectedRoot = expected_root
         self.enable = False
     
     @property

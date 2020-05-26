@@ -33,6 +33,7 @@ from hamamatsu import Hamamatsu, IMAQError
 from tcp import TCP
 
 
+# TODO : Should this inherit from XMLLoader?
 class PXI:
     
     help_str = ("At any time, type... \n"+

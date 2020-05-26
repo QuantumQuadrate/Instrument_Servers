@@ -36,11 +36,11 @@ class HSDIO(Instrument): # could inherit from an Instrument class if helpful
     def __init__(self, pxi):
         super().__init__(pxi, "HSDIO")
 
-        ## device settings
+        # device settings
         self.logger = logging.getLogger(str(self.__class__))
         self.pxi = pxi
         self.resourceNames = np.array([], dtype=str)
-        self.clockRate = 2*10**7 # 20 MHz
+        self.clockRate = 2*10**7  # 20 MHz
         self.hardwareAlignmentQuantum = 1 # (in samples)
         self.activeChannels = np.array([], dtype=c_int32)
         self.initialStates = np.array([], dtype=str)
@@ -48,8 +48,8 @@ class HSDIO(Instrument): # could inherit from an Instrument class if helpful
         self.pulseGenScript = """script script 1
                                       wait 1
                                    end script"""
-        self.scriptTriggers = []
-        self.startTrigger = StartTrigger()
+        self.scriptTriggers: List[Trigger] = []
+        self.startTrigger: StartTrigger = StartTrigger()
         self.description = ""
 
         # These two have are related to one another, each session is attached to a handle, each handle can support man
@@ -60,7 +60,6 @@ class HSDIO(Instrument): # could inherit from an Instrument class if helpful
 
         # whether or not we've actually populated the attributes above
         self.isInitialized = False
-        
 
     def load_xml(self, node):
         """
@@ -72,85 +71,66 @@ class HSDIO(Instrument): # could inherit from an Instrument class if helpful
         assert node.tag == self.expectedRoot, "This XML is not tagged for the HSDIO"
 
         for child in node:
+            try:
 
-            # the LabView code ignores non-element nodes. not sure if this
-            # equivalent
-            if type(child) == ET.Element:
+                # the LabView code ignores non-element nodes. not sure if this
+                # equivalent
+                if type(child) == ET.Element:
+                    self.logger.debug(child)
+                    # handle each tag by name:
+                    if child.tag == "enable":
+                        self.enable = self.str_to_bool(child.text)
 
-                # handle each tag by name:
-                if child.tag == "enable":
-                    self.enable = str_to_bool(child.text)
+                    elif child.tag == "description":
+                        self.description = child.text
 
-                elif child.tag == "description":
-                    self.print_txt(child) # DEBUGGING
-                    self.description = child.text
+                    elif child.tag == "resourceName":
+                        resources = np.array(child.text.split(","))
+                        self.resourceNames = resources
 
-                elif child.tag == "resourceName":
-                    self.print_txt(child) # DEBUGGING
-                    resources = np.array(child.text.split(","))
-                    self.resourceNames = resources
+                    elif child.tag == "clockRate":
+                        clock_rate = self.str_to_float(child.text)
+                        self.clockRate = clock_rate
 
-                elif child.tag == "clockRate":
-                    clockRate = float(child.text)
-                    self.print_txt(child) # DEBUGGING
-                    self.clockRate = clockRate
+                    elif child.tag == "hardwareAlignmentQuantum":
+                        self.hardwareAlignmentQuantum = child.text
 
-                elif child.tag == "hardwareAlignmentQuantum":
-                    self.print_txt(child) # DEBUGGING
-                    self.hardwareAlignmentQuantum = child.text
+                    elif child.tag == "triggers":
 
-                elif child.tag == "triggers":
-                    self.print_txt(child) # DEBUGGING
+                        if type(child) == ET.Element:
+                            trigger_node = child
+                            for t_child in trigger_node:
+                                if type(t_child) == ET.Element:  # TODO : Should we deal with the else?
+                                    self.scriptTriggers.append(Trigger(t_child))
 
-                    if type(child) == ET.Element:
+                    elif child.tag == "waveforms":
+                        self.logger.debug("found a waveform")
+                        wvforms_node = child
+                        for wvf_child in wvforms_node:
+                            if type(wvf_child) == ET.Element:  # TODO : Should we deal with the else?
+                                if wvf_child.tag == "waveform":
+                                    self.waveformArr.append(HSDIOWaveform(wvf_child))
 
-                        trigger_node = child
+                    elif child.tag == "script":
+                        self.pulseGenScript = "Loren Ipsum"  # TODO : @Preston What goes here?
 
-                        # for each line of script triggers
-                        for child in trigger_node:  # TODO : change child to not shadow outer scope
+                    elif child.tag == "startTrigger":
+                        self.startTrigger = StartTrigger(child)
 
-                            if type(child) == ET.Element:
+                    elif child.tag == "InitialState":
+                        self.initialStates = np.array(child.text.split(","))
 
-                                trig = Trigger()
-                                trig.init_from_xml(child)
-                                self.scriptTriggers.append(trig)
+                    elif child.tag == "IdleState":
+                        self.idleStates = np.array(child.text.split(","))
 
-                elif child.tag == "waveforms":
+                    elif child.tag == "ActiveChannels":
+                        self.activeChannels = np.array(child.text.split("\n"))
 
-                    self.logger.debug("found a waveform")
-                    
-                    wvforms_node = child
-
-                    # for each waveform
-                    for wvf_child in wvforms_node:
-
-                        if type(wvf_child) == ET.Element:
-
-                            if wvf_child.tag == "waveform":
-
-                                wvform = HSDIOWaveform()
-                                wvform.init_from_xml(wvf_child)
-                                self.waveformArr.append(wvform)
-
-                elif child.tag == "script":
-                    self.pulseGenScript = # TODO : What goes here?
-
-                elif child.tag == "startTrigger":
-                    self.startTrigger = StartTrigger()
-                    self.startTrigger.init_from_xml(child)
-
-                elif child.tag == "InitialState":
-                    self.initialStates = np.array(child.text.split(","))
-
-                elif child.tag == "IdleState":
-                    self.idleStates = np.array(child.text.split(","))
-
-                elif child.tag == "ActiveChannels":
-                    self.activeChannels = np.array(child.text.split("\n"))
-
-                else:
-                    self.logger.warning("Not a valid XML tag for HSDIO initialization")
-                    
+                    else:
+                        self.logger.warning("Not a valid XML tag for HSDIO initialization")
+            except AssertionError as e:
+                self.logger.error(e, exc_info=True)
+                raise
 
     def init(self):
         """
@@ -179,7 +159,7 @@ class HSDIO(Instrument): # could inherit from an Instrument class if helpful
 
                 iterables = zip(self.idleStates, self.initialStates,
                                 self.activeChannels, self.resourceNames)
-                for idle_state,init_state,chan_list,resource in iterables:
+                for idle_state, init_state, chan_list, resource in iterables:
                     self.sessions.append(HsdioSession(resource))
                     session = self.sessions[-1]
 
@@ -198,10 +178,10 @@ class HSDIO(Instrument): # could inherit from an Instrument class if helpful
                     for trig in self.scriptTriggers:
 
                         # implement this in a better way so not hardcoding the numeric code
-                        if trig.type == trig.types["Level"]:  # Level type
+                        if trig.type == trig.TYPES["Level"]:  # Level type
 
                             session.configure_digital_level_script_trigger(
-                                trig.trigID,  # str
+                                trig.trig_ID,  # str
                                 trig.source,  # str
                                 trig.level    # int
                             )
@@ -209,12 +189,12 @@ class HSDIO(Instrument): # could inherit from an Instrument class if helpful
                         else:  # Edge type is default when initialized
 
                             session.configure_digital_edge_script_trigger(
-                                trig.trigID,
+                                trig.trig_ID,
                                 trig.source,
                                 trig.edge
                             )
 
-                    if self.startTrigger.waitForStartTrigger:
+                    if self.startTrigger.wait_for_start_trigger:
                         session.configure_digital_edge_start_trigger(
                             self.startTrigger.source,
                             self.startTrigger.edge
@@ -263,6 +243,3 @@ class HSDIO(Instrument): # could inherit from an Instrument class if helpful
         # log certain HSDIO attributes
 
         # log stuff, call settings in the server code for debugging?
-
-    def print_txt(self, node): # for debugging
-        self.logger.info(f"{node.tag} = {node.text}")
