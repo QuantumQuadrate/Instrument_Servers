@@ -13,7 +13,7 @@ import os
 import struct
 import platform # for checking the os bit
 import logging
-from ni_hsdio import HsdioSession
+from ni_hsdio import HsdioSession, HSDIOError
 from typing import List
 
 ## local class imports
@@ -60,6 +60,8 @@ class HSDIO(Instrument): # could inherit from an Instrument class if helpful
 
         # whether or not we've actually populated the attributes above
         self.isInitialized = False
+        # check this to see if waveform has been written and updated without error
+        self.wvf_written = False
 
     def load_xml(self, node):
         """
@@ -141,15 +143,11 @@ class HSDIO(Instrument): # could inherit from an Instrument class if helpful
 
             if self.isInitialized:
 
+                # TODO : Figure out error handling for this case
                 for session in self.sessions:
                     session.abort()
                     session.close()
                     pass
-
-                    # i think this should clear the list of instrumentHandles too.
-                    # in LabView the handle gets passed in/out of the above VIs.
-                    # maybe just reset the array after the loop:
-                    # Its worth considering how these handles are being populated - Juan
 
                 self.sessions = []  # reset
 
@@ -163,64 +161,82 @@ class HSDIO(Instrument): # could inherit from an Instrument class if helpful
                     self.sessions.append(HsdioSession(resource))
                     session = self.sessions[-1]
 
-                    session.init_generation_sess()
+                    try:
+                        session.init_generation_sess()
+                    except HSDIOError as e:
+                        self.logger.error(f"{e}\nError Initiating session.", exc_info=True)
+                        raise
 
-                    session.assign_dynamic_channels(chan_list)
-
-                    session.configure_sample_clock(self.clockRate)
-
-                    session.configure_generation_mode(generation_mode=15)
-
-                    session.configure_initial_state(chan_list, init_state)
-
-                    session.configure_idle_state(chan_list,idle_state)
-
-                    for trig in self.scriptTriggers:
-
-                        # implement this in a better way so not hardcoding the numeric code
-                        if trig.type == trig.TYPES["Level"]:  # Level type
-
-                            session.configure_digital_level_script_trigger(
-                                trig.trig_ID,  # str
-                                trig.source,  # str
-                                trig.level    # int
-                            )
-
-                        else:  # Edge type is default when initialized
-
-                            session.configure_digital_edge_script_trigger(
-                                trig.trig_ID,
-                                trig.source,
-                                trig.edge
-                            )
-
-                    if self.startTrigger.wait_for_start_trigger:
-                        session.configure_digital_edge_start_trigger(
-                            self.startTrigger.source,
-                            self.startTrigger.edge
+                    try:
+                        session.assign_dynamic_channels(chan_list)
+                        session.configure_sample_clock(self.clockRate)
+                        # TODO : use defined constant
+                        session.configure_generation_mode(generation_mode=15)
+                        session.configure_initial_state(chan_list, init_state)
+                        session.configure_idle_state(chan_list,idle_state)
+                    except HSDIOError as e:
+                        self.logger.error(
+                            f"{e}\nError setting generation parameters.",
+                            exc_info=True
                         )
+                        raise
+
+                    try:
+                        for trig in self.scriptTriggers:
+
+                            # implement this in a better way so not hard-coding the numeric code
+                            if trig.trig_type == trig.TYPES["Level"]:  # Level type
+
+                                session.configure_digital_level_script_trigger(
+                                    trig.trig_ID,  # str
+                                    trig.source,  # str
+                                    trig.level    # int
+                                )
+
+                            else:  # Edge type is default when initialized
+
+                                session.configure_digital_edge_script_trigger(
+                                    trig.trig_ID,
+                                    trig.source,
+                                    trig.edge
+                                )
+                    except HSDIOError as e:
+                        self.logger.error(f"{e}\nError Configuring script triggers", exc_info=True)
+                        raise
+
+                    try:
+                        if self.startTrigger.wait_for_start_trigger:
+                            session.configure_digital_edge_start_trigger(
+                                self.startTrigger.source,
+                                self.startTrigger.edge
+                            )
+                    except HSDIOError as e:
+                        self.logger.error(f"{e}\nError Configuring start trigger", exc_info=True)
+                        raise
 
             self.isInitialized = True
 
-
     def update(self):
         """
-        write waveforms to the PC memory
+        write waveforms to the HSDIO on-board storage
         """
-        
-        if not (self.stop_connections or self.reset_connection):
 
-            if self.enable:
+        self.wvf_written = False
 
-                for wf in self.waveformArr:
+        if self.stop_connections or self.reset_connection:
+            return
 
-                    wv_arr = wf.wave_split()
-                    # for each HSDIO card (e.g., Rb experiment has two cards)
-                    for i, session in enumerate(self.sessions):
+        if self.enable:
 
-                        wave = wv_arr[i]
-                        fmt, data = wave.decompress()
+            for wf in self.waveformArr:
 
+                wv_arr = wf.wave_split()
+                # for each HSDIO card (e.g., Rb experiment has two cards)
+                for i, session in enumerate(self.sessions):
+
+                    wave = wv_arr[i]
+                    fmt, data = wave.decompress()
+                    try:
                         if format == "WDT":
                             session.write_waveform_wdt(
                                 wave.name,
@@ -234,9 +250,14 @@ class HSDIO(Instrument): # could inherit from an Instrument class if helpful
                                 max(wave.transitions),
                                 data
                             )
+                    except HSDIOError as e:
+                        self.logger.error(
+                            f"{e}\nError writing waveform. Waveform has not been updated",
+                            exc_info=True
+                        )
+        self.wvf_written = True
 
-
-    def settings(self, wf_arr, wf_names):
+    def settings(self, wf_arr, wf_names):  # TODO : @Juan Implement
         pass
         # the labview code has HSDIO.settings specifically for reading out the
         # settings on the front panel. for debugging, we could just have this
