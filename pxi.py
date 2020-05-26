@@ -48,11 +48,12 @@ class PXI:
         self.exit_measurement = False
 
         self.keylisten_thread = None
+        self.experiment_thread = None
 
         # queues. 0 indicates no maximum queue length enforced.
         self.command_queue = Queue(0)
-        self.return_data_queue = Queue(0)
 
+        self.queued_return_data_str = ""
         self.return_data_str = ""  # this seems to exist primarily for debugging
 
         self.element_tags = []  # for debugging
@@ -70,6 +71,7 @@ class PXI:
 
     @property
     def stop_connections(self) -> bool:
+        """Functions as a halting variable for the software."""
         return self._stop_connections
 
     @stop_connections.setter
@@ -78,6 +80,7 @@ class PXI:
 
     @property
     def reset_connection(self) -> bool:
+        """Determines whether reset the TCP connection with the client."""
         return self._reset_connection
 
     @reset_connection.setter
@@ -114,7 +117,7 @@ class PXI:
 
         This function handles the switching between updating devices and
         getting data from them, while the bulk of the work is done in the
-        hierarchy of methods in self.parse_xml and self.measurment.
+        hierarchy of methods in self.parse_xml and self.measurement.
         """
 
         while not self.stop_connections:
@@ -124,7 +127,6 @@ class PXI:
                 self.parse_xml(xml_str)
 
             except Empty:
-                # TODO add these variables to constructor
                 self.exit_measurement = False
                 self.return_data_str = ""  # reset the list
 
@@ -136,7 +138,7 @@ class PXI:
 
     def launch_keylisten_thread(self):
         """
-        Launch a KeyListener thread to get key pressses in the command line
+        Launch a KeyListener thread to get key presses in the command line
         """
         self.keylisten_thread = KeyListener(self.on_key_press)
         self.keylisten_thread.setDaemon(True)
@@ -148,9 +150,9 @@ class PXI:
         Initialize the device instances and other settings from queued xml
         
         Loop over highest tier of xml tags with the root tag='LabView' in the 
-        message received from CsPy, and call the appropriate device class accordingly. the xml is popped 
-        from a queue, which updates in the network_loop whenever a valid 
-        message from CsPy is received. 
+        message received from CsPy, and call the appropriate device class accordingly.
+        The xml is popped from a queue, which updates in the network_loop whenever a valid message
+        from CsPy is received.
         
         Args:
             'xml_str': (str) xml received from CsPy in the receive_message method
@@ -170,18 +172,11 @@ class PXI:
                 self.element_tags.append(child)
 
                 if child.tag == "measure":
-                    if self.return_data_queue.empty():
+                    if len(self.queued_return_data_str) == 0:
                         # if no data ready, take one measurement
                         self.measurement()
                     else:
-                        pass
-                        # Cast return_data_queue to a string? in labview the
-                        # global "Return Data" is simply assigned the value of
-                        # "Return Data Queue", despite the fact that the latter
-                        # is a Queue instance and the former is filled elsewhere
-                        # with a string built from concatenated xml.
-                        #
-                        # self.return_data_str = str(return_data_queue
+                        self.return_data_str = self.queued_return_data_str
 
                 elif child.tag == "pause":
                     # TODO: set state of server to 'pause';
@@ -265,13 +260,12 @@ class PXI:
         # TODO: some sort of error handling. could have several try/except
         # blocks in the if/elifs above
 
-        # TODO: implement send message
         # send a message back to CsPy
         self.tcp.send_message()
 
         # clear the return data
         self.return_data_str = ""
-        self.return_data_queue = Queue(0)
+        self.queued_return_data_str = ""
 
     def data_to_xml(self):
         """
