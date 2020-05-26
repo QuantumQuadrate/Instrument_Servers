@@ -24,7 +24,7 @@ class AnalogOutput(Instrument):
     ExternalClock = rc('ExternalClock', ('useExternalClock', 'source', 'maxClockRate'))
     
     def __init__(self, pxi):
-        super().__init__(pxi, "AnalogOutput")
+        super().__init__(pxi=pxi, expectedRoot="AnalogOutput")
         self.logger = logging.getLogger(str(self.__class__))
         self.physicalChannels = ""
         self.minValue = -10
@@ -68,71 +68,71 @@ class AnalogOutput(Instrument):
 
         return wave_arr
 
-
-    def load_xml(self, node):
+    def load_xml(self, node: ET.Element):
         """
         Initialize AnalogOutput instance attributes with xml from CsPy
 
         Args:
-            'node': type is ET.Element. tag should be "HSDIO". Expects 
-            node.tag == "AnalogOutput"
+            'node': Node of xml ElementTree containing information about AnalogOutput parameters
+
+        Raises:
+            AssertionError:
+                If the provided node does not have the expected tag of "AnalogOutput"
+            KeyError:
+                If an invalid trigger-edge value is provided
         """
         
         assert node.tag == self.expectedRoot, f"Expected xml tag {self.expectedRoot}"
 
-        for child in node: 
+        for child in node:
+            if child.tag == "enable":
+                self.enable = str_to_bool(child.text)
 
-            # not sure if this is necessary... could probably remove
-            if type(child) == ET.Element:
+            elif child.tag == "physicalChannels":
+                self.physicalChannels = child.text
 
-                if child.tag == "enable":
-                    self.enable = str_to_bool(child.text)
+            elif child.tag == "minimum":
+                self.minValue = float(child.text)
 
-                elif child.tag == "physicalChannels":
-                    self.physicalChannels = child.text
+            elif child.tag == "maximum":
+                self.maxValue = float(child.text)
 
-                elif child.tag == "minimum":
-                    self.minValue = float(child.text)
+            elif child.tag == "clockRate":
+                self.sampleRate = float(child.text) # samples per second in LabVIEW
 
-                elif child.tag == "maximum":
-                    self.maxValue = float(child.text)
+            elif child.tag == "waveform":
+                self.waveforms = self.wave_from_str(child.text)
 
-                elif child.tag == "clockRate":
-                    self.sampleRate = float(child.text) # samples per second in LabVIEW
+            elif child.tag == "waitForStartTrigger":
+                self.startTrigger.waitForStartTrigger = str_to_bool(child.text)
 
-                elif child.tag == "waveform":
-                    self.waveforms = self.wave_from_str(child.text)
+            elif child.tag == "exportStartTrigger":
+                self.exportTrigger.exportStartTrigger = str_to_bool(child.text)
 
-                elif child.tag == "waitForStartTrigger":
-                    self.startTrigger.waitForStartTrigger = str_to_bool(child.text)
+            elif child.tag == "triggerSource":
+                self.startTrigger.source = child.text
 
-                elif child.tag == "exportStartTrigger":
-                    self.exportTrigger.exportStartTrigger = str_to_bool(child.text)
+            elif child.tag == "exportStartTriggerDestination":
+                self.exportTrigger.outputTerminal = child.text
 
-                elif child.tag == "triggerSource":
-                    self.startTrigger.source = child.text
+            elif child.tag == "triggerEdge":
+                try:
+                    self.startTrigger.edge = StartTrigger.nidaqmx_edges[child.text]
+                except KeyError:
+                    raise KeyError(f"Not a valid trigger edge value: {child.text}")
 
-                elif child.tag == "exportStartTriggerDestination":
-                    self.exportTrigger.outputTerminal = child.text
+            elif child.tag == "useExternalClock":
+                self.externalClock.useExternalClock = str_to_bool(child.text)
 
-                elif child.tag == "triggerEdge":
-                    try:
-                        self.startTrigger.edge = StartTrigger.nidaqmx_edges[child.text]
-                    except KeyError as e:
-                        self.logger.error(f"Not a valid {child.tag} value {child.text} \n {e}")
-                        raise
+            elif child.tag == "externalClockSource":
+                self.externalClock.source = child.text
 
-                elif child.tag == "useExternalClock":
-                    self.externalClock.useExternalClock = str_to_bool(child.text)
+            elif child.tag == "maxExternalClockRate":
+                self.externalClock.maxClockRate = float(child.text)
 
-                elif child.tag == "externalClockSource":
-                    self.externalClock.source = child.text
+            else:
+                self.logger.warning(f"Unrecognized XML tag \'{child.tag}\' in <AnalogOutput>")
 
-                elif child.tag == "maxExternalClockRate":
-                    self.externalClock.maxClockRate = float(child.text)
-
-                else:
-                    self.logger.warning(f"Unrecognized XML tag \'{child.tag}\' in <AnalogOutput>")
 
 
     # TODO: test with hardware
