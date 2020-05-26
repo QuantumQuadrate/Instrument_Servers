@@ -18,9 +18,9 @@ import logging
 import struct
 from tcp import TCP
 from recordclass import recordclass as rc
+from instrument import Instrument
 
-
-class Hamamatsu:
+class Hamamatsu(Instrument):
     # TODO : Make this inherit from instrument class
     """
     Class to control the operation of the Hamamatsu camera using the NI IMAQ drivers
@@ -54,10 +54,8 @@ class Hamamatsu:
     SubArray = rc('SubArray', ('left', 'top', 'width', 'height'))
     FrameGrabberAqRegion = rc('FrameGrabberAqRegion', ('left', 'right', 'top', 'bottom'))
 
-    def __init__(self, pxi):
-
-        self.pxi = pxi
-        self.logger = logging.getLogger(str(self.__class__))
+    def __init__(self, pxi, node: ET.Element = None):
+        super().__init__(pxi, "camera", node)
         self.measurement_success = False  # Tracks whether self.last_measurement is useful.
 
         # Labview Camera variables
@@ -98,23 +96,8 @@ class Hamamatsu:
         self.session = NIIMAQSession()
         self.last_frame_acquired = -1
         self.camera_temp: float = 0.0
-        self.last_measurement = np.array([])  # Holds data from previous measurement in 3D array (shots,x,y)
-
-    @property
-    def reset_connection(self) -> bool:
-        return self.pxi.reset_connection
-
-    @reset_connection.setter
-    def reset_connection(self, value):
-        self.pxi.reset_connection = value
-
-    @property
-    def stop_connections(self) -> bool:
-        return self.pxi.stop_connections
-
-    @stop_connections.setter
-    def stop_connections(self, value):
-        self.pxi.stop_connections = value
+        # Holds data from previous measurement in 3D array (shots,x,y)
+        self.last_measurement = np.array([])
 
     def load_xml(self, node: ET.Element):
         """
@@ -123,45 +106,6 @@ class Hamamatsu:
         Args:
             'node': node with tag="camera"
         """
-        
-        def set_by_dict(attr: str, node_text: str, values: {str: str}):
-            """
-            Set the class a attribute attr based on the node_text
-            
-            Class attribute is set based on node_text, using a dictionary of 
-            values for the attribute. If node_text is not a key in the
-            dictionary, a default value specified in the dictionary itself will
-            be used.
-            
-            Args:
-                'attr': the name of the attribute to be set, which is
-                    also the node tag. 
-                'node_text': the text of the node whose tag  is 'attr'
-                'values': dictionary of values, where at least one key
-                    is "Default", whose value is the key for the default value
-                    in the dictionary
-            """
-            try: 
-                default = values["Default"]  # the key for the default value
-            except KeyError as key_er:
-                ''' 
-                This currently goes uncaught in upstream calls. Its an error having to do with 
-                the code that's been written so I think it should actually stop execution
-                '''
-                self.logger.error(f"Value dictionary for Hamamatsu.{attr} must include" +
-                                  "the key \'Default\', where the value is the key of" +
-                                  "the default value in the dictionary.",
-                                  exc_info=True)
-                raise key_er
-
-            assert node.tag == "camera", "This XML is not tagged for the camera"
-
-            if node_text in values.keys():
-                setattr(self, attr, values[node_text])
-            else:
-                self.logger.warning(f"Invalid {attr} setting {node_text}; using {default} " +
-                                    f"({values[default]}) instead.")
-                setattr(self, attr, values[default])
 
         # in the labview class, all of the settings that get updated here are
         # appended to a settings array. the only purpose of that array is for
@@ -169,7 +113,6 @@ class Hamamatsu:
         # so i have opted to not include said array.
 
         for child in node:
-            msg_non_numeric = "{}\n{} value {} is non-numeric!"
             if type(child) == ET.Element:
                 # handle each tag by name:
                 try:
@@ -180,99 +123,100 @@ class Hamamatsu:
                         # TODO : Check if this info is used anywhere in labview
                         pass
                     elif child.tag == "enable":
-                        enable = False
-                        if child.text.lower() == "true":
-                            enable = True
-                        self.enable = enable
+                        self.enable = self.str_to_bool(child.text)
 
                     elif child.tag == "analogGain":
-                        gain = int(child.text)
+                        gain = self.str_to_int(child.text)
                         as_ms = f"analogGain = {gain}\n analogGain must be between 0  and 5"
                         assert 0 < gain < 5, as_ms
                         self.analog_gain = gain
 
                     elif child.tag == "exposureTime":
                         # can convert scientifically-formatted numbers - good
-                        self.exposure_time = float(child.text)
+                        self.exposure_time = self.str_to_float(child.text)
 
                     elif child.tag == "EMGain":
-                        gain = int(child.text)
+                        gain = self.str_to_int(child.text)
                         as_ms = f"EMGain is {gain}\n EMGain must be between 0 and 255"
                         assert 0 < gain < 255, as_ms
                         self.em_gain = gain
 
                     elif child.tag == "triggerPolarity":
-                         set_by_dict("trigger_polarity", child.text, self.TRIG_POLARITY_VALUES)
+                        self.set_by_dict("trigger_polarity", child.text, self.TRIG_POLARITY_VALUES)
 
                     elif child.tag == "externalTriggerMode":
-                        set_by_dict("external_trigger_mode", child.text, self.EXT_TRIG_SOURCE_MODE_VALUES)
+                        self.set_by_dict("external_trigger_mode",
+                                         child.text,
+                                         self.EXT_TRIG_SOURCE_MODE_VALUES
+                                         )
 
                     elif child.tag == "scanSpeed":
-                        set_by_dict("scan_speed", child.text, self.SCAN_SPEED_VALUES)
+                        self.set_by_dict("scan_speed", child.text, self.SCAN_SPEED_VALUES)
 
                     elif child.tag == "lowLightSensitivity":
-                        set_by_dict("low_light_sensitivity", child.text, self.LL_SENSITIVITY_VALUES)
+                        self.set_by_dict(
+                            "low_light_sensitivity",
+                            child.text,
+                            self.LL_SENSITIVITY_VALUES
+                        )
 
                     elif child.tag == "externalTriggerSource":
-                        set_by_dict("external_trigger_source", child.text,
-                                    self.EXT_TRIG_SOURCE_VALUES)
+                        self.set_by_dict(
+                            "external_trigger_source",
+                            child.text,
+                            self.EXT_TRIG_SOURCE_VALUES
+                        )
 
                     elif child.tag == "cooling":
-                        set_by_dict("cooling", child.text, self.COOLING_VALUES)
+                        self.set_by_dict("cooling", child.text, self.COOLING_VALUES)
 
                     elif child.tag == "fan":
-                        set_by_dict("fan", child.text, self.FAN_VALUES)
+                        self.set_by_dict("fan", child.text, self.FAN_VALUES)
 
                     elif child.tag == "scanMode":
-                        set_by_dict("scan_mode", child.text, self.SCAN_MODE_VALUES)
+                        self.set_by_dict("scan_mode", child.text, self.SCAN_MODE_VALUES)
 
                     elif child.tag == "superPixelBinning":
                         self.super_pixel_binning = child.text
 
                     elif child.tag == "subArrayLeft":
-                        self.sub_array.left = int(child.text)
+                        self.sub_array.left = self.str_to_int(child.text)
 
                     elif child.tag == "subArrayTop":
-                        self.sub_array.top = int(child.text)
+                        self.sub_array.top = self.str_to_int(child.text)
 
                     elif child.tag == "subArrayWidth":
-                        self.sub_array.width = int(child.text)
+                        self.sub_array.width = self.str_to_int(child.text)
 
                     elif child.tag == "subArrayHeight":
-                        self.sub_array.height = int(child.text)
+                        self.sub_array.height = self.str_to_int(child.text)
 
                     elif child.tag == "frameGrabberAcquisitionRegionLeft":
-                        self.fg_acquisition_region.left = int(child.text)
+                        self.fg_acquisition_region.left = self.str_to_int(child.text)
 
                     elif child.tag == "frameGrabberAcquisitionRegionTop":
-                        self.fg_acquisition_region.top = int(child.text)
+                        self.fg_acquisition_region.top = self.str_to_int(child.text)
 
                     elif child.tag == "frameGrabberAcquisitionRegionRight":
-                        self.fg_acquisition_region.right = int(child.text)
+                        self.fg_acquisition_region.right = self.str_to_int(child.text)
 
                     elif child.tag == "frameGrabberAcquisitionRegionBottom":
-                        self.fg_acquisition_region.bottom = int(child.text)
+                        self.fg_acquisition_region.bottom = self.str_to_int(child.text)
 
                     elif child.tag == "numImageBuffers":
-                        self.num_img_buffers = int(child.text)
+                        self.num_img_buffers = self.str_to_int(child.text)
 
                     elif child.tag == "shotsPerMeasurement":
-                        self.shots_per_measurement = int(child.text)
+                        self.shots_per_measurement = self.str_to_int(child.text)
 
                     elif child.tag == "forceImagesToU16":
-                        force = False
-                        if child.text.lower() == "true":
-                            force = True
-                        self.images_to_U16 = force
+                        self.images_to_U16 = self.str_to_bool(child.text)
 
                     else:
                         self.logger.warning(f"Node {child.tag} is not a valid Hamamatsu attribute")
-                except (ValueError, AssertionError) as e:
+                except AssertionError as e:
                     # This should reduce code duplication
-                    if isinstance(e, ValueError):
-                        self.logger.error(f"{e}\n{child.tag} value {child.text} is non-numeric!", exc_info=True)
-                    if isinstance(e, AssertionError):
-                        self.logger.error(e, exc_info=True)
+                    self.logger.error(e, exc_info=True)
                     raise
 
     def init(self):

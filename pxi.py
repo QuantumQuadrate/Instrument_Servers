@@ -28,7 +28,7 @@ from queue import Queue, Empty
 from keylistener import KeyListener
 
 #### local device classes
-from hsdio import HSDIO
+from hsdio import HSDIO, HSDIOError
 from hamamatsu import Hamamatsu, IMAQError
 from tcp import TCP
 
@@ -64,7 +64,7 @@ class PXI:
         # instantiate the device objects
         self.hsdio = HSDIO(self)
         self.tcp = TCP(self, address)
-        self.hamamatsu = Hamamatsu()
+        self.hamamatsu = Hamamatsu(self)
         # TODO: implement these classes
         self.counters = None  # Counters()
         self.analog_input = None  # AnalogOutput(self)
@@ -203,19 +203,11 @@ class PXI:
                     # set up the HSDIO
                     try:
                         self.hsdio.load_xml(child)
-                    except e:
-                        # TODO:
-                        #   don't complete elif
-                        #   log error and traceback
-                        #   send message to cspy
-                        #   let cspy try again with new data
+                        self.hsdio.init()
+                        self.hsdio.update()
+                    except Exception as e:
+                        self.handle_errors(e, "Initializing HSDIO")
                         pass
-                    self.hsdio.init()
-                    self.hsdio.update()
-                    # self.hsdio.load_xml(child)
-                    # self.hsdio.init()
-                    # self.hsdio.update()
-                    pass
                 elif child.tag == "TTL":
                     # TODO: implement TTL class
                     #self.ttl.load_xml(child)
@@ -246,7 +238,7 @@ class PXI:
                     try:
                         self.hamamatsu.load_xml(child)  # Raises ValueError
                         self.hamamatsu.init()  # Raises IMAQErrors
-                    except (ValueError, IMAQError) as e:
+                    except Exception as e:
                         self.handle_errors(e, "initializing hamamatsu")
                         pass
 
@@ -291,7 +283,6 @@ class PXI:
         self.return_data = ""
         self.return_data_queue = Queue(0)
 
-
     def data_to_xml(self):
         """
         Convert responses from devices to xml and append to self.return_data_str
@@ -327,8 +318,6 @@ class PXI:
 
         return return_data_str
 
-            
-
     def measurement(self):
         """
         Return a queue of the acquired responses queried from device hardware
@@ -359,7 +348,7 @@ class PXI:
             self.system_checks()
             self.stop_tasks()  # TODO: implement
             return_data = self.data_to_xml()
-        return return_data
+            return return_data
 
 
     '''
@@ -458,7 +447,6 @@ class PXI:
         else:
             self.logger.info("Not a valid keypress. Type \'h\' for help.")
 
-
     # This decorator could be a nice way of handling timeouts across this class
     # without the need to put time.time calls explicitly in loops in various
     # methods, although that could be done. This would return a wrapper that 
@@ -471,5 +459,34 @@ class PXI:
         Check if function call in PXI class takes longer than a maximum time
 
         To be used as a decorator for functions in this class to 
+        """
+        pass
+
+    def handle_errors(self, error, traceback_str):
+        """
+        Placeholder function for error handling in pxi class
+
+        General Error handling philosophy for errors from instruments:
+            Instrument should log any error with a useful message detailing the source of the error
+                at the lowest level
+            If error should halt instrument activity, error should be raised to pxi class
+                Use logger.error(msg,exc_info=True) to log error with traceback
+            If error should not halt instrument activity, use logger.warning(msg,exc_info=t/f)
+                (t/f = with/without traceback)
+            When error is raised to pxi class, this function should be called
+            This function should send a message to the terminal output as well as to cspy, warning
+                the user that an error has occurred and that the PXI settings should be updated
+            The acquisition of data should stop, data sent back should be empty or useless
+            Devices which output signals (e.g Analog out, hsdio) should continue to cycle if they
+                can
+            Self.is_error should be set to True, regular operation can only resume once it is set
+                to false when PXI settings have been updated
+
+        It's entirely likely that this function won't be able to implement all of that, and instead
+            changes to the code above will need to take place. In either case this is here to detail
+            the error handling plan.
+        Args:
+            error : The error that was raised. Maybe it's useful to keep it around
+            traceback_str : string useful for traceback
         """
         pass

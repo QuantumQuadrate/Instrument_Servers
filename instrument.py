@@ -152,7 +152,7 @@ class XMLLoader(ABC):
 
 class Instrument(XMLLoader):
     
-    def __init__(self, pxi, expected_root, node: ET.ElementTree = None):
+    def __init__(self, pxi, expected_root, node: ET.Element = None):
         """
         Constructor for the Instrument abstract base class
         
@@ -176,7 +176,7 @@ class Instrument(XMLLoader):
         self.pxi.reset_connection = value
 
     @property
-    def stop_connections(self) ->bool:
+    def stop_connections(self) -> bool:
         return self.pxi.stop_connections
 
     @stop_connections.setter
@@ -184,7 +184,7 @@ class Instrument(XMLLoader):
         self.pxi.stop_connections = value
    
     @abstractmethod
-    def load_xml(self, node):
+    def load_xml(self, node: ET.Element):
         """
         Initialize the instrument class attributes from XML received from CsPy
         
