@@ -193,9 +193,29 @@ class AnalogInput(Instrument):
             # measurement type inferred from the task virtual channel
             self.data = self.task.read()
             
+    # TODO: compare output to what the LabVIEW method returns
+    def data_out(self) -> str:
+        """
+        Convert the received data into a specially-formatted string for CsPy
+        
+        Returns:
+            the instance's data string, formatted for reception by CsPy
+        """
+        
+        if not (self.stop_connections or self.reset_connection) and self.enable:
+        
+            # flatten the data and convert to a str 
+            data_shape = self.data.shape
+            flat_data = np.reshape(self.data, np.prod(data_shape))
             
-    def data_out(self):
-        """
-        Convert the received data into a specially-formatted string
-        """
-        pass
+            shape_str = ",".join([str(x) for x in data_shape])
+            
+            # flatten data to string of bytes. supposed to mimic LabVIEW's Flatten to String VI, 
+            # which is inappropriately named. according to the inconsistent docs it either outputs
+            # UTF-8 JSON or binary. this returns bytes and may therefore be wrong. 
+            data_bytes = struct.pack('!L', "".join([str(x) for x in flat_data]))
+                        
+            self.data_string = TCP.format_data('AI/dimensions', shape_str) + \
+                TCP.format_data('AI/data', data_bytes)
+                
+            return self.data_string
