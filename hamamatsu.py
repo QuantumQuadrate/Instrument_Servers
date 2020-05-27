@@ -14,7 +14,8 @@ import numpy as np
 import xml.etree.ElementTree as ET
 from ni_imaq import NIIMAQSession
 import re
-from tcp import format_data
+import struct
+from tcp import TCP
 from recordclass import recordclass as rc
 
 
@@ -452,7 +453,8 @@ class Hamamatsu:
                 self.session.attributes("ROI Width"),
                 self.session.attributes("ROI Height")
             ),
-            dtype=int
+
+            dtype=np.uint16
         )
         self.is_initialized = True
         self.num_images = 0
@@ -518,6 +520,9 @@ class Hamamatsu:
             er_c, bf_ind, img = self.session.extract_buffer(frame_ind)
             self.last_measurement[i, :, :] = img
 
+
+        # Make certain the type is correct before passing this on to CsPy
+        self.last_measurement = self.last_measurement.astype(np.uint16)
         self.last_frame_acquired = frame_ind
         self.read_camera_temp()
 
@@ -552,21 +557,22 @@ class Hamamatsu:
         hm = "Hamamatsu"
         hm_str = ""
         sz = self.last_measurement.shape
-        hm_str += format_data(f"{hm}/numShots", f"{sz[0]}")
-        hm_str += format_data(f"{hm}/rows", f"{sz[1]}")
-        hm_str += format_data(f"{hm}/columns", f"{sz[2]}")
+        hm_str += TCP.format_data(f"{hm}/numShots", f"{sz[0]}")
+        hm_str += TCP.format_data(f"{hm}/rows", f"{sz[1]}")
+        hm_str += TCP.format_data(f"{hm}/columns", f"{sz[2]}")
 
         for shot in range(sz[0]):
             flat_ar = np.reshape(self.last_measurement[shot, :, :], sz[1]*sz[2])
-            tmp_str = ar_to_str(flat_ar)  # TODO : implement based on encoding in cspy and labview
-            hm_str += format_data(f"{hm}/shots/{shot}", tmp_str)
+            tmp_str = u16_ar_to_str(flat_ar)
+            hm_str += TCP.format_data(f"{hm}/shots/{shot}", tmp_str)
 
-        hm_str += format_data(f"{hm}/temperature", "{:.3f}".format(self.camera_temp))
+        hm_str += TCP.format_data(f"{hm}/temperature", "{:.3f}".format(self.camera_temp))
 
         return hm_str
 
 
-def ar_to_str(ar: np.ndarray) -> str:  # TODO : Implement this, place logically
+def u16_ar_to_str(ar: np.ndarray) -> str:
+
     """
     Converts ar to a string encoded as useful for parsing xml messages sent back to cspy
 
@@ -575,4 +581,5 @@ def ar_to_str(ar: np.ndarray) -> str:  # TODO : Implement this, place logically
     Returns:
         string that's parsable by cspy xml reciever
     """
-    pass
+
+    return struct.pack(f"!{len(ar)}H", *ar)
