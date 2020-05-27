@@ -3,6 +3,8 @@ AnalogInput class for the PXI Server
 SaffmanLab, University of Wisconsin - Madison
 """
 
+# TODO: handle errors where nidaqmx functions are called?
+
 ## modules 
 import nidaqmx
 from nidaqmx.constants import Edge, AcquisitionType, Signal, TerminalConfiguration
@@ -139,3 +141,81 @@ class AnalogInput(Instrument):
                     self.start_trigger.cfg_dig_edge_start_trig(
                         trigger_source = self.startTrigger.source,
                         trigger_edge=self.startTrigger.edge)
+                        
+                        
+    def is_done(self) -> bool:
+        """
+        Check if the tasks being run are completed
+        
+        Return:
+            'done': True if tasks completed, connection was stopped or reset, or
+                self.enable is False. False otherwise.
+        """
+        
+        done = True
+        if not (self.stop_connections or self.reset_connection) and self.enable:
+        
+            # check if NI task is done
+            done = self.task.is_task_done()
+            
+        return done
+        
+
+    def start(self):
+        """
+        Start the task
+        """
+        
+        if not (self.stop_connections or self.reset_connection) and self.enable:
+            self.task.start()
+            
+
+    def stop(self):
+        """
+        Stop the task
+        """
+        
+        if self.enable:
+            self.task.stop()
+            
+            
+    def get_data(self):
+        """
+        Call nidaqmx.Task.read function to fill self.data. 
+        
+        self.data will be of a 2D array of floats, with dimensions based on the
+        sample/channel arguments passed to Task.ai_channels.add_ai_voltage_chan
+        """
+        
+        if not (self.stop_connections or self.reset_connection) and self.enable:
+        
+            # dadmx read 2D DBL N channel N sample. use defaults args. 
+            # measurement type inferred from the task virtual channel
+            self.data = self.task.read()
+            
+    # TODO: compare output to what the LabVIEW method returns
+    def data_out(self) -> str:
+        """
+        Convert the received data into a specially-formatted string for CsPy
+        
+        Returns:
+            the instance's data string, formatted for reception by CsPy
+        """
+        
+        if not (self.stop_connections or self.reset_connection) and self.enable:
+        
+            # flatten the data and convert to a str 
+            data_shape = self.data.shape
+            flat_data = np.reshape(self.data, np.prod(data_shape))
+            
+            shape_str = ",".join([str(x) for x in data_shape])
+            
+            # flatten data to string of bytes. supposed to mimic LabVIEW's Flatten to String VI, 
+            # which is inappropriately named. according to the inconsistent docs it either outputs
+            # UTF-8 JSON or binary. this returns bytes and may therefore be wrong. 
+            data_bytes = struct.pack('!L', "".join([str(x) for x in flat_data]))
+                        
+            self.data_string = TCP.format_data('AI/dimensions', shape_str) + \
+                TCP.format_data('AI/data', data_bytes)
+                
+            return self.data_string

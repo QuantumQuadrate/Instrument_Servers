@@ -54,7 +54,7 @@ class HSDIO(Instrument): # could inherit from an Instrument class if helpful
 
         # These two have are related to one another, each session is attached to a handle, each handle can support man
         # sessions. Sessions now have an attribute HsdioSession.handle (a python string)
-        self.instrumentHandles: List[str] = []  # List to hold instrument handles
+        self.instrumentHandles: List[str] = []  # List to hold instrument handles; CAN PROBABLY DELETE; sessions takes care of this
         self.sessions: List[HsdioSession] = []  # List to hold HsdioSession objects
         self.waveformArr: List[HSDIOWaveform] = []
 
@@ -150,8 +150,6 @@ class HSDIO(Instrument): # could inherit from an Instrument class if helpful
                     pass
 
                 self.sessions = []  # reset
-
-            # self.instrumentHandles.append("")  # Not sure why this is here
 
             if self.enable:
 
@@ -257,6 +255,43 @@ class HSDIO(Instrument): # could inherit from an Instrument class if helpful
                         )
         self.wvf_written = True
 
+    def is_done(self) -> bool:
+        """
+        Check if the tasks being run are completed
+
+        Return:
+            'done': True if tasks completed, connection was stopped or reset, or
+                self.enable is False. False otherwise.
+        """
+
+        done = True
+        if not (self.stop_connections or self.reset_connection) and self.enable:
+
+            for session in self.sessions:
+                error_code, _is_done = session.is_done()
+                # TODO : handle errors logically here or upstream
+                if not _is_done:
+                    done = False
+                    break
+
+        return done
+
+    def start(self):
+        """
+        Start the tasks
+        """
+        if not (self.stop_connections or self.reset_connection) and self.enable:
+            for session in self.sessions:
+                error_code = self.session.initiate()
+
+    def stop(self):
+        """
+        Abort the session
+        """
+        if self.enable:
+            for session in self.sessions:
+                error_code = session.abort()
+
     def settings(self, wf_arr, wf_names):  # TODO : @Juan Implement
         pass
         # the labview code has HSDIO.settings specifically for reading out the
@@ -264,3 +299,6 @@ class HSDIO(Instrument): # could inherit from an Instrument class if helpful
         # log certain HSDIO attributes
 
         # log stuff, call settings in the server code for debugging?
+
+    def print_txt(self, node): # for debugging
+        self.logger.info(f"{node.tag} = {node.text}")

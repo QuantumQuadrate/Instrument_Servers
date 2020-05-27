@@ -64,13 +64,13 @@ class PXI:
         # instantiate the device objects
         self.hsdio = HSDIO(self)
         self.tcp = TCP(self, address)
+        self.analog_input = AnalogOutput(self)
+        self.analog_output = AnalogInput(self)
+        self.ttl = TTLInput(self)
+        self.daqmx_do = DAQmxDO(self)
         self.hamamatsu = Hamamatsu(self)
         # TODO: implement these classes
         self.counters = None  # Counters()
-        self.analog_input = None  # AnalogOutput(self)
-        self.analog_output = None  # AnalogInput(self)
-        self.ttl = None  # TTL()
-        self.daqmx_do = None # DAQMX_DO()
 
     @property
     def stop_connections(self) -> bool:
@@ -190,15 +190,15 @@ class PXI:
                 elif child.tag == "pause":
                     # TODO: set state of server to 'pause';
                     # i don't know if this a feature that currently gets used,
-                    # so might be able to omit this. 
+                    # so might be able to omit this.
                     pass
-                    
+
                 elif child.tag == "run":
                     # TODO: set state of server to 'run';
                     # i don't know if this a feature that currently gets used,
-                    # so might be able to omit this. 
+                    # so might be able to omit this.
                     pass
-                    
+
                 elif child.tag == "HSDIO":
                     # set up the HSDIO
                     try:
@@ -209,14 +209,12 @@ class PXI:
                         self.handle_errors(e, "Initializing HSDIO")
                         pass
                 elif child.tag == "TTL":
-                    # TODO: implement TTL class
-                    #self.ttl.load_xml(child)
-                    #self.ttl.init()
+                    # self.ttl.load_xml(child)
+                    # self.ttl.init()
                     pass
                 elif child.tag == "DAQmxDO":
-                    # TODO: implement DAQmxDO class
-                    #self.daqmxdo.load_xml(child)
-                    #self.daqmxdo.init() # called setup in labview
+                    # self.daqmxdo.load_xml(child)
+                    # self.daqmxdo.init() # called setup in labview
                     pass
                 elif child.tag == "timeout":
                     try:
@@ -225,13 +223,13 @@ class PXI:
                     except ValueError as e:
                         self.logger.error(f"{e} \n {child.txt} is not valid "+
                                           f"text for node {child.tag}")
-                    
+
                 elif child.tag == "cycleContinuously":
                     cycle = False
                     if child.text.lower() == "True":
                         cycle = True
                     self.cycle_continuously = cycle
-                    
+
                 elif child.tag == "camera":
                     pass
                     # set up the Hamamatsu camera
@@ -243,42 +241,40 @@ class PXI:
                         pass
 
                 elif child.tag == "AnalogOutput":
-                    # TODO: implement analog_output class
                     # set up the analog_output
-                    #self.analog_output.load_xml(child)
-                    #self.analog_output.init() # setup in labview
-                    #self.analog_output.update()
+                    # self.analog_output.load_xml(child)
+                    # self.analog_output.init() # setup in labview
+                    # self.analog_output.update()
                     pass
-                    
+
                 elif child.tag == "AnalogInput":
-                    # TODO: implement analog_input class
                     # set up the analog_input
-                    #self.analog_input.load_xml(child)
-                    #self.analog_input.init() 
+                    # self.analog_input.load_xml(child)
+                    # self.analog_input.init()
                     pass
-                    
+
                 elif child.tag == "Counters":
                     # TODO: implement counters class
                     # set up the counters
-                    #self.counters.load_xml(child)
-                    #self.counters.init() 
+                    # self.counters.load_xml(child)
+                    # self.counters.init()
                     pass
-                    
+
                 # might implement, or might move RF generator functionality to
-                # CsPy based on code used by Hybrid. 
+                # CsPy based on code used by Hybrid.
                 elif child.tag == "RF_generators":
                     pass
-                    
+
                 else:
                     self.logger.warning(f"Node {child.tag} received is not a valid"+
                                    f"child tag under root <{root.tag}>")
-                 
-        # TODO: some sort of error handling. could have several try/except 
+
+        # TODO: some sort of error handling. could have several try/except
         # blocks in the if/elifs above
 
         # send a message back to CsPy
         self.tcp.send_message(self.return_data)
-        
+
         # clear the return data
         self.return_data = ""
         self.return_data_queue = Queue(0)
@@ -288,7 +284,7 @@ class PXI:
         Convert responses from devices to xml and append to self.return_data_str
 
         This method both returns the xml data as a string, and updates the PXI
-        instance variable 'return_data_str', where xml data comes from the 
+        instance variable 'return_data_str', where xml data comes from the
         device classes is_out methods.
 
         Returns:
@@ -298,22 +294,23 @@ class PXI:
         return_data_str = ""
 
         '''
-        I'm going to write these out explicitly for now. We can implement a large instrument list
-        and use abstract classes to simplify methods like this in the near future. Until then, I think
-        it's best to write it out.
-        -Juan
-                # the devices that have a data_out method
-        data_spawns = []
+        Once all data_out methods are implemented, could do something like this:
+        
+        # the devices that have a data_out method
+        data_devices = [self.counters, self.ttl, self.analog_input]
 
-        for spawn in data_spawns:
-            # TODO: implement data_out methods in the relevant classes
-            self.return_data_str += spawn.data_out()
+        for dev in data_devices:
+            try:
+                self.return_data_str += dev.data_out()
+            except Exception as e:
+                self.logger.error(f"encountered error in {dev}.data_out: \n {e}")
         '''
 
+
         #return_data_str += self.hamamatsu.data_out()  # TODO : Implement
-        #return_data_str += self.counters.data_out()  # TODO : Implement
-        #return_data_str += self.ttl.data_out()  # TODO : Implement
-        #return_data_str += self.analog_input.data_out()  # TODO : Implement
+        return_data_str += self.counters.data_out()
+        return_data_str += self.ttl.data_out()
+        return_data_str += self.analog_input.data_out()
         #return_data_str += self.demo.data_out()  # TODO : Implement
 
         return return_data_str
@@ -321,28 +318,26 @@ class PXI:
     def measurement(self):
         """
         Return a queue of the acquired responses queried from device hardware
-        
+
         Returns:
             'return_data_queue': (Queue) the responses received from the device
                 classes
         """
-        
-        if not (self.stop_connections or self.exit_measurement):
 
-            # TODO: implement these methods
+        if not (self.stop_connections or self.exit_measurement):
             self.reset_data()
             self.system_checks()
             self.start_tasks()  # TODO : Implement
 
             _is_done = False
             _is_error = False
-            # TODO:labview uses timed loop with 1kHz clock and dt=10 ms. 
+            # TODO : labview uses timed loop with 1kHz clock and dt=10 ms.
+            # How precise does this loop need to be?
             # loop until pulse output is completed
-            while not (_is_done or _is_error or self.stop_connections 
+            while not (_is_done or _is_error or self.stop_connections
                        or self.exit_measurement):
-                
                 _is_done, error_out = self.is_done()
-                #_is_error = error_out["IsError?"] # TODO implement somehow
+                # _is_error = error_out["IsError?"] # TODO implement somehow
 
             self.get_data()
             self.system_checks()
@@ -350,43 +345,55 @@ class PXI:
             return_data = self.data_to_xml()
             return return_data
 
-
-    '''
-    Note : This is the entirety of what the following two functions do in labview. They can, in 
-    principle, be expanded for other devices with similar needs. - Juan
-    '''
-
     def reset_data(self):
         """
         Resets data on devices which need to be reset.
 
-        So far only ttl is reset in labview code.
+        For now, only applies to TTL
         """
-        # self.ttl.reset_data()  # TODO : implement this
-        pass
+        self.ttl.reset_data()
 
     def system_checks(self):
-        pass
+        """
+        Check devices.
+
+        For now, only applies to TTL
+        """
+        self.ttl.check()
+
+    def start_tasks(self):
+        """
+        Start measurement and output tasks for relevant devices
+        """
+        # self.counters.start()  # TODO : Implement
+        self.daqmx_do.start()
+        self.hsdio.start()
+        self.analog_input.start()
+        self.analog_output.start()
+        # self.reset_timeout()  # TODO : Implement. need to discuss how we want to handle timing
 
     def stop_tasks(self):
-        pass
-    
+        """
+        Stop measurement and output tasks for relevant devices
+        """
+        # self.counters.stop()  # TODO : Implement
+        self.hsdio.stop()
+        self.daqmx_do.stop()
+        self.analog_input.stop()
+        self.analog_output.stop()
+
     def get_data(self):
         # self.counters.get_data()
-        try:
-            self.hamamatsu.minimal_acquire()
-        except (IMAQError, AssertionError) as e:
-            self.handle_errors(e, "hamamatsu minimal_acquire")
-        # self.analog_input.get_data()  # TODO : Implement
-        pass
+        # self.hamamatsu.minimal_acquire()  # TODO : Implement
+        self.analog_input.get_data()
 
-    def is_done(self):
+    def is_done(self) -> bool:
         """
         Check if devices running processes are done yet
 
         Loops over the device classes and calls the instance's is_done method
         for each device capable of running a process and breaks when a process
-        is found to not be done. 
+        is found to not be done.
 
         Returns:
             'done': will return True iff all the device processes are done.
@@ -394,20 +401,19 @@ class PXI:
 
         done = True
         if not (self.stop_connections or self.exit_measurement):
+            devices = [
+                self.hsdio,
+                self.analog_output,
+                self.analog_input,
+                self.daqmx_do]
 
-            devices = [self.hsdio, self.analog_output, self.analog_input]#,
-                       #self.daqmx_pulseout] # in labview daqmx_pulseout is 
-                                             # distinct from the DAQmxDO class
-            
-            # loop over devices which have is_done method; could generalize to
-            # explicitly listing devices above, but this is more transparent
+            # loop over devices which have is_done method
             for dev in devices:
-                pass
-                #TODO implement is_done method in the relevant device classes
-                #if not dev.is_done():
-                #    done = False
-                #    break
-        return done, 0
+                if not dev.is_done():
+                   done = False
+                   break
+
+        return done, 0 # why is there a zero here?
 
     def reset_timeout(self):
         """
@@ -422,16 +428,16 @@ class PXI:
     def on_key_press(self, key):
         """
         Determines what happens for key presses in the command prompt.
-        
-        This method to be passed into the KeyListener instance to be called 
+
+        This method to be passed into the KeyListener instance to be called
         when keys are pressed.
-        
+
         Args:
             'key': the returned key from msvcrt.getwch(), e.g. 'h'
         """
-        
+
         # self.logger.info(f"{key} was pressed")
-        
+
         if key == 'h':
             self.logger.info(self.help_str)
 
@@ -449,7 +455,7 @@ class PXI:
 
     # This decorator could be a nice way of handling timeouts across this class
     # without the need to put time.time calls explicitly in loops in various
-    # methods, although that could be done. This would return a wrapper that 
+    # methods, although that could be done. This would return a wrapper that
     # would probably have to do something like run the decorated function in
     # a different thread than the timer so it could stop that thread when the
     # time runs out; maybe there's a nicer way to do this. open to suggestions.
@@ -458,7 +464,7 @@ class PXI:
         """
         Check if function call in PXI class takes longer than a maximum time
 
-        To be used as a decorator for functions in this class to 
+        To be used as a decorator for functions in this class to
         """
         pass
 

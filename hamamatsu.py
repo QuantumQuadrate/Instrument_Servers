@@ -542,4 +542,5 @@ def u16_ar_to_str(ar: np.ndarray) -> str:  # Should the type hint on the return 
     Returns:
         string that's parsable by cspy xml reciever
     """
+
     return struct.pack(f"!{len(ar)}H", *ar)
