@@ -453,6 +453,7 @@ class Hamamatsu:
                 self.session.attributes("ROI Width"),
                 self.session.attributes("ROI Height")
             ),
+
             dtype=np.uint16
         )
         self.is_initialized = True
@@ -519,6 +520,7 @@ class Hamamatsu:
             er_c, bf_ind, img = self.session.extract_buffer(frame_ind)
             self.last_measurement[i, :, :] = img
 
+
         # Make certain the type is correct before passing this on to CsPy
         self.last_measurement = self.last_measurement.astype(np.uint16)
         self.last_frame_acquired = frame_ind
@@ -570,6 +572,7 @@ class Hamamatsu:
 
 
 def u16_ar_to_str(ar: np.ndarray) -> str:
+
     """
     Converts ar to a string encoded as useful for parsing xml messages sent back to cspy
 
@@ -578,4 +581,5 @@ def u16_ar_to_str(ar: np.ndarray) -> str:
     Returns:
         string that's parsable by cspy xml reciever
     """
+
     return struct.pack(f"!{len(ar)}H", *ar)

@@ -61,12 +61,12 @@ class PXI:
         self.hsdio = HSDIO(self)
         self.tcp = TCP(self, address)
         self.hamamatsu = Hamamatsu()
+        self.analog_input = AnalogOutput(self)
+        self.analog_output = AnalogInput(self)
+        self.ttl = TTLInput(self)
+        self.daqmx_do = DAQmxDO(self)
         # TODO: implement these classes
         self.counters = None  # Counters()
-        self.analog_input = None  # AnalogOutput(self)
-        self.analog_output = None  # AnalogInput(self)
-        self.ttl = None  # TTL()
-        self.daqmx_do = None # DAQMX_DO()
 
     @property
     def stop_connections(self) -> bool:
@@ -202,12 +202,10 @@ class PXI:
                     # self.hsdio.update()
                     pass
                 elif child.tag == "TTL":
-                    # TODO: implement TTL class
                     # self.ttl.load_xml(child)
                     # self.ttl.init()
                     pass
                 elif child.tag == "DAQmxDO":
-                    # TODO: implement DAQmxDO class
                     # self.daqmxdo.load_xml(child)
                     # self.daqmxdo.init() # called setup in labview
                     pass
@@ -232,7 +230,6 @@ class PXI:
                     # self.hamamatsu.init()
 
                 elif child.tag == "AnalogOutput":
-                    # TODO: implement analog_output class
                     # set up the analog_output
                     # self.analog_output.load_xml(child)
                     # self.analog_output.init() # setup in labview
@@ -240,7 +237,6 @@ class PXI:
                     pass
 
                 elif child.tag == "AnalogInput":
-                    # TODO: implement analog_input class
                     # set up the analog_input
                     # self.analog_input.load_xml(child)
                     # self.analog_input.init()
@@ -288,22 +284,23 @@ class PXI:
         return_data_str = ""
 
         '''
-        I'm going to write these out explicitly for now. We can implement a large instrument list
-        and use abstract classes to simplify methods like this in the near future. Until then, I think
-        it's best to write it out.
-        -Juan
-                # the devices that have a data_out method
-        data_spawns = []
+        Once all data_out methods are implemented, could do something like this:
+        
+        # the devices that have a data_out method
+        data_devices = [self.counters, self.ttl, self.analog_input]
 
-        for spawn in data_spawns:
-            # TODO: implement data_out methods in the relevant classes
-            self.return_data_str += spawn.data_out()
+        for dev in data_devices:
+            try:
+                self.return_data_str += dev.data_out()
+            except Exception as e:
+                self.logger.error(f"encountered error in {dev}.data_out: \n {e}")
         '''
-
+        
+        
         #return_data_str += self.hamamatsu.data_out()  # TODO : Implement
-        #return_data_str += self.counters.data_out()  # TODO : Implement
-        #return_data_str += self.ttl.data_out()  # TODO : Implement
-        #return_data_str += self.analog_input.data_out()  # TODO : Implement
+        return_data_str += self.counters.data_out()
+        return_data_str += self.ttl.data_out()
+        return_data_str += self.analog_input.data_out()
         #return_data_str += self.demo.data_out()  # TODO : Implement
 
         return return_data_str
@@ -339,52 +336,49 @@ class PXI:
             return_data = self.data_to_xml()
         return return_data
 
-
-    '''
-    Note : This is the entirety of what the following two functions do in labview. They can, in 
-    principle, be expanded for other devices with similar needs. - Juan
-    '''
-
     def reset_data(self):
         """
         Resets data on devices which need to be reset.
 
-        So far only ttl is reset in labview code.
+        For now, only applies to TTL
         """
-        # self.ttl.reset_data()  # TODO : implement this
-        pass
+        self.ttl.reset_data() 
 
     def system_checks(self):
         """
-        This is all this function does in the labview.
+        Check devices. 
+        
+        For now, only applies to TTL
         """
-        # self.ttl.ttl_check()  # TODO: Implement
-        pass
+        self.ttl.check() 
 
     def start_tasks(self):
+        """
+        Start measurement and output tasks for relevant devices
+        """
         # self.counters.start()  # TODO : Implement
-        # self.daqmx_do.start()  # TODO : Implement
-        # self.hsdio.start()  # TODO : Implement
-        # self.analog_input.start()  # TODO : Implement
-        # self.analog_output.start()  # TODO : Implement
-        # self.reset_timeout()  # TODO : Implement
-        pass
+        self.daqmx_do.start()  
+        self.hsdio.start()  
+        self.analog_input.start()
+        self.analog_output.start()
+        # self.reset_timeout()  # TODO : Implement. need to discuss how we want to handle timing
 
     def stop_tasks(self):
+        """
+        Stop measurement and output tasks for relevant devices
+        """
         # self.counters.stop()  # TODO : Implement
-        # self.hsdio.stop()  # TODO : Implement
-        # self.daqmx_do.stop()  # TODO : Implement
-        # self.analog_input.stop()  # TODO : Implement
-        # self.analog_output.stop()  # TODO : Implement
-        pass
+        self.hsdio.stop()  
+        self.daqmx_do.stop()
+        self.analog_input.stop()
+        self.analog_output.stop() 
 
     def get_data(self):
         # self.counters.get_data()
         # self.hamamatsu.minimal_acquire()  # TODO : Implement
-        # self.analog_input.get_data()  # TODO : Implement
-        pass
+        self.analog_input.get_data()
 
-    def is_done(self):
+    def is_done(self) -> bool:
         """
         Check if devices running processes are done yet
 
@@ -398,19 +392,19 @@ class PXI:
 
         done = True
         if not (self.stop_connections or self.exit_measurement):
-            devices = [self.hsdio, self.analog_output, self.analog_input]  # ,
-            # self.daqmx_pulseout] # in labview daqmx_pulseout is
-            # distinct from the DAQmxDO class
+            devices = [
+                self.hsdio, 
+                self.analog_output, 
+                self.analog_input, 
+                self.daqmx_do]
 
-            # loop over devices which have is_done method; could generalize to
-            # explicitly listing devices above, but this is more transparent
+            # loop over devices which have is_done method
             for dev in devices:
-                pass
-                # TODO implement is_done method in the relevant device classes
-                # if not dev.is_done():
-                #    done = False
-                #    break
-        return done, 0
+                if not dev.is_done():
+                   done = False
+                   break
+                   
+        return done, 0 # why is there a zero here?
 
     def reset_timeout(self):
         """
@@ -449,18 +443,3 @@ class PXI:
 
         else:
             self.logger.info("Not a valid keypress. Type \'h\' for help.")
-
-    # This decorator could be a nice way of handling timeouts across this class
-    # without the need to put time.time calls explicitly in loops in various
-    # methods, although that could be done. This would return a wrapper that
-    # would probably have to do something like run the decorated function in
-    # a different thread than the timer so it could stop that thread when the
-    # time runs out; maybe there's a nicer way to do this. open to suggestions.
-    @classmethod
-    def master_timeout(func):
-        """
-        Check if function call in PXI class takes longer than a maximum time
-
-        To be used as a decorator for functions in this class to
-        """
-        pass

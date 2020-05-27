@@ -125,3 +125,39 @@ class DAQmxDO(Instrument):
                     timeout=10.0) # default
                     
                 self.isInitialized = True
+                
+                
+    def is_done(self) -> bool:
+        """
+        Check if the tasks being run are completed
+        
+        Return:
+            'done': True if tasks completed, connection was stopped or reset, or
+                self.enable is False. False otherwise.
+        """
+        
+        done = True
+        if not (self.stop_connections or self.reset_connection) and self.enable:
+        
+            # check if NI task is dones
+            done = self.task.is_task_done()
+            
+        return done
+                
+
+    def start(self):
+        """
+        Start the task
+        """
+        
+        if not (self.stop_connections or self.reset_connection) and self.enable:
+            self.task.start()
+            
+            
+    def stop(self):
+        """
+        Stop the task
+        """
+        
+        if self.enable:
+            self.task.stop()

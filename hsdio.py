@@ -53,7 +53,7 @@ class HSDIO(Instrument): # could inherit from an Instrument class if helpful
 
         # These two have are related to one another, each session is attached to a handle, each handle can support man
         # sessions. Sessions now have an attribute HsdioSession.handle (a python string)
-        self.instrumentHandles = []  # array to hold instrument handles
+        self.instrumentHandles = []  # array to hold instrument handles; CAN PROBABLY DELETE; sessions takes care of this
         self.sessions = []  # array to hold HsdioSession objects
         self.waveformArr = []
 
@@ -160,7 +160,7 @@ class HSDIO(Instrument): # could inherit from an Instrument class if helpful
 
             if self.isInitialized:
 
-                for session in self.sessions:
+                for session in self.sessions: #
                     session.abort()
                     session.close()
                     pass
@@ -171,8 +171,6 @@ class HSDIO(Instrument): # could inherit from an Instrument class if helpful
                     # Its worth considering how these handles are being populated - Juan
 
                 self.sessions = []  # reset
-
-            # self.instrumentHandles.append("")  # Not sure why this is here
 
             if self.enable:
 
@@ -253,6 +251,46 @@ class HSDIO(Instrument): # could inherit from an Instrument class if helpful
                                 max(wave.transitions),
                                 data
                             )
+    
+    
+    def is_done(self) -> bool:
+        """
+        Check if the tasks being run are completed
+        
+        Return:
+            'done': True if tasks completed, connection was stopped or reset, or
+                self.enable is False. False otherwise.
+        """
+        
+        done = True
+        if not (self.stop_connections or self.reset_connection) and self.enable:
+            
+            for session in self.sessions:
+                error_code, _is_done = session.is_done()
+                # TODO : handle errors logically here or upstream
+                if not _is_done:
+                    done = False
+                    break
+
+        return done
+ 
+    
+    def start(self):
+        """
+        Start the tasks
+        """
+        if not (self.stop_connections or self.reset_connection) and self.enable:
+            for session in self.sessions:
+                error_code = self.session.initiate()
+                
+
+    def stop(self):
+        """
+        Abort the session
+        """
+        if self.enable:
+            for session in self.sessions:
+                error_code = session.abort()
 
 
     def settings(self, wf_arr, wf_names):
@@ -262,6 +300,7 @@ class HSDIO(Instrument): # could inherit from an Instrument class if helpful
         # log certain HSDIO attributes
 
         # log stuff, call settings in the server code for debugging?
+
 
     def print_txt(self, node): # for debugging
         self.logger.info(f"{node.tag} = {node.text}")
