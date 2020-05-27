@@ -11,9 +11,9 @@ import numpy as np
 import xml.etree.ElementTree as ET
 import os
 import struct
-import platform # for checking the os bit
+import platform  # for checking the os bit
 import logging
-from ni_hsdio import HsdioSession, HSDIOError
+from ni_hsdio import HSDIOSession, HSDIOError
 from typing import List
 
 ## local class imports
@@ -55,7 +55,7 @@ class HSDIO(Instrument): # could inherit from an Instrument class if helpful
         # These two have are related to one another, each session is attached to a handle, each handle can support man
         # sessions. Sessions now have an attribute HsdioSession.handle (a python string)
         self.instrumentHandles: List[str] = []  # List to hold instrument handles; CAN PROBABLY DELETE; sessions takes care of this
-        self.sessions: List[HsdioSession] = []  # List to hold HsdioSession objects
+        self.sessions: List[HSDIOSession] = []  # List to hold HsdioSession objects
         self.waveformArr: List[HSDIOWaveform] = []
 
         # whether or not we've actually populated the attributes above
@@ -73,66 +73,61 @@ class HSDIO(Instrument): # could inherit from an Instrument class if helpful
         assert node.tag == self.expectedRoot, "This XML is not tagged for the HSDIO"
 
         for child in node:
-            try:
+            # the LabView code ignores non-element nodes. not sure if this
+            # equivalent
+            if type(child) == ET.Element:
+                self.logger.debug(child)
+                # handle each tag by name:
+                if child.tag == "enable":
+                    self.enable = self.str_to_bool(child.text)
 
-                # the LabView code ignores non-element nodes. not sure if this
-                # equivalent
-                if type(child) == ET.Element:
-                    self.logger.debug(child)
-                    # handle each tag by name:
-                    if child.tag == "enable":
-                        self.enable = self.str_to_bool(child.text)
+                elif child.tag == "description":
+                    self.description = child.text
 
-                    elif child.tag == "description":
-                        self.description = child.text
+                elif child.tag == "resourceName":
+                    resources = np.array(child.text.split(","))
+                    self.resourceNames = resources
 
-                    elif child.tag == "resourceName":
-                        resources = np.array(child.text.split(","))
-                        self.resourceNames = resources
+                elif child.tag == "clockRate":
+                    clock_rate = self.str_to_float(child.text)
+                    self.clockRate = clock_rate
 
-                    elif child.tag == "clockRate":
-                        clock_rate = self.str_to_float(child.text)
-                        self.clockRate = clock_rate
+                elif child.tag == "hardwareAlignmentQuantum":
+                    self.hardwareAlignmentQuantum = child.text
 
-                    elif child.tag == "hardwareAlignmentQuantum":
-                        self.hardwareAlignmentQuantum = child.text
+                elif child.tag == "triggers":
 
-                    elif child.tag == "triggers":
+                    if type(child) == ET.Element:
+                        trigger_node = child
+                        for t_child in trigger_node:
+                            if type(t_child) == ET.Element:  # TODO : Should we deal with the else?
+                                self.scriptTriggers.append(Trigger(t_child))
 
-                        if type(child) == ET.Element:
-                            trigger_node = child
-                            for t_child in trigger_node:
-                                if type(t_child) == ET.Element:  # TODO : Should we deal with the else?
-                                    self.scriptTriggers.append(Trigger(t_child))
+                elif child.tag == "waveforms":
+                    self.logger.debug("found a waveform")
+                    wvforms_node = child
+                    for wvf_child in wvforms_node:
+                        if type(wvf_child) == ET.Element:  # TODO : Should we deal with the else?
+                            if wvf_child.tag == "waveform":
+                                self.waveformArr.append(HSDIOWaveform(wvf_child))
 
-                    elif child.tag == "waveforms":
-                        self.logger.debug("found a waveform")
-                        wvforms_node = child
-                        for wvf_child in wvforms_node:
-                            if type(wvf_child) == ET.Element:  # TODO : Should we deal with the else?
-                                if wvf_child.tag == "waveform":
-                                    self.waveformArr.append(HSDIOWaveform(wvf_child))
+                elif child.tag == "script":
+                    self.pulseGenScript = "Loren Ipsum"  # TODO : @Preston What goes here?
 
-                    elif child.tag == "script":
-                        self.pulseGenScript = "Loren Ipsum"  # TODO : @Preston What goes here?
+                elif child.tag == "startTrigger":
+                    self.startTrigger = StartTrigger(child)
 
-                    elif child.tag == "startTrigger":
-                        self.startTrigger = StartTrigger(child)
+                elif child.tag == "InitialState":
+                    self.initialStates = np.array(child.text.split(","))
 
-                    elif child.tag == "InitialState":
-                        self.initialStates = np.array(child.text.split(","))
+                elif child.tag == "IdleState":
+                    self.idleStates = np.array(child.text.split(","))
 
-                    elif child.tag == "IdleState":
-                        self.idleStates = np.array(child.text.split(","))
+                elif child.tag == "ActiveChannels":
+                    self.activeChannels = np.array(child.text.split("\n"))
 
-                    elif child.tag == "ActiveChannels":
-                        self.activeChannels = np.array(child.text.split("\n"))
-
-                    else:
-                        self.logger.warning("Not a valid XML tag for HSDIO initialization")
-            except AssertionError as e:
-                self.logger.error(e, exc_info=True)
-                raise
+                else:
+                    self.logger.warning("Not a valid XML tag for HSDIO initialization")
 
     def init(self):
         """
@@ -156,7 +151,7 @@ class HSDIO(Instrument): # could inherit from an Instrument class if helpful
                 iterables = zip(self.idleStates, self.initialStates,
                                 self.activeChannels, self.resourceNames)
                 for idle_state, init_state, chan_list, resource in iterables:
-                    self.sessions.append(HsdioSession(resource))
+                    self.sessions.append(HSDIOSession(resource))
                     session = self.sessions[-1]
 
                     try:

@@ -44,7 +44,8 @@ class XMLLoader(ABC):
         """
         pass
 
-    def str_to_bool(self, boolstr: str) -> bool:
+    @staticmethod
+    def str_to_bool(boolstr: str) -> bool:
         # TODO : Replace usages of instrumentfuncs versions with this one
         """
         return True or False case-insensitively for a string 'true' or 'false'
@@ -61,12 +62,12 @@ class XMLLoader(ABC):
         try:
             ret = conv[boolstr.lower()]
         except ValueError as e:
-            m = f"{e}\nboolstr = {boolstr} is non-boolean!"
-            self.logger.error(m, exc_info=True)
-            raise
+            m = f"boolstr = {boolstr} is non-boolean!"
+            raise ValueError(m)
         return conv[boolstr.lower()]
 
-    def str_to_int(self, num_str: str) -> int:
+    @staticmethod
+    def str_to_int(num_str: str) -> int:
         # TODO : replace usages of instrumentfuncs version with this one
         """
         return a signed integer anchored to the beginning of num_str
@@ -87,12 +88,13 @@ class XMLLoader(ABC):
         """
         try:
             ret = int(re.findall("^-?\d+", num_str)[0])
-        except IndexError as e:
-            self.logger.error(f"{e}\nnum_str = {num_str} is non numeric!", exc_info=True)
-            raise
+        except IndexError:
+            m = f"num_str = {num_str} is non numeric!"
+            raise ValueError(m)
         return ret
 
-    def str_to_float(self, num_str: str) -> float:
+    @staticmethod
+    def str_to_float(num_str: str) -> float:
         """
         Return a float based on input string, handle errors gracefully
         Args:
@@ -108,9 +110,9 @@ class XMLLoader(ABC):
         """
         try:
             ret = float(num_str)
-        except ValueError as e:
-            self.logger.error(f"{e}\nnum_str = {num_str} is non numeric!", exc_info=True)
-            raise
+        except ValueError:
+            m = f"num_str = {num_str} is non numeric!"
+            raise ValueError(m)
         return ret
 
     def set_by_dict(self, attr: str, node_text: str, values: {str: str}):
@@ -192,7 +194,15 @@ class Instrument(XMLLoader):
             'node': type is ET.Element. tag should match self.expectedRoot
             node.tag == self.expectedRoot
         """
-        
+
+        if self.stop_connections or self.reset_connection:
+            return
+
+        as_ms = f"node to open camera is tagged {node.tag}. Must be tagged {self.expectedRoot}"
+        assert node.tag == self.expectedRoot, as_ms
+
+        '''
+        Not sure any of this (except the self.enable setting) should be here
         if not (self.stop_connections or self.reset_connection):
         
             assert node.tag == self.expectedRoot, f"Expected xml tag {self.expectedRoot}"
@@ -202,7 +212,7 @@ class Instrument(XMLLoader):
                 if type(child) == ET.Element:
                 
                     if child.tag == "enable":
-                        self.enable = str_to_bool(child.text)
+                        self.enable = self.str_to_bool(child.text)
                 
                     # elif child.tag == "someOtherProperty":
                         # self.thatProperty = child.text
@@ -211,15 +221,19 @@ class Instrument(XMLLoader):
                         # TODO handle unexpected tag case
                         # self.logger.warning(f"Unrecognized XML tag \'{child.tag}\' in <{self.expectedRoot}>")
                         pass
-                    
+        '''
+
     @abstractmethod
     def init(self):
         """
         Initialize the device hardware with the attributes set in load_xml
         """
     
-        if not (self.stop_connections or self.reset_connection):
-            pass
+        if self.stop_connections or self.reset_connection:
+            return
+
+        if not self.enable:
+            return
                     
             
     

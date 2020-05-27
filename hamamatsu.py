@@ -20,8 +20,11 @@ from tcp import TCP
 from recordclass import recordclass as rc
 from instrument import Instrument
 
+SubArray = rc('SubArray', ('left', 'top', 'width', 'height'))
+FrameGrabberAqRegion = rc('FrameGrabberAqRegion', ('left', 'right', 'top', 'bottom'))
+
+
 class Hamamatsu(Instrument):
-    # TODO : Make this inherit from instrument class
     """
     Class to control the operation of the Hamamatsu camera using the NI IMAQ drivers
 
@@ -51,11 +54,10 @@ class Hamamatsu(Instrument):
     TRIG_POLARITY_VALUES = {"Negative": "ATP N", "Positive": "ATP P",
                             "Default": "Positive"}
 
-    SubArray = rc('SubArray', ('left', 'top', 'width', 'height'))
-    FrameGrabberAqRegion = rc('FrameGrabberAqRegion', ('left', 'right', 'top', 'bottom'))
+    # Error Codes ----------------------------------------------------------------------------------
+    IMG_ERR_BINT = -1074397163  # Invalid interface or session
 
     def __init__(self, pxi, node: ET.Element = None):
-        super().__init__(pxi, "camera", node)
         self.measurement_success = False  # Tracks whether self.last_measurement is useful.
 
         # Labview Camera variables
@@ -82,7 +84,7 @@ class Hamamatsu(Instrument):
         self.scan_mode = self.SCAN_MODE_VALUES[self.SCAN_MODE_VALUES["Default"]]
         self.super_pixel_binning = ""  # WHERES. MY. SUPER. SUIT?
         # Uses uint16 in labview, use ints here, cast where necessary
-        self.sub_array = self.SubArray(0, 0, 0, 0)
+        self.sub_array = SubArray(0, 0, 0, 0)
         self.num_img_buffers = 0  # imageBuffers in labview; renamed by tag name.
         self.shots_per_measurement = 2
         self.images_to_U16 = False
@@ -92,12 +94,14 @@ class Hamamatsu(Instrument):
         self.cooling = self.COOLING_VALUES[self.COOLING_VALUES["Default"]]
         self.fan = self.FAN_VALUES[self.FAN_VALUES["Default"]]
         # Uses int32 in labview, use ints here, cast where necessary
-        self.fg_acquisition_region = self.FrameGrabberAqRegion(0, 0, 0, 0)
+        self.fg_acquisition_region = FrameGrabberAqRegion(0, 0, 0, 0)
         self.session = NIIMAQSession()
         self.last_frame_acquired = -1
         self.camera_temp: float = 0.0
         # Holds data from previous measurement in 3D array (shots,x,y)
         self.last_measurement = np.array([])
+
+        super().__init__(pxi, "camera", node)
 
     def load_xml(self, node: ET.Element):
         """
@@ -107,117 +111,110 @@ class Hamamatsu(Instrument):
             'node': node with tag="camera"
         """
 
-        # in the labview class, all of the settings that get updated here are
-        # appended to a settings array. the only purpose of that array is for
-        # viewing the settings on the front panel by reading out the array,
-        # so i have opted to not include said array.
+        super().load_xml(node)
 
         for child in node:
             if type(child) == ET.Element:
                 # handle each tag by name:
-                try:
-                    if child.tag == "version":
-                        # labview code checks if camera settings are from
-                        # "2015.05.24", which is hardcoded. probably don't need
-                        # this case?
-                        # TODO : Check if this info is used anywhere in labview
-                        pass
-                    elif child.tag == "enable":
-                        self.enable = self.str_to_bool(child.text)
+                if child.tag == "version":
+                    # labview code checks if camera settings are from
+                    # "2015.05.24", which is hardcoded. probably don't need
+                    # this case?
+                    # TODO : Check if this info is used anywhere in labview
+                    pass
+                elif child.tag == "enable":
+                    self.enable = self.str_to_bool(child.text)
 
-                    elif child.tag == "analogGain":
-                        gain = self.str_to_int(child.text)
-                        as_ms = f"analogGain = {gain}\n analogGain must be between 0  and 5"
-                        assert 0 < gain < 5, as_ms
-                        self.analog_gain = gain
+                elif child.tag == "analogGain":
+                    gain = self.str_to_int(child.text)
+                    as_ms = f"analogGain = {gain}\n analogGain must be between 0  and 5"
+                    assert 0 < gain < 5, as_ms
+                    self.analog_gain = gain
 
-                    elif child.tag == "exposureTime":
-                        # can convert scientifically-formatted numbers - good
-                        self.exposure_time = self.str_to_float(child.text)
+                elif child.tag == "exposureTime":
+                    # can convert scientifically-formatted numbers - good
+                    self.exposure_time = self.str_to_float(child.text)
 
-                    elif child.tag == "EMGain":
-                        gain = self.str_to_int(child.text)
-                        as_ms = f"EMGain is {gain}\n EMGain must be between 0 and 255"
-                        assert 0 < gain < 255, as_ms
-                        self.em_gain = gain
+                elif child.tag == "EMGain":
+                    gain = self.str_to_int(child.text)
+                    as_ms = f"EMGain is {gain}\n EMGain must be between 0 and 255"
+                    assert 0 < gain < 255, as_ms
+                    self.em_gain = gain
 
-                    elif child.tag == "triggerPolarity":
-                        self.set_by_dict("trigger_polarity", child.text, self.TRIG_POLARITY_VALUES)
+                elif child.tag == "triggerPolarity":
+                    self.set_by_dict("trigger_polarity", child.text, self.TRIG_POLARITY_VALUES)
 
-                    elif child.tag == "externalTriggerMode":
-                        self.set_by_dict("external_trigger_mode",
-                                         child.text,
-                                         self.EXT_TRIG_SOURCE_MODE_VALUES
-                                         )
+                elif child.tag == "externalTriggerMode":
+                    self.set_by_dict(
+                        "external_trigger_mode",
+                        child.text,
+                        self.EXT_TRIG_SOURCE_MODE_VALUES
+                    )
 
-                    elif child.tag == "scanSpeed":
-                        self.set_by_dict("scan_speed", child.text, self.SCAN_SPEED_VALUES)
+                elif child.tag == "scanSpeed":
+                    self.set_by_dict("scan_speed", child.text, self.SCAN_SPEED_VALUES)
 
-                    elif child.tag == "lowLightSensitivity":
-                        self.set_by_dict(
-                            "low_light_sensitivity",
-                            child.text,
-                            self.LL_SENSITIVITY_VALUES
-                        )
+                elif child.tag == "lowLightSensitivity":
+                    self.set_by_dict(
+                        "low_light_sensitivity",
+                        child.text,
+                        self.LL_SENSITIVITY_VALUES
+                    )
 
-                    elif child.tag == "externalTriggerSource":
-                        self.set_by_dict(
-                            "external_trigger_source",
-                            child.text,
-                            self.EXT_TRIG_SOURCE_VALUES
-                        )
+                elif child.tag == "externalTriggerSource":
+                    self.set_by_dict(
+                        "external_trigger_source",
+                        child.text,
+                        self.EXT_TRIG_SOURCE_VALUES
+                    )
 
-                    elif child.tag == "cooling":
-                        self.set_by_dict("cooling", child.text, self.COOLING_VALUES)
+                elif child.tag == "cooling":
+                    self.set_by_dict("cooling", child.text, self.COOLING_VALUES)
 
-                    elif child.tag == "fan":
-                        self.set_by_dict("fan", child.text, self.FAN_VALUES)
+                elif child.tag == "fan":
+                    self.set_by_dict("fan", child.text, self.FAN_VALUES)
 
-                    elif child.tag == "scanMode":
-                        self.set_by_dict("scan_mode", child.text, self.SCAN_MODE_VALUES)
+                elif child.tag == "scanMode":
+                    self.set_by_dict("scan_mode", child.text, self.SCAN_MODE_VALUES)
 
-                    elif child.tag == "superPixelBinning":
-                        self.super_pixel_binning = child.text
+                elif child.tag == "superPixelBinning":
+                    self.super_pixel_binning = child.text
 
-                    elif child.tag == "subArrayLeft":
-                        self.sub_array.left = self.str_to_int(child.text)
+                elif child.tag == "subArrayLeft":
+                    self.sub_array.left = self.str_to_int(child.text)
 
-                    elif child.tag == "subArrayTop":
-                        self.sub_array.top = self.str_to_int(child.text)
+                elif child.tag == "subArrayTop":
+                    self.sub_array.top = self.str_to_int(child.text)
 
-                    elif child.tag == "subArrayWidth":
-                        self.sub_array.width = self.str_to_int(child.text)
+                elif child.tag == "subArrayWidth":
+                    self.sub_array.width = self.str_to_int(child.text)
 
-                    elif child.tag == "subArrayHeight":
-                        self.sub_array.height = self.str_to_int(child.text)
+                elif child.tag == "subArrayHeight":
+                    self.sub_array.height = self.str_to_int(child.text)
 
-                    elif child.tag == "frameGrabberAcquisitionRegionLeft":
-                        self.fg_acquisition_region.left = self.str_to_int(child.text)
+                elif child.tag == "frameGrabberAcquisitionRegionLeft":
+                    self.fg_acquisition_region.left = self.str_to_int(child.text)
 
-                    elif child.tag == "frameGrabberAcquisitionRegionTop":
-                        self.fg_acquisition_region.top = self.str_to_int(child.text)
+                elif child.tag == "frameGrabberAcquisitionRegionTop":
+                    self.fg_acquisition_region.top = self.str_to_int(child.text)
 
-                    elif child.tag == "frameGrabberAcquisitionRegionRight":
-                        self.fg_acquisition_region.right = self.str_to_int(child.text)
+                elif child.tag == "frameGrabberAcquisitionRegionRight":
+                    self.fg_acquisition_region.right = self.str_to_int(child.text)
 
-                    elif child.tag == "frameGrabberAcquisitionRegionBottom":
-                        self.fg_acquisition_region.bottom = self.str_to_int(child.text)
+                elif child.tag == "frameGrabberAcquisitionRegionBottom":
+                    self.fg_acquisition_region.bottom = self.str_to_int(child.text)
 
-                    elif child.tag == "numImageBuffers":
-                        self.num_img_buffers = self.str_to_int(child.text)
+                elif child.tag == "numImageBuffers":
+                    self.num_img_buffers = self.str_to_int(child.text)
 
-                    elif child.tag == "shotsPerMeasurement":
-                        self.shots_per_measurement = self.str_to_int(child.text)
+                elif child.tag == "shotsPerMeasurement":
+                    self.shots_per_measurement = self.str_to_int(child.text)
 
-                    elif child.tag == "forceImagesToU16":
-                        self.images_to_U16 = self.str_to_bool(child.text)
+                elif child.tag == "forceImagesToU16":
+                    self.images_to_U16 = self.str_to_bool(child.text)
 
-                    else:
-                        self.logger.warning(f"Node {child.tag} is not a valid Hamamatsu attribute")
-                except AssertionError as e:
-                    # This should reduce code duplication
-                    self.logger.error(e, exc_info=True)
-                    raise
+                else:
+                    self.logger.warning(f"Node {child.tag} is not a valid Hamamatsu attribute")
 
     def init(self):
         """
@@ -228,11 +225,8 @@ class Hamamatsu(Instrument):
 
         This function should only be called after load_xml has been called at least once.
         """
-        if self.stop_connections or self.reset_connection:
-            return
 
-        if not self.enable:
-            return
+        super().init()
 
         if self.session.session_id.value != 0:
             self.session.close()
@@ -244,7 +238,12 @@ class Hamamatsu(Instrument):
             self.session.open_interface("img0")
             self.session.open_session()
         except IMAQError as e:
-            self.logger.error(e.message, exc_info=True)
+            try:
+                self.session.close(check_error=True)
+            except IMAQError as e1:
+                # This error indicates session/interface never opened
+                if e1.error_code != self.IMG_ERR_BINT:
+                    raise
             raise
 
         # call the Hamamatsu serial function to set the Hamamatsu settings
@@ -338,22 +337,23 @@ class Hamamatsu(Instrument):
                     )
             # default is to do nothing
         except IMAQError as e:
-            ms = f"{e.message}\nError writing camera settings. Many camera settings likely not set."
-            self.logger.error(ms, exc_info=True)
-            raise
+            ms = f"{e}\nError writing camera settings. Many camera settings likely not set."
+            self.session.close()
+            raise IMAQError(e.error_code, ms)
 
         try:
             self.session.set_roi(self.fg_acquisition_region)
         except IMAQError as e:
-            ms = f" {e.message}\nError: ROI not set correctly"
-            self.logger.warning(ms, exc_info=True)
+            ms = f" {e}\nError: ROI not set correctly"
+            self.session.close()
+            raise IMAQError(e.error_code, ms)
 
         try:
             self.session.setup_buffers(num_buffers=self.num_img_buffers)
         except IMAQError as e:
-            ms = f"{e.message}\nBuffer list not initialized correctly"
-            self.logger.error(ms, exc_info=True)
-            raise
+            ms = f"{e}\nBuffer list not initialized correctly"
+            self.session.close()
+            raise IMAQError(e.error_code, ms)
 
         # session attributes set in set_roi
         self.last_measurement = np.zeros(
@@ -382,13 +382,14 @@ class Hamamatsu(Instrument):
         try:
             self.session.session_acquire(asynchronous=True)
         except IMAQError as e:
-            self.logger.error(f"{e.message}\n Error beginning asynchronous acquisition", exc_info=True)
-            raise
+            ms = f"{e}\n Error beginning asynchronous acquisition"
+            self.session.close()
+            raise IMAQError(e.error_code, ms)
 
         try:
             err_c, trig_mode = self.session.hamamatsu_serial("?AMD")
         except IMAQError as e:
-            self.logger.warning(e.message)
+            self.logger.warning(e)
             trig_mode = "ERROR GETTING TRIG MODE"
         '''
         This function is called in labview and these variables are set (locally?) but they're not used in the scope, 
@@ -397,7 +398,7 @@ class Hamamatsu(Instrument):
         try:
             err_c, acquiring, last_buffer_index, last_buffer_number = self.session.status()
         except IMAQError as e:
-            self.logger.warning(e.message)
+            self.logger.warning(e)
             acquiring = "ERROR GETTING ACQUIRING STATUS"
             last_buffer_number = "ERROR GETTING LAST BUFFER NUMBER"
 
@@ -424,9 +425,8 @@ class Hamamatsu(Instrument):
         try:
             er_c, session_acquiring, last_buf_ind, last_buf_num = self.session.status()
         except IMAQError as e:
-            ms = f"{e.message}\nError Reading out session status during measurement"
-            self.logger.error(ms, exc_info=True)
-            raise
+            ms = f"{e}\nError Reading out session status during measurement"
+            raise IMAQError(e.error_code, ms)
 
         bf_dif = last_buf_num - self.last_frame_acquired
         not_enough_buffers = bf_dif > self.num_img_buffers
@@ -434,20 +434,13 @@ class Hamamatsu(Instrument):
         self.logger.debug(f"Last Frame : {self.last_frame_acquired}\n"
                           f"New Frame : {last_buf_num}\n"
                           f"Difference : {bf_dif}")
-        try:
-            assert session_acquiring, "In session.status() NOT acquiring"
-        except AssertionError as e:
-            self.logger.error(e, exc_info=True)
-            raise
+
+        assert session_acquiring, "In session.status() NOT acquiring"
 
         as_ms = "The number of images taken exceeds the number of buffers alloted." + \
                 "Images have been lost.  Increase the number of buffers."
         buf_num_ok = last_buf_num != self.last_frame_acquired and not_enough_buffers
-        try:
-            assert buf_num_ok and last_buf_num != -1, as_ms
-        except AssertionError as e:
-            self.logger.error(e, exc_info=True)
-            raise
+        assert buf_num_ok and last_buf_num != -1, as_ms
 
         frame_ind = self.last_frame_acquired
         # Warn user of previously silent failure mode.
@@ -464,11 +457,8 @@ class Hamamatsu(Instrument):
             try:
                 er_c, bf_ind, img = self.session.extract_buffer(frame_ind)
             except IMAQError as e:
-                self.logger.error(
-                    f"{e.message}\nError acquiring buffer number {frame_ind} measurement abandoned",
-                    exc_info=True
-                )
-                raise
+                ms = f"{e}\nError acquiring buffer number {frame_ind} measurement abandoned"
+                raise IMAQError(e.error_code, ms)
             self.last_measurement[i, :, :] = img
 
         # Make certain the type is correct before passing this on to CsPy
@@ -490,7 +480,7 @@ class Hamamatsu(Instrument):
                 er_c, msg_out = self.session.hamamatsu_serial(msg_in)
             except IMAQError as e:
                 self.logger.warning(
-                    f"{e.message}\nError reading camera temperature",
+                    f"{e}\nError reading camera temperature",
                     exc_info=True)
                 self.camera_temp = np.inf
                 return

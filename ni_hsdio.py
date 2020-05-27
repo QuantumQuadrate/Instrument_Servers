@@ -7,26 +7,18 @@ import logging
 
 class HSDIOError(Exception):
     """
-    Exception raised for errors coming from NI HSDIO drivers
+    Raised for errors coming from NI HSDIO drivers
 
     Attributes:
-        __error_code : Integer code representing the error state
-        __message : message corresponding to the error_code with some traceback info
+        error_code : Integer code representing the error state
+        message : message corresponding to the error_code with some traceback info
     """
     def __init__(self, error_code, message):
-        self.__error_code = error_code
-        self.__message = message
-
-    @property
-    def error_code(self):
-        return self.__error_code
-
-    @property
-    def message(self):
-        return self.__message
+        self.error_code = error_code
+        super().__init__(message)
 
 
-class HsdioSession:
+class HSDIOSession:
     """"
     Class to serve as a wrapper for niHSDIO.dll functions in a more python-like manner and store the
     information and state related to a single hsdio generation or acquisition session.
