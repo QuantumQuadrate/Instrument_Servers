@@ -134,13 +134,12 @@ class XMLLoader(ABC):
         """
         try:
             default = values["Default"]
-        except KeyError as key_er:
+        except KeyError as e:
             cl_str = str(self.__class__.__name__)
-            self.logger.error(f"Value dictionary for {attr} must include" +
-                              "the key \'Default\', where the value is the key of" +
-                              "the default value in the dictionary.",
-                              exc_info=True)
-            raise key_er
+            m = f"{e}\nIn {cl_str}, value dictionary for {attr} must include" +\
+                "the key \'Default\', where the value is the key of" +\
+                "the default value in the dictionary."
+            raise KeyError(m)
 
         try:
             setattr(self, attr, values[node_text])

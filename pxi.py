@@ -221,7 +221,7 @@ class PXI:
                         # get timeout in [ms]
                         self.measurement_timeout = 1000*float(child.text)
                     except ValueError as e:
-                        self.logger.error(f"{e} \n {child.txt} is not valid "+
+                        self.logger.error(f"{e} \n {child.text} is not valid "+
                                           f"text for node {child.tag}")
 
                 elif child.tag == "cycleContinuously":
@@ -236,7 +236,8 @@ class PXI:
                     try:
                         self.hamamatsu.load_xml(child)  # Raises ValueError
                         self.hamamatsu.init()  # Raises IMAQErrors
-                    except Exception as e:
+                    # Errors below are raised due to improper settings, should not stop executions
+                    except (IMAQError, AssertionError, ValueError, KeyError) as e:
                         self.handle_errors(e, "initializing hamamatsu")
                         pass
 

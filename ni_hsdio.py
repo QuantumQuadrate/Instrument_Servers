@@ -24,6 +24,7 @@ class HSDIOSession:
     information and state related to a single hsdio generation or acquisition session.
     """
 
+# Setting up DLL -----------------------------------------------------------------------------------
     if platform.machine().endswith("64"):
         programsDir32 = "Program Files (x86)"
     else:
@@ -31,6 +32,19 @@ class HSDIOSession:
 
     dllpath32 = os.path.join(f"C:\{programsDir32}\IVI Foundation\IVI\Bin", "niHSDIO.dll")
     dllpath64 = os.path.join("C:\Program Files\IVI Foundation\IVI\Bin", "niHSDIO_64.dll")
+
+# NI HSDIO Constants -------------------------------------------------------------------------------
+    # Generation Mode
+    NIHSDIO_VAL_WAVEFORM = 14
+    NIHSDIO_VAL_SCRIPTED = 15
+
+    # Digital Edge
+    NIHSDIO_VAL_RISING_EDGE = 12
+    NIHSDIO_VAL_FALLING_EDGE = 13
+
+    # Level Trigger Values
+    NIHSDIO_VAL_HIGH = 34
+    NIHSDIO_VAL_LOW = 35
 
     def __init__(self, handle: str):
         """
@@ -76,7 +90,7 @@ class HSDIOSession:
         self.hsdio.niHSDIO_error_message(
             self.vi,              # ViSession
             c_int32(error_code),  # ViStatus
-            c_err_msg               # ViChar[256]
+            c_err_msg             # ViChar[256]
         )
 
         err_msg = c_err_msg.value
@@ -218,9 +232,8 @@ class HSDIOSession:
                 negative values = Errors
         """
 
-        # TODO : Is this the right way to perform this check?
         allowed_sources = ["OnBoardClock", "STROBE", "ClkIn", "PXI_STAR"]
-        assert clock_source in allowed_sources
+        assert clock_source in allowed_sources, f"clock_source needs to be in {allowed_sources}"
 
         c_clock_source = c_char_p(clock_source.encode('utf-8'))
         error_code = self.hsdio.niHSDIO_ConfigureSampleClock(
@@ -247,10 +260,10 @@ class HSDIOSession:
 
         Args:
             generation_mode : code specifying generation mode to configure
-                14(WAVEFORM) - Calling self.initiate generates the named waveform represented by
-                NIHSDIO_ATTR_WAVEFORM_TO_GENERATE
-                15(SCRIPTED) - Calling niHSDIO_Initiate generates the script represented by
-                NIHSDIO_ATTR_SCRIPT_TO_GENERATE
+                14(self.NIHSDIO_VAL_WAVEFORM) - Calling self.initiate generates the named waveform
+                represented by the attribute NIHSDIO_ATTR_WAVEFORM_TO_GENERATE
+                15(self.NIHSDIO_VAL_SCRIPTED) - Calling niHSDIO_Initiate generates the script
+                represented by the attribute NIHSDIO_ATTR_SCRIPT_TO_GENERATE
 
             check_error : should the check() function be called once operation has completed
         Returns:
@@ -260,8 +273,7 @@ class HSDIOSession:
                 negative values = Errors
         """
 
-        # TODO : Is this the right way to perform this check?
-        allowed_modes = [14, 15]
+        allowed_modes = [self.NIHSDIO_VAL_WAVEFORM, self.NIHSDIO_VAL_SCRIPTED]
         assert generation_mode in allowed_modes
 
         error_code = self.hsdio.niHSDIO_ConfigureGenerationMode(
@@ -415,8 +427,8 @@ class HSDIOSession:
                 http://zone.ni.com/reference/en-XX/help/370520P-01/hsdiocref/cvinihsdio_configuredigitaledgestarttrigger
                 Note : Only NI 6555/6556 devices support PFI <24..31> and PXIe DStarB.
             edge : Specifies the edges to detect
-                12 - rising edge trigger
-                13 - falling edge trigger
+                12(HSDIOSession.NIHSDIO_RISING_EDGE) - rising edge trigger
+                13(HSDIOSession.NIHSDIO_FALLING_EDGE) - falling edge trigger
             check_error : should the check() function be called once operation has completed
         Returns:
             error code which reports status of operation.
@@ -426,7 +438,7 @@ class HSDIOSession:
         """
 
         # TODO : Define these values as class variables
-        allowed_edges = [12, 13]
+        allowed_edges = [self.NIHSDIO_VAL_RISING_EDGE, self.NIHSDIO_VAL_FALLING_EDGE]
         assert edge in allowed_edges
 
         c_source = c_char_p(source.encode('utf-8'))
@@ -485,7 +497,7 @@ class HSDIOSession:
                 negative values = Errors
         """
 
-        allowed_levels = [34, 35]
+        allowed_levels = [self.NIHSDIO_VAL_HIGH, self.NIHSDIO_VAL_LOW]
         assert level in allowed_levels
         allowed_ids = ["ScriptTrigger0",
                        "ScriptTrigger1",
@@ -550,7 +562,7 @@ class HSDIOSession:
                 negative values = Errors
         """
 
-        allowed_edges = [12, 13]
+        allowed_edges = [self.NIHSDIO_VAL_RISING_EDGE, self.NIHSDIO_VAL_FALLING_EDGE]
         assert edge in allowed_edges
         allowed_ids = ["ScriptTrigger0",
                        "ScriptTrigger1",

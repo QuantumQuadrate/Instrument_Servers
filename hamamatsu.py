@@ -241,7 +241,7 @@ class Hamamatsu(Instrument):
             try:
                 self.session.close(check_error=True)
             except IMAQError as e1:
-                # This error indicates session/interface never opened
+                # This error code indicates session/interface never opened
                 if e1.error_code != self.IMG_ERR_BINT:
                     raise
             raise
@@ -392,8 +392,9 @@ class Hamamatsu(Instrument):
             self.logger.warning(e)
             trig_mode = "ERROR GETTING TRIG MODE"
         '''
-        This function is called in labview and these variables are set (locally?) but they're not used in the scope, 
-        just broken out as indicators. I wonder if scope in labview is somehow different from what I imagine
+        This function is called in labview and these variables are set (locally?) but they're not 
+        sed in the scope, just broken out as indicators. I wonder if scope in labview is somehow 
+        different from what I imagine
         '''
         try:
             err_c, acquiring, last_buffer_index, last_buffer_number = self.session.status()
@@ -437,7 +438,7 @@ class Hamamatsu(Instrument):
 
         assert session_acquiring, "In session.status() NOT acquiring"
 
-        as_ms = "The number of images taken exceeds the number of buffers alloted." + \
+        as_ms = "The number of images taken exceeds the number of buffers allotted." + \
                 "Images have been lost.  Increase the number of buffers."
         buf_num_ok = last_buf_num != self.last_frame_acquired and not_enough_buffers
         assert buf_num_ok and last_buf_num != -1, as_ms
@@ -461,8 +462,8 @@ class Hamamatsu(Instrument):
                 raise IMAQError(e.error_code, ms)
             self.last_measurement[i, :, :] = img
 
-        # Make certain the type is correct before passing this on to CsPy
         self.measurement_success = True
+        # Make certain the type is correct before passing this on to CsPy
         self.last_measurement = self.last_measurement.astype(np.uint16)
         self.last_frame_acquired = frame_ind
         self.read_camera_temp()
@@ -502,7 +503,7 @@ class Hamamatsu(Instrument):
         if not self.enable:
             return ""
 
-        # Deal with the case where the last call to minimal acquire was unsuccessful
+        # TODO : Deal with the case where the last call to minimal acquire was unsuccessful
         if not self.measurement_success:
             return ""
 
