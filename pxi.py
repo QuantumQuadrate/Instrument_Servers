@@ -36,10 +36,10 @@ from tcp import TCP
 # TODO : Should this inherit from XMLLoader?
 class PXI:
     
-    help_str = ("At any time, type... \n"+
-	            " - \'h\' to see this message again \n"+
-				" - \'r\' to reset the connection to CsPy \n"+
-				" - \'q\' to stop the connection and close this server.")
+    help_str = ("At any time, type... \n" +
+                " - \'h\' to see this message again \n" +
+                " - \'r\' to reset the connection to CsPy \n" +
+                " - \'q\' to stop the connection and close this server.")
 
     def __init__(self, address: Tuple[str, int]):
         self.logger = logging.getLogger(str(self.__class__))
@@ -64,10 +64,10 @@ class PXI:
         # instantiate the device objects
         self.hsdio = HSDIO(self)
         self.tcp = TCP(self, address)
-        self.analog_input = AnalogOutput(self)
-        self.analog_output = AnalogInput(self)
-        self.ttl = TTLInput(self)
-        self.daqmx_do = DAQmxDO(self)
+        # self.analog_input = AnalogOutput(self)
+        # self.analog_output = AnalogInput(self)
+        # self.ttl = TTLInput(self)
+        # self.daqmx_do = DAQmxDO(self)
         self.hamamatsu = Hamamatsu(self)
         # TODO: implement these classes
         self.counters = None  # Counters()
@@ -128,14 +128,13 @@ class PXI:
                 self.parse_xml(xml_str)
 
             except Empty:
-                # TODO add these variables to constructor
                 self.exit_measurement = False
                 self.return_data_str = ""  # reset the list
 
                 if self.cycle_continuously:
                     # This method returns the data as well as updates
                     # 'return_data_str', so having a return in this method
-                    # seems uneccesary
+                    # seems unnecessary
                     return_data_str = self.measurement()
 
     def launch_keylisten_thread(self):
@@ -205,7 +204,7 @@ class PXI:
                         self.hsdio.load_xml(child)
                         self.hsdio.init()
                         self.hsdio.update()
-                    except Exception as e:
+                    except (HSDIOError, AssertionError, ValueError, KeyError) as e:
                         self.handle_errors(e, "Initializing HSDIO")
                         pass
                 elif child.tag == "TTL":
@@ -307,12 +306,11 @@ class PXI:
                 self.logger.error(f"encountered error in {dev}.data_out: \n {e}")
         '''
 
-
-        #return_data_str += self.hamamatsu.data_out()  # TODO : Implement
+        return_data_str += self.hamamatsu.data_out()
         return_data_str += self.counters.data_out()
         return_data_str += self.ttl.data_out()
         return_data_str += self.analog_input.data_out()
-        #return_data_str += self.demo.data_out()  # TODO : Implement
+        # return_data_str += self.demo.data_out()  # TODO : Implement
 
         return return_data_str
 
@@ -328,7 +326,7 @@ class PXI:
         if not (self.stop_connections or self.exit_measurement):
             self.reset_data()
             self.system_checks()
-            self.start_tasks()  # TODO : Implement
+            self.start_tasks()
 
             _is_done = False
             _is_error = False
@@ -342,7 +340,7 @@ class PXI:
 
             self.get_data()
             self.system_checks()
-            self.stop_tasks()  # TODO: implement
+            self.stop_tasks()
             return_data = self.data_to_xml()
             return return_data
 
@@ -368,7 +366,11 @@ class PXI:
         """
         # self.counters.start()  # TODO : Implement
         self.daqmx_do.start()
-        self.hsdio.start()
+        try:
+            self.hsdio.start()
+        except HSDIOError as e:
+            self.handle_errors(e, "hsdio start")
+            pass
         self.analog_input.start()
         self.analog_output.start()
         # self.reset_timeout()  # TODO : Implement. need to discuss how we want to handle timing
@@ -378,17 +380,20 @@ class PXI:
         Stop measurement and output tasks for relevant devices
         """
         # self.counters.stop()  # TODO : Implement
-        self.hsdio.stop()
+        try:
+            self.hsdio.stop()
+        except HSDIOError as e:
+            self.handle_errors(e, "hsdio stop")
         self.daqmx_do.stop()
         self.analog_input.stop()
         self.analog_output.stop()
 
     def get_data(self):
         # self.counters.get_data()
-        # self.hamamatsu.minimal_acquire()  # TODO : Implement
+        self.hamamatsu.minimal_acquire()
         self.analog_input.get_data()
 
-    def is_done(self) -> bool:
+    def is_done(self) -> Tuple[bool, int]:
         """
         Check if devices running processes are done yet
 
@@ -397,10 +402,15 @@ class PXI:
         is found to not be done.
 
         Returns:
-            'done': will return True iff all the device processes are done.
+            (done,error_code)
+                'done': will return True iff all the device processes are done.
+                'error_code': code to indicate current error state, 0 means no error
+                    positive values indicate warnings
+                    negative values indicate errors
         """
 
         done = True
+        # TODO : @Preston Fill out except blocks to deal with other instruments
         if not (self.stop_connections or self.exit_measurement):
             devices = [
                 self.hsdio,
@@ -409,12 +419,16 @@ class PXI:
                 self.daqmx_do]
 
             # loop over devices which have is_done method
-            for dev in devices:
-                if not dev.is_done():
-                   done = False
-                   break
+            try:
+                for dev in devices:
+                    if not dev.is_done():
+                        done = False
+                        break
+            except HSDIOError as e:
+                self.handle_errors(e, "check hsdio.is_done")
+                return done, e.error_code
 
-        return done, 0 # why is there a zero here?
+        return done, 0
 
     def reset_timeout(self):
         """

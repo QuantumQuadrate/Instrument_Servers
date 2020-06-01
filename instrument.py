@@ -201,7 +201,8 @@ class Instrument(XMLLoader):
         assert node.tag == self.expectedRoot, as_ms
 
         '''
-        Not sure any of this (except the self.enable setting) should be here
+        Not sure any of this (except the self.enable setting) should be here -Juan
+
         if not (self.stop_connections or self.reset_connection):
         
             assert node.tag == self.expectedRoot, f"Expected xml tag {self.expectedRoot}"

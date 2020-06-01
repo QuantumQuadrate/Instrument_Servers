@@ -11,6 +11,7 @@ import numpy as np
 from abc import ABC, abstractmethod
 import logging
 import xml.etree.ElementTree as ET
+from typing import List, Tuple
 
 
 class Waveform(ABC):
@@ -20,12 +21,6 @@ class Waveform(ABC):
     Methods that have the 'abstractmethod' decorator are abstract and must be 
     implemented explicitly in the child class. 
     """
-
-    '''
-    I would like to get rid of the optional arguments here. They are not used with the 
-    calls to HSDIOWaveform(), are they used with the calls to DAQMXWaveform()? Or in the tests?
-            -Juan
-    '''
 
     def __init__(self, name="", transitions=None, states=None, data_format=None):
         self.name = name
@@ -96,7 +91,7 @@ class DAQmxDOWaveform(Waveform):
         super().__init__(name, transitions, states, data_format)
         self.logger = logging.getLogger(str(self.__class__))
         
-    def init_from_xml(self, node): # equivalent to load waveform in labVIEW
+    def init_from_xml(self, node):  # equivalent to load waveform in labVIEW
         """ 
         Initialize attributes of waveform from xml
         
@@ -131,7 +126,14 @@ class HSDIOWaveform(Waveform):
     Waveform class for use in the HSDIO class
     """
     
-    def __init__(self, name="", transitions=None, states=None, data_format=None, node: ET.ElementTree = None):
+    def __init__(
+            self,
+            name="",
+            transitions=None,
+            states=None,
+            data_format=None,
+            node: ET.ElementTree = None
+    ):
         super().__init__(name, transitions, states, data_format)
         self.logger = logging.getLogger(str(self.__class__))
         if self.states is not None and node is None:
@@ -162,6 +164,7 @@ class HSDIOWaveform(Waveform):
                                   for line in child.text.split("\n")],
                                   dtype=c_uint32)
                 self.states = states
+                self.check_state_len()
 
             else:
                 self.logger.warning("Invalid Waveform attribute")
@@ -169,7 +172,8 @@ class HSDIOWaveform(Waveform):
     def decompress(
             self,
             data_format: str = "WDT",
-            data_layout: bool = True):
+            data_layout: bool = True
+    ) -> Tuple[str, np.array]:
         """
         Decompresses the waveform based on the information in self.states and self.transitions.
 
@@ -244,7 +248,7 @@ class HSDIOWaveform(Waveform):
                 s_old = c_state
         else:
             self.logger.error("You shouldn't be here, you used the wrong input for data_format")
-            return
+            return data_format, None
 
         self.data_format = data_format
         self.wvfm = wvfm
@@ -267,40 +271,51 @@ class HSDIOWaveform(Waveform):
             state_int = (state_int << 1) | ele
         return c_uint32(state_int)
 
-    def wave_split(self, flip: bool = True) -> [Waveform]:
+    def wave_split(self, flip: bool = True) -> List[HSDIOWaveform]:
         """
-        splits a waveform object into a list of waveform objects with len() = dev. where dev is the number of hsdio
-        devices receiving waveforms.
+        splits a waveform object into a list of waveform objects with len() = dev. where dev is the
+        number of hsdio devices receiving waveforms.
 
-        The hsdioSession methods assume waveform data that is encoded for a maximum of 32 channels per device. The
-        waveform information passed into the hsdio class via xml encodes data for all channels which will be operated
-        on multiple devices. This function is intended to perform the necessary split of data by copying most of the
-        Waveform object info into separate objects, with the states info split between them
+        The hsdioSession methods assume waveform data that is encoded for a maximum of 32 channels
+        per device. The waveform information passed into the hsdio class via xml encodes data for
+        all channels which will be operated on multiple devices. This function is intended to
+        perform the necessary split of data by copying most of the Waveform object info into
+        separate objects, with the states info split between them
 
         Args:
             flip : should the order of the channels in each new waveform be flipped?
 
         Returns:
-            numpy array of split up waveform objects
+            list of split up waveform objects
         """
 
         dev = int(len(self.states[0])/32)
 
         # mapping may be confused in practical order of devices, maybe flip comes before split?
-        wave_array = np.empty(dev, dtype=type(self))
+        wave_array = []
         for d in range(dev):
             if flip:
-                new_states = np.array([np.flip(state[d*32:(d+1)*32])
-                                    for state in self.states])
+                new_states = np.array([np.flip(state[d*32:(d+1)*32]) for state in self.states])
             else:
-                new_states = np.array([state[d*32:(d+1)*32]
-                                    for state in self.states])
-            wave_array[d] = Waveform(self.name, self.transitions, new_states, self.data_format)
+                new_states = np.array([state[d*32:(d+1)*32] for state in self.states])
+            wave_array.append(
+                HSDIOWaveform(
+                    self.name,
+                    self.transitions,
+                    new_states,
+                    self.data_format
+                )
+            )
 
         return wave_array
 
     def check_state_len(self):
+        """
+        checks that the states array
+        Returns:
+
+        """
         cl_str = str(self.__class__.__name__)
         state_len = self.states.shape[0]
-        as_ms = f"len({cl_str}.states[0]) = {state_len}; it's not divisible by 32!"
-        assert state_len == 0, as_ms
+        as_ms = f"{cl_str}.states.shape[0] = {state_len}; it's not divisible by 32!"
+        assert state_len % 32 == 0, as_ms

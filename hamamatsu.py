@@ -503,10 +503,6 @@ class Hamamatsu(Instrument):
         if not self.enable:
             return ""
 
-        # TODO : Deal with the case where the last call to minimal acquire was unsuccessful
-        if not self.measurement_success:
-            return ""
-
         hm = "Hamamatsu"
         hm_str = ""
         sz = self.last_measurement.shape
@@ -515,7 +511,11 @@ class Hamamatsu(Instrument):
         hm_str += TCP.format_data(f"{hm}/columns", f"{sz[2]}")
 
         for shot in range(sz[0]):
-            flat_ar = np.reshape(self.last_measurement[shot, :, :], sz[1]*sz[2])
+            if self.measurement_success:
+                flat_ar = np.reshape(self.last_measurement[shot, :, :], sz[1] * sz[2])
+            else:
+                # A failed measurement returns useless data of all 0
+                flat_ar = np.zeroes(sz[1]*sz[2])
             tmp_str = u16_ar_to_str(flat_ar)
             hm_str += TCP.format_data(f"{hm}/shots/{shot}", tmp_str)
 
