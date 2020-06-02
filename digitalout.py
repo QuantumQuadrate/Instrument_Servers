@@ -54,7 +54,7 @@ class DAQmxDO(Instrument):
                     for child in node:
                     
                         if node.text == "waitForStartTrigger":
-                            self.startTrigger.waitForStartTrigger = str_to_bool(child.text)
+                            self.startTrigger.wait_for_start_trigger = str_to_bool(child.text)
                         elif child.text == "source":
                             self.startTrigger.source = child.text
                         elif child.text == "edge":
@@ -113,7 +113,7 @@ class DAQmxDO(Instrument):
                     samps_per_chan=samplesPerChannel) 
                     
                 # Optionally set up start trigger
-                if self.startTrigger.waitForStartTrigger:
+                if self.startTrigger.wait_for_start_trigger:
                     self.task.start_trigger.cfg_dig_edge_start_trig(
                         trigger_source=self.startTrigger.source,
                         trigger_edge=self.startTrigger.edge)

@@ -12,14 +12,19 @@ camera and initialization of the hardware of said camera.
 from ctypes import *
 import numpy as np
 import xml.etree.ElementTree as ET
-from ni_imaq import NIIMAQSession
+from ni_imaq import NIIMAQSession, IMAQError
 import re
+import logging
 import struct
 from tcp import TCP
 from recordclass import recordclass as rc
+from instrument import Instrument
+
+SubArray = rc('SubArray', ('left', 'top', 'width', 'height'))
+FrameGrabberAqRegion = rc('FrameGrabberAqRegion', ('left', 'right', 'top', 'bottom'))
 
 
-class Hamamatsu:
+class Hamamatsu(Instrument):
     """
     Class to control the operation of the Hamamatsu camera using the NI IMAQ drivers
 
@@ -49,12 +54,11 @@ class Hamamatsu:
     TRIG_POLARITY_VALUES = {"Negative": "ATP N", "Positive": "ATP P",
                             "Default": "Positive"}
 
-    SubArray = rc('SubArray', ('left', 'top', 'width', 'height'))
-    FrameGrabberAqRegion = rc('FrameGrabberAqRegion', ('left', 'right', 'top', 'bottom'))
+    # Error Codes ----------------------------------------------------------------------------------
+    IMG_ERR_BINT = -1074397163  # Invalid interface or session
 
-    def __init__(self, pxi):
-
-        self.pxi = pxi
+    def __init__(self, pxi, node: ET.Element = None):
+        self.measurement_success = False  # Tracks whether self.last_measurement is useful.
 
         # Labview Camera variables
         self.is_initialized = False
@@ -80,7 +84,7 @@ class Hamamatsu:
         self.scan_mode = self.SCAN_MODE_VALUES[self.SCAN_MODE_VALUES["Default"]]
         self.super_pixel_binning = ""  # WHERES. MY. SUPER. SUIT?
         # Uses uint16 in labview, use ints here, cast where necessary
-        self.sub_array = self.SubArray(0, 0, 0, 0)
+        self.sub_array = SubArray(0, 0, 0, 0)
         self.num_img_buffers = 0  # imageBuffers in labview; renamed by tag name.
         self.shots_per_measurement = 2
         self.images_to_U16 = False
@@ -90,27 +94,14 @@ class Hamamatsu:
         self.cooling = self.COOLING_VALUES[self.COOLING_VALUES["Default"]]
         self.fan = self.FAN_VALUES[self.FAN_VALUES["Default"]]
         # Uses int32 in labview, use ints here, cast where necessary
-        self.fg_acquisition_region = self.FrameGrabberAqRegion(0, 0, 0, 0)
+        self.fg_acquisition_region = FrameGrabberAqRegion(0, 0, 0, 0)
         self.session = NIIMAQSession()
         self.last_frame_acquired = -1
         self.camera_temp: float = 0.0
-        self.last_measurement = np.array([])  # Holds data from previous measurement in 3D array (shots,x,y)
+        # Holds data from previous measurement in 3D array (shots,x,y)
+        self.last_measurement = np.array([])
 
-    @property
-    def reset_connection(self) -> bool:
-        return self.pxi.reset_connection
-
-    @reset_connection.setter
-    def reset_connection(self, value):
-        self.pxi.reset_connection = value
-
-    @property
-    def stop_connections(self) -> bool:
-        return self.pxi.stop_connections
-
-    @stop_connections.setter
-    def stop_connections(self, value):
-        self.pxi.stop_connections = value
+        super().__init__(pxi, "camera", node)
 
     def load_xml(self, node: ET.Element):
         """
@@ -119,212 +110,111 @@ class Hamamatsu:
         Args:
             'node': node with tag="camera"
         """
-        
-        def set_by_dict(attr: str, node_text: str, values: {str: str}):
-            """
-            Set the class a attribute attr based on the node_text
-            
-            Class attribute is set based on node_text, using a dictionary of 
-            values for the attribute. If node_text is not a key in the
-            dictionary, a default value specified in the dictionary itself will
-            be used.
-            
-            Args:
-                'attr': the name of the attribute to be set, which is
-                    also the node tag. 
-                'node_text': the text of the node whose tag  is 'attr'
-                'values': dictionary of values, where at least one key
-                    is "Default", whose value is the key for the default value
-                    in the dictionary
-            """
-            try: 
-                default = values["Default"]  # the key for the default value
-            except KeyError: 
-                # TODO: replace with logger
-                print(f"Value dictionary for Hamamatsu.{attr} must include" +
-                      "the key \'Default\', where the value is the key of" +
-                      "the default value in the dictionary.")
-                #  This should still throw an error. Code bellow won't execute in this case -Juan
 
-            assert node.tag == "camera", "This XML is not tagged for the camera"
-
-            if node_text in values:
-                setattr(self, attr, values[node_text])
-            else:
-                # TODO: replace with logger
-                print(f"Invalid {attr} setting {node_text}; using {default} " +
-                      f"({values[default]}) instead.")
-                setattr(self, attr, values[default])
-
-        # in the labview class, all of the settings that get updated here are
-        # appended to a settings array. the only purpose of that array is for
-        # viewing the settings on the front panel by reading out the array,
-        # so i have opted to not include said array.
+        super().load_xml(node)
 
         for child in node:
+            # handle each tag by name:
+            if child.tag == "version":
+                # labview code checks if camera settings are from
+                # "2015.05.24", which is hardcoded. probably don't need
+                # this case?
+                # TODO : Check if this info is used anywhere in labview
+                pass
+            elif child.tag == "enable":
+                self.enable = self.str_to_bool(child.text)
 
-            if type(child) == ET.Element:
-                # handle each tag by name:
-                if child.tag == "version":
-                    # labview code checks if camera settings are from
-                    # "2015.05.24", which is hardcoded. probably don't need
-                    # this case?
-                    # TODO : Check if this info is used anywhere in labview
-                    pass
-                elif child.tag == "enable":
-                    enable = False
-                    if child.text.lower() == "true":
-                        enable = True
-                    self.enable = enable
-                    
-                elif child.tag == "analogGain":
-                    try:
-                        gain = int(child.text)
-                        assert 0 < gain < 5, ("analogGain must be between 0 "+
-                                              " and 5")
-                        self.analog_gain = gain
-                    except ValueError as e:  #
-                        # TODO replace with logger
-                        print(f"{e}\n{child.tag} value {child.text} is non-numeric!")
-                        raise
-                        
-                elif child.tag == "exposureTime":
-                    try: 
-                        # can convert scientifically-formatted numbers - good
-                        self.exposure_time = float(child.text)
-                    except ValueError as e:  #
-                        # TODO replace with logger
-                        print(f"{e}\n{child.tag} value {child.text} is non-numeric!")
-                        raise
+            elif child.tag == "analogGain":
+                gain = self.str_to_int(child.text)
+                as_ms = f"analogGain = {gain}\n analogGain must be between 0  and 5"
+                assert 0 < gain < 5, as_ms
+                self.analog_gain = gain
 
-                elif child.tag == "EMGain":
-                    try:
-                        gain = int(child.text)
-                        assert 0 < gain < 255, "EMGain must be between 0 and 255"
-                        self.em_gain = gain
-                    except ValueError as e:  #
-                        # TODO replace with logger
-                        print(f"{e}\n{child.tag} value {child.text} is non-numeric!")
-                        raise
-                    
-                elif child.tag == "triggerPolarity":
-                    set_by_dict("trigger_polarity", child.text, self.TRIG_POLARITY_VALUES)
+            elif child.tag == "exposureTime":
+                # can convert scientifically-formatted numbers - good
+                self.exposure_time = self.str_to_float(child.text)
 
-                elif child.tag == "externalTriggerMode":
-                    set_by_dict("external_trigger_mode", child.text, self.EXT_TRIG_SOURCE_MODE_VALUES)
+            elif child.tag == "EMGain":
+                gain = self.str_to_int(child.text)
+                as_ms = f"EMGain is {gain}\n EMGain must be between 0 and 255"
+                assert 0 < gain < 255, as_ms
+                self.em_gain = gain
 
-                elif child.tag == "scanSpeed":
-                    set_by_dict("scan_speed", child.text, self.SCAN_SPEED_VALUES)
-                        
-                elif child.tag == "lowLightSensitivity":
-                    set_by_dict("low_light_sensitivity", child.text, self.LL_SENSITIVITY_VALUES)
- 
-                elif child.tag == "externalTriggerSource":
-                    set_by_dict("external_trigger_source", child.text,
-                                self.EXT_TRIG_SOURCE_VALUES)
-  
-                elif child.tag == "cooling":
-                    set_by_dict("cooling", child.text, self.COOLING_VALUES)
-                    
-                elif child.tag == "fan":
-                    set_by_dict("fan", child.text, self.FAN_VALUES)
-                    
-                elif child.tag == "scanMode":
-                    set_by_dict("scan_mode", child.text, self.SCAN_MODE_VALUES)
-                    
-                elif child.tag == "superPixelBinning":
-                    self.super_pixel_binning = child.text
-                    
-                elif child.tag == "subArrayLeft":
-                    try:
-                        self.sub_array.left = int(child.text)
-                    except ValueError as e: #
-                        # TODO replace with logger
-                        print(f"{e}\n{child.tag} value {child.text} is non-numeric!")
-                        raise
+            elif child.tag == "triggerPolarity":
+                self.set_by_dict("trigger_polarity", child.text, self.TRIG_POLARITY_VALUES)
 
-                elif child.tag == "subArrayTop":
-                    try:
-                        self.sub_array.top = int(child.text)
-                    except ValueError as e:  #
-                        # TODO replace with logger
-                        print(f"{e}\n{child.tag} value {child.text} is non-numeric!")
-                        raise
-                        
-                elif child.tag == "subArrayWidth":
-                    try:
-                        self.sub_array.width = int(child.text)
-                    except ValueError as e:  #
-                        # TODO replace with logger
-                        print(f"{e}\n{child.tag} value {child.text} is non-numeric!")
-                        raise
-                        
-                elif child.tag == "subArrayHeight":
-                    try:
-                        self.sub_array.height = int(child.text)
-                    except ValueError as e:  #
-                        # TODO replace with logger
-                        print(f"{e}\n{child.tag} value {child.text} is non-numeric!")
-                        raise
-                        
-                elif child.tag == "frameGrabberAcquisitionRegionLeft":
-                    try:
-                        self.fg_acquisition_region.left = int(child.text)
-                    except ValueError as e:  #
-                        # TODO replace with logger
-                        print(f"{e}\n{child.tag} value {child.text} is non-numeric!")
-                        raise
-                    
-                elif child.tag == "frameGrabberAcquisitionRegionTop":
-                    try:
-                        self.fg_acquisition_region.top = int(child.text)
-                    except ValueError as e:  #
-                        # TODO replace with logger
-                        print(f"{e}\n{child.tag} value {child.text} is non-numeric!")
-                        raise
-                        
-                elif child.tag == "frameGrabberAcquisitionRegionRight":
-                    try:
-                        self.fg_acquisition_region.right = int(child.text)
-                    except ValueError as e:  #
-                        # TODO replace with logger
-                        print(f"{e}\n{child.tag} value {child.text} is non-numeric!")
-                        raise
-                        
-                elif child.tag == "frameGrabberAcquisitionRegionBottom":
-                    try:
-                        self.fg_acquisition_region.bottom = int(child.text)
-                    except ValueError as e:  #
-                        # TODO replace with logger
-                        print(f"{e}\n{child.tag} value {child.text} is non-numeric!")
-                        raise
-                        
-                elif child.tag == "numImageBuffers":
-                    try:
-                        self.num_img_buffers = int(child.text)
-                    except ValueError as e:  #
-                        # TODO replace with logger
-                        print(f"{e}\n{child.tag} value {child.text} is non-numeric!")
-                        raise
-                    
-                elif child.tag == "shotsPerMeasurement":
-                    try:
-                        self.shots_per_measurement = int(child.text)
-                    except ValueError as e:  #
-                        # TODO replace with logger
-                        print(f"{e}\n{child.tag} value {child.text} is non-numeric!")
-                        raise
-                        
-                elif child.tag == "forceImagesToU16":
-                    force = False
-                    if child.text.lower() == "true":
-                        force = True
-                    self.images_to_U16 = force
-                    
-                else:
-                    # TODO: replace with logger
-                    print(f"Node {child.tag} is not a valid Hamamatsu attribute")
-            
+            elif child.tag == "externalTriggerMode":
+                self.set_by_dict(
+                    "external_trigger_mode",
+                    child.text,
+                    self.EXT_TRIG_SOURCE_MODE_VALUES
+                )
+
+            elif child.tag == "scanSpeed":
+                self.set_by_dict("scan_speed", child.text, self.SCAN_SPEED_VALUES)
+
+            elif child.tag == "lowLightSensitivity":
+                self.set_by_dict(
+                    "low_light_sensitivity",
+                    child.text,
+                    self.LL_SENSITIVITY_VALUES
+                )
+
+            elif child.tag == "externalTriggerSource":
+                self.set_by_dict(
+                    "external_trigger_source",
+                    child.text,
+                    self.EXT_TRIG_SOURCE_VALUES
+                )
+
+            elif child.tag == "cooling":
+                self.set_by_dict("cooling", child.text, self.COOLING_VALUES)
+
+            elif child.tag == "fan":
+                self.set_by_dict("fan", child.text, self.FAN_VALUES)
+
+            elif child.tag == "scanMode":
+                self.set_by_dict("scan_mode", child.text, self.SCAN_MODE_VALUES)
+
+            elif child.tag == "superPixelBinning":
+                self.super_pixel_binning = child.text
+
+            elif child.tag == "subArrayLeft":
+                self.sub_array.left = self.str_to_int(child.text)
+
+            elif child.tag == "subArrayTop":
+                self.sub_array.top = self.str_to_int(child.text)
+
+            elif child.tag == "subArrayWidth":
+                self.sub_array.width = self.str_to_int(child.text)
+
+            elif child.tag == "subArrayHeight":
+                self.sub_array.height = self.str_to_int(child.text)
+
+            elif child.tag == "frameGrabberAcquisitionRegionLeft":
+                self.fg_acquisition_region.left = self.str_to_int(child.text)
+
+            elif child.tag == "frameGrabberAcquisitionRegionTop":
+                self.fg_acquisition_region.top = self.str_to_int(child.text)
+
+            elif child.tag == "frameGrabberAcquisitionRegionRight":
+                self.fg_acquisition_region.right = self.str_to_int(child.text)
+
+            elif child.tag == "frameGrabberAcquisitionRegionBottom":
+                self.fg_acquisition_region.bottom = self.str_to_int(child.text)
+
+            elif child.tag == "numImageBuffers":
+                self.num_img_buffers = self.str_to_int(child.text)
+
+            elif child.tag == "shotsPerMeasurement":
+                self.shots_per_measurement = self.str_to_int(child.text)
+
+            elif child.tag == "forceImagesToU16":
+                self.images_to_U16 = self.str_to_bool(child.text)
+
+            else:
+                self.logger.warning(f"Node {child.tag} is not a valid Hamamatsu attribute")
+
     def init(self):
         """
         initialize the Hamamatsu camera's hardware 
@@ -334,117 +224,135 @@ class Hamamatsu:
 
         This function should only be called after load_xml has been called at least once.
         """
-        if self.stop_connections or self.reset_connection:
-            return
 
-        if not self.enable:
-            return
+        super().init()
 
         if self.session.session_id.value != 0:
             self.session.close()
 
-        if self.session.buff_list_init:
-            self.session.dispose_buffer_list()
+        self.is_initialized = False
 
-        # "img0" really shouldn't be hard-coded but it is in labview so we keep for now
-        self.session.open_interface("img0")
-        self.session.open_session()
+        try:
+            # "img0" really shouldn't be hard-coded but it is in labview so we keep for now
+            self.session.open_interface("img0")
+            self.session.open_session()
+        except IMAQError as e:
+            try:
+                self.session.close(check_error=True)
+            except IMAQError as e1:
+                # This error code indicates session/interface never opened
+                if e1.error_code != self.IMG_ERR_BINT:
+                    raise
+            raise
 
         # call the Hamamatsu serial function to set the Hamamatsu settings
-        self.session.hamamatsu_serial(self.cooling, self.cooling)
-        self.session.hamamatsu_serial(self.fan, self.fan)
-        self.session.hamamatsu_serial(self.scan_speed, self.scan_speed)
+        try:
+            self.session.hamamatsu_serial(self.cooling, self.cooling)
+            self.session.hamamatsu_serial(self.fan, self.fan)
+            self.session.hamamatsu_serial(self.scan_speed, self.scan_speed)
 
-        self.session.hamamatsu_serial(
-            self.external_trigger_source,
-            self.external_trigger_source)
+            self.session.hamamatsu_serial(
+                self.external_trigger_source,
+                self.external_trigger_source)
 
-        # set trigger mode to external
-        # TODO : set this mode by xml parameter
-        self.session.hamamatsu_serial("AMD E", "AMD E")
+            # set trigger mode to external
+            # TODO : set this mode by xml parameter
+            self.session.hamamatsu_serial("AMD E", "AMD E")
 
-        # set the external trigger mode
-        self.session.hamamatsu_serial(
-            self.external_trigger_mode,
-            self.external_trigger_mode
-        )
+            # set the external trigger mode
+            self.session.hamamatsu_serial(
+                self.external_trigger_mode,
+                self.external_trigger_mode
+            )
 
-        self.session.hamamatsu_serial(
-            self.trigger_polarity,
-            self.trigger_polarity
-        )
+            self.session.hamamatsu_serial(
+                self.trigger_polarity,
+                self.trigger_polarity
+            )
 
-        # labview uses "Number to Fraction String Format VI" to convert the
-        # exposure time to a string; as far as I can tell this formatting
-        # accomplishes the same.
-        exposure = "AET\s{.6f}".format(self.exposure_time)
-        self.session.hamamatsu_serial(exposure, exposure)
+            # labview uses "Number to Fraction String Format VI" to convert the
+            # exposure time to a string; as far as I can tell this formatting
+            # accomplishes the same.
+            exposure = "AET\s{.6f}".format(self.exposure_time)
+            self.session.hamamatsu_serial(exposure, exposure)
 
-        # labview uses "Number to Decimal String VI" to convert the
-        # EMGain to a string; as far as I can tell this formatting
-        # accomplishes the same thing in this use case
-        emgain = f"EMG\s{self.em_gain}"
-        self.session.hamamatsu_serial(emgain, emgain)
+            # labview uses "Number to Decimal String VI" to convert the
+            # EMGain to a string; as far as I can tell this formatting
+            # accomplishes the same thing in this use case
+            emgain = f"EMG\s{self.em_gain}"
+            self.session.hamamatsu_serial(emgain, emgain)
 
-        analog_gain = f"CEG\s{self.analog_gain}"
-        self.session.hamamatsu_serial(analog_gain,analog_gain)
+            analog_gain = f"CEG\s{self.analog_gain}"
+            self.session.hamamatsu_serial(analog_gain,analog_gain)
 
-        self.read_camera_temp()
+            self.read_camera_temp()
 
-        # last frame acquired. first actual frame will be zero.
-        self.last_frame_acquired = -1
+            # last frame acquired. first actual frame will be zero.
+            self.last_frame_acquired = -1
 
-        self.session.hamamatsu_serial(self.scan_mode, self.scan_mode)
+            self.session.hamamatsu_serial(self.scan_mode, self.scan_mode)
 
-        if self.scan_mode in self.SCAN_MODE_VALUES.values():
+            if self.scan_mode in self.SCAN_MODE_VALUES.values():
 
-            if self.scan_mode == "SMD S":  # superPixelBinning
+                if self.scan_mode == "SMD S":  # superPixelBinning
 
-                self.session.hamamatsu_serial(
-                    self.super_pixel_binning,
-                    self.super_pixel_binning
-                )
+                    self.session.hamamatsu_serial(
+                        self.super_pixel_binning,
+                        self.super_pixel_binning
+                    )
 
-            elif self.scan_mode == "SMD A":  # sub-array
+                elif self.scan_mode == "SMD A":  # sub-array
 
-                sub_array_left = ("SHO\s" +
-                                  str(self.sub_array.left))
+                    sub_array_left = ("SHO\s" +
+                                      str(self.sub_array.left))
 
-                self.session.hamamatsu_serial(
-                    sub_array_left,
-                    sub_array_left
-                )
+                    self.session.hamamatsu_serial(
+                        sub_array_left,
+                        sub_array_left
+                    )
 
-                sub_array_top = ("SVO\s" +
-                                 str(self.sub_array.top))
+                    sub_array_top = ("SVO\s" +
+                                     str(self.sub_array.top))
 
-                self.session.hamamatsu_serial(
-                    sub_array_top,
-                    sub_array_top
-                )
+                    self.session.hamamatsu_serial(
+                        sub_array_top,
+                        sub_array_top
+                    )
 
-                sub_array_width = ("SHW\s" +
-                                   str(self.sub_array.width))
+                    sub_array_width = ("SHW\s" +
+                                       str(self.sub_array.width))
 
-                self.session.hamamatsu_serial(
-                    sub_array_width,
-                    sub_array_width
-                )
+                    self.session.hamamatsu_serial(
+                        sub_array_width,
+                        sub_array_width
+                    )
 
-                sub_array_height = ("SVW\s" +
-                                    str(self.sub_array.height))
+                    sub_array_height = ("SVW\s" +
+                                        str(self.sub_array.height))
 
-                self.session.hamamatsu_serial(
-                    sub_array_height,
-                    sub_array_height
-                )
-        # default is to do nothing
+                    self.session.hamamatsu_serial(
+                        sub_array_height,
+                        sub_array_height
+                    )
+            # default is to do nothing
+        except IMAQError as e:
+            ms = f"{e}\nError writing camera settings. Many camera settings likely not set."
+            self.session.close()
+            raise IMAQError(e.error_code, ms)
 
-        self.session.set_roi(self.fg_acquisition_region)
+        try:
+            self.session.set_roi(self.fg_acquisition_region)
+        except IMAQError as e:
+            ms = f" {e}\nError: ROI not set correctly"
+            self.session.close()
+            raise IMAQError(e.error_code, ms)
 
-        self.session.setup_buffers(num_buffers=self.num_img_buffers)
-        if not self.session.buff_list_init:
-            pass  # TODO : deal with this error case
+        try:
+            self.session.setup_buffers(num_buffers=self.num_img_buffers)
+        except IMAQError as e:
+            ms = f"{e}\nBuffer list not initialized correctly"
+            self.session.close()
+            raise IMAQError(e.error_code, ms)
 
         # session attributes set in set_roi
         self.last_measurement = np.zeros(
@@ -453,7 +361,6 @@ class Hamamatsu:
                 self.session.attributes("ROI Width"),
                 self.session.attributes("ROI Height")
             ),
-
             dtype=np.uint16
         )
         self.is_initialized = True
@@ -462,7 +369,7 @@ class Hamamatsu:
 
     def start(self):
         """
-        Starts the data aquisition and outputs acquisition status to log
+        Starts the data acquisition and outputs acquisition status to log
         """
 
         if self.stop_connections or self.reset_connection:
@@ -471,56 +378,90 @@ class Hamamatsu:
         if not self.enable:
             return
         # begin asynchronous acquisition
-        self.session.session_acquire(asynchronous=True)
-        err_c, trig_mode = self.session.hamamatsu_serial("?AMD")
+        try:
+            self.session.session_acquire(asynchronous=True)
+        except IMAQError as e:
+            ms = f"{e}\n Error beginning asynchronous acquisition"
+            self.session.close()
+            raise IMAQError(e.error_code, ms)
+
+        try:
+            err_c, trig_mode = self.session.hamamatsu_serial("?AMD")
+        except IMAQError as e:
+            self.logger.warning(e)
+            trig_mode = "ERROR GETTING TRIG MODE"
         '''
-        This function is called in labview and these variables are set (locally?) but they're not used in the scope, 
-        just broken out as indicators. I wonder if scope in labview is somehow different from what I imagine
+        This function is called in labview and these variables are set (locally?) but they're not 
+        sed in the scope, just broken out as indicators. I wonder if scope in labview is somehow 
+        different from what I imagine
         '''
-        err_c, acquiring, last_buffer_index, last_buffer_number = self.session.status()
-        # TODO : use logging.debug
-        print(f"trig mode = {trig_mode}\n"
-              f"acquiring? = {acquiring}\n"
-              f"last buffer acquired image number = {last_buffer_number}")
+        try:
+            err_c, acquiring, last_buffer_index, last_buffer_number = self.session.status()
+        except IMAQError as e:
+            self.logger.warning(e)
+            acquiring = "ERROR GETTING ACQUIRING STATUS"
+            last_buffer_number = "ERROR GETTING LAST BUFFER NUMBER"
+
+        self.logger.debug(f"trig mode = {trig_mode}\n"
+                          f"acquiring? = {acquiring}\n"
+                          f"last buffer acquired image number = {last_buffer_number}")
 
     def minimal_acquire(self):
         """
         Writes data from session's image buffers to local image array (self.last_measurement)
-        """
 
+        Currently reads data from all buffers not previously read. If there is a timing issue then
+        number of buffers will not necessarily coincide with the number of shots per measurement.
+        Currently user is warned of this scenario through logger but more robust error handling may
+        be desired - Juan
+        """
+        self.measurement_success = False
         if self.stop_connections or self.reset_connection:
             return
 
         if not self.enable:
             return
-        er_c, session_acquiring, last_buf_ind, last_buf_num = self.session.status()
+
+        try:
+            er_c, session_acquiring, last_buf_ind, last_buf_num = self.session.status()
+        except IMAQError as e:
+            ms = f"{e}\nError Reading out session status during measurement"
+            raise IMAQError(e.error_code, ms)
+
         bf_dif = last_buf_num - self.last_frame_acquired
         not_enough_buffers = bf_dif > self.num_img_buffers
 
-        # TODO : use logging.debug
-        print(f"Last Frame : {self.last_frame_acquired}\n"
-              f"New Frame : {last_buf_num}\n"
-              f"Difference : {bf_dif}")
-        if not session_acquiring:
-            er_msg = "In session.status() NOT acquiring."
-            raise SomeError(er_msg)  # TODO : Replace placeholder
-        if last_buf_num != self.last_frame_acquired and last_buf_num != -1 and not_enough_buffers:
-            er_msg = "The number of images taken exceeds the number of buffers alloted." + \
+        self.logger.debug(f"Last Frame : {self.last_frame_acquired}\n"
+                          f"New Frame : {last_buf_num}\n"
+                          f"Difference : {bf_dif}")
+
+        assert session_acquiring, "In session.status() NOT acquiring"
+
+        as_ms = "The number of images taken exceeds the number of buffers allotted." + \
                 "Images have been lost.  Increase the number of buffers."
-            raise SomeError(er_msg)  # TODO : Replace placeholder
-            # TODO : Use logger
+        buf_num_ok = last_buf_num != self.last_frame_acquired and not_enough_buffers
+        assert buf_num_ok and last_buf_num != -1, as_ms
 
         frame_ind = self.last_frame_acquired
+        # Warn user of previously silent failure mode.
+        if bf_dif != self.shots_per_measurement:
+            self.logger.warning(
+                f"buffers to be read this measurement : {bf_dif} != "
+                f"self.shots_per_measurement : {self.shots_per_measurement}"
+            )
+
         for i in range(bf_dif):
             frame_ind += 1
-            # Why is this in the labview code? Should be a flag for you verbose logging is maybe?
-            # TODO : Use logging.debug
-            print("True: Acquiring a new image available\n"
-                  f" Reading buffer number {frame_ind}")
-            er_c, bf_ind, img = self.session.extract_buffer(frame_ind)
+            self.logger.debug("Acquiring a new available image\n"
+                              f" Reading buffer number {frame_ind}")
+            try:
+                er_c, bf_ind, img = self.session.extract_buffer(frame_ind)
+            except IMAQError as e:
+                ms = f"{e}\nError acquiring buffer number {frame_ind} measurement abandoned"
+                raise IMAQError(e.error_code, ms)
             self.last_measurement[i, :, :] = img
 
-
+        self.measurement_success = True
         # Make certain the type is correct before passing this on to CsPy
         self.last_measurement = self.last_measurement.astype(np.uint16)
         self.last_frame_acquired = frame_ind
@@ -535,7 +476,14 @@ class Hamamatsu:
 
         if self.enable:
             msg_in = "?TMP"
-            er_c, msg_out = self.session.hamamatsu_serial(msg_in)
+            try:
+                er_c, msg_out = self.session.hamamatsu_serial(msg_in)
+            except IMAQError as e:
+                self.logger.warning(
+                    f"{e}\nError reading camera temperature",
+                    exc_info=True)
+                self.camera_temp = np.inf
+                return
 
             m = re.match(r"TMP (\d+)\.(\d+)", msg_out)
             self.camera_temp = float("{}.{}".format(m.group(1), m.group(2)))
@@ -562,7 +510,11 @@ class Hamamatsu:
         hm_str += TCP.format_data(f"{hm}/columns", f"{sz[2]}")
 
         for shot in range(sz[0]):
-            flat_ar = np.reshape(self.last_measurement[shot, :, :], sz[1]*sz[2])
+            if self.measurement_success:
+                flat_ar = np.reshape(self.last_measurement[shot, :, :], sz[1] * sz[2])
+            else:
+                # A failed measurement returns useless data of all 0
+                flat_ar = np.zeroes(sz[1]*sz[2])
             tmp_str = u16_ar_to_str(flat_ar)
             hm_str += TCP.format_data(f"{hm}/shots/{shot}", tmp_str)
 
@@ -571,8 +523,7 @@ class Hamamatsu:
         return hm_str
 
 
-def u16_ar_to_str(ar: np.ndarray) -> str:
-
+def u16_ar_to_str(ar: np.ndarray) -> str:  # Should the type hint on the return be modified?
     """
     Converts ar to a string encoded as useful for parsing xml messages sent back to cspy
 

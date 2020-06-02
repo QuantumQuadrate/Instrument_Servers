@@ -28,17 +28,18 @@ from queue import Queue, Empty
 from keylistener import KeyListener
 
 #### local device classes
-from hsdio import HSDIO
-#from hamamatsu import Hamamatsu
+from hsdio import HSDIO, HSDIOError
+from hamamatsu import Hamamatsu, IMAQError
 from tcp import TCP
 
 
+# TODO : Should this inherit from XMLLoader?
 class PXI:
     
-    help_str = ("At any time, type... \n"+
-	            " - \'h\' to see this message again \n"+
-				" - \'r\' to reset the connection to CsPy \n"+
-				" - \'q\' to stop the connection and close this server.")
+    help_str = ("At any time, type... \n" +
+                " - \'h\' to see this message again \n" +
+                " - \'r\' to reset the connection to CsPy \n" +
+                " - \'q\' to stop the connection and close this server.")
 
     def __init__(self, address: Tuple[str, int]):
         self.logger = logging.getLogger(str(self.__class__))
@@ -46,6 +47,9 @@ class PXI:
         self._reset_connection = False
         self.cycle_continuously = True
         self.exit_measurement = False
+        self.return_data = ""
+        self.queued_return_data = ""
+        self.measurement_timeout = 0
 
         self.keylisten_thread = None
 
@@ -60,11 +64,11 @@ class PXI:
         # instantiate the device objects
         self.hsdio = HSDIO(self)
         self.tcp = TCP(self, address)
-        self.hamamatsu = Hamamatsu()
-        self.analog_input = AnalogOutput(self)
-        self.analog_output = AnalogInput(self)
-        self.ttl = TTLInput(self)
-        self.daqmx_do = DAQmxDO(self)
+        # self.analog_input = AnalogOutput(self)
+        # self.analog_output = AnalogInput(self)
+        # self.ttl = TTLInput(self)
+        # self.daqmx_do = DAQmxDO(self)
+        self.hamamatsu = Hamamatsu(self)
         # TODO: implement these classes
         self.counters = None  # Counters()
 
@@ -114,7 +118,7 @@ class PXI:
 
         This function handles the switching between updating devices and
         getting data from them, while the bulk of the work is done in the
-        hierarchy of methods in self.parse_xml and self.measurment.
+        hierarchy of methods in self.parse_xml and self.measurement.
         """
 
         while not self.stop_connections:
@@ -124,14 +128,13 @@ class PXI:
                 self.parse_xml(xml_str)
 
             except Empty:
-                # TODO add these variables to constructor
                 self.exit_measurement = False
                 self.return_data_str = ""  # reset the list
 
                 if self.cycle_continuously:
                     # This method returns the data as well as updates
                     # 'return_data_str', so having a return in this method
-                    # seems uneccesary
+                    # seems unnecessary
                     return_data_str = self.measurement()
 
     def launch_keylisten_thread(self):
@@ -197,10 +200,13 @@ class PXI:
 
                 elif child.tag == "HSDIO":
                     # set up the HSDIO
-                    # self.hsdio.load_xml(child)
-                    # self.hsdio.init()
-                    # self.hsdio.update()
-                    pass
+                    try:
+                        self.hsdio.load_xml(child)
+                        self.hsdio.init()
+                        self.hsdio.update()
+                    except (HSDIOError, AssertionError, ValueError, KeyError) as e:
+                        self.handle_errors(e, "Initializing HSDIO")
+                        pass
                 elif child.tag == "TTL":
                     # self.ttl.load_xml(child)
                     # self.ttl.init()
@@ -212,9 +218,9 @@ class PXI:
                 elif child.tag == "timeout":
                     try:
                         # get timeout in [ms]
-                        self.measurement_timeout = 1000 * float(child.text)
+                        self.measurement_timeout = 1000*float(child.text)
                     except ValueError as e:
-                        self.logger.error(f"{e} \n {child.txt} is not valid " +
+                        self.logger.error(f"{e} \n {child.text} is not valid "+
                                           f"text for node {child.tag}")
 
                 elif child.tag == "cycleContinuously":
@@ -226,8 +232,13 @@ class PXI:
                 elif child.tag == "camera":
                     pass
                     # set up the Hamamatsu camera
-                    # self.hamamatsu.load_xml(child)
-                    # self.hamamatsu.init()
+                    try:
+                        self.hamamatsu.load_xml(child)  # Raises ValueError
+                        self.hamamatsu.init()  # Raises IMAQErrors
+                    # Errors below are raised due to improper settings, should not stop executions
+                    except (IMAQError, AssertionError, ValueError, KeyError) as e:
+                        self.handle_errors(e, "initializing hamamatsu")
+                        pass
 
                 elif child.tag == "AnalogOutput":
                     # set up the analog_output
@@ -255,18 +266,17 @@ class PXI:
                     pass
 
                 else:
-                    self.logger.warning(f"Node {child.tag} received is not a valid" +
-                                        f"child tag under root <{root.tag}>")
+                    self.logger.warning(f"Node {child.tag} received is not a valid"+
+                                   f"child tag under root <{root.tag}>")
 
         # TODO: some sort of error handling. could have several try/except
         # blocks in the if/elifs above
 
-        # TODO: implement send message
         # send a message back to CsPy
-        self.tcp.send_message()
+        self.tcp.send_message(self.return_data)
 
         # clear the return data
-        self.return_data_str = ""
+        self.return_data = ""
         self.return_data_queue = Queue(0)
 
     def data_to_xml(self):
@@ -295,13 +305,12 @@ class PXI:
             except Exception as e:
                 self.logger.error(f"encountered error in {dev}.data_out: \n {e}")
         '''
-        
-        
-        #return_data_str += self.hamamatsu.data_out()  # TODO : Implement
+
+        return_data_str += self.hamamatsu.data_out()
         return_data_str += self.counters.data_out()
         return_data_str += self.ttl.data_out()
         return_data_str += self.analog_input.data_out()
-        #return_data_str += self.demo.data_out()  # TODO : Implement
+        # return_data_str += self.demo.data_out()  # TODO : Implement
 
         return return_data_str
 
@@ -314,11 +323,10 @@ class PXI:
                 classes
         """
 
-        return_data = ""
         if not (self.stop_connections or self.exit_measurement):
             self.reset_data()
             self.system_checks()
-            self.start_tasks()  # TODO : Implement
+            self.start_tasks()
 
             _is_done = False
             _is_error = False
@@ -332,9 +340,9 @@ class PXI:
 
             self.get_data()
             self.system_checks()
-            self.stop_tasks()  # TODO: implement
+            self.stop_tasks()
             return_data = self.data_to_xml()
-        return return_data
+            return return_data
 
     def reset_data(self):
         """
@@ -342,23 +350,27 @@ class PXI:
 
         For now, only applies to TTL
         """
-        self.ttl.reset_data() 
+        self.ttl.reset_data()
 
     def system_checks(self):
         """
-        Check devices. 
-        
+        Check devices.
+
         For now, only applies to TTL
         """
-        self.ttl.check() 
+        self.ttl.check()
 
     def start_tasks(self):
         """
         Start measurement and output tasks for relevant devices
         """
         # self.counters.start()  # TODO : Implement
-        self.daqmx_do.start()  
-        self.hsdio.start()  
+        self.daqmx_do.start()
+        try:
+            self.hsdio.start()
+        except HSDIOError as e:
+            self.handle_errors(e, "hsdio start")
+            pass
         self.analog_input.start()
         self.analog_output.start()
         # self.reset_timeout()  # TODO : Implement. need to discuss how we want to handle timing
@@ -368,17 +380,20 @@ class PXI:
         Stop measurement and output tasks for relevant devices
         """
         # self.counters.stop()  # TODO : Implement
-        self.hsdio.stop()  
+        try:
+            self.hsdio.stop()
+        except HSDIOError as e:
+            self.handle_errors(e, "hsdio stop")
         self.daqmx_do.stop()
         self.analog_input.stop()
-        self.analog_output.stop() 
+        self.analog_output.stop()
 
     def get_data(self):
         # self.counters.get_data()
-        # self.hamamatsu.minimal_acquire()  # TODO : Implement
+        self.hamamatsu.minimal_acquire()
         self.analog_input.get_data()
 
-    def is_done(self) -> bool:
+    def is_done(self) -> Tuple[bool, int]:
         """
         Check if devices running processes are done yet
 
@@ -387,24 +402,33 @@ class PXI:
         is found to not be done.
 
         Returns:
-            'done': will return True iff all the device processes are done.
+            (done,error_code)
+                'done': will return True iff all the device processes are done.
+                'error_code': code to indicate current error state, 0 means no error
+                    positive values indicate warnings
+                    negative values indicate errors
         """
 
         done = True
+        # TODO : @Preston Fill out except blocks to deal with other instruments
         if not (self.stop_connections or self.exit_measurement):
             devices = [
-                self.hsdio, 
-                self.analog_output, 
-                self.analog_input, 
+                self.hsdio,
+                self.analog_output,
+                self.analog_input,
                 self.daqmx_do]
 
             # loop over devices which have is_done method
-            for dev in devices:
-                if not dev.is_done():
-                   done = False
-                   break
-                   
-        return done, 0 # why is there a zero here?
+            try:
+                for dev in devices:
+                    if not dev.is_done():
+                        done = False
+                        break
+            except HSDIOError as e:
+                self.handle_errors(e, "check hsdio.is_done")
+                return done, e.error_code
+
+        return done, 0
 
     def reset_timeout(self):
         """
@@ -443,3 +467,47 @@ class PXI:
 
         else:
             self.logger.info("Not a valid keypress. Type \'h\' for help.")
+
+    # This decorator could be a nice way of handling timeouts across this class
+    # without the need to put time.time calls explicitly in loops in various
+    # methods, although that could be done. This would return a wrapper that
+    # would probably have to do something like run the decorated function in
+    # a different thread than the timer so it could stop that thread when the
+    # time runs out; maybe there's a nicer way to do this. open to suggestions.
+    @classmethod
+    def master_timeout(func):
+        """
+        Check if function call in PXI class takes longer than a maximum time
+
+        To be used as a decorator for functions in this class to
+        """
+        pass
+
+    def handle_errors(self, error, traceback_str):
+        """
+        Placeholder function for error handling in pxi class
+
+        General Error handling philosophy for errors from instruments:
+            Instrument should log any error with a useful message detailing the source of the error
+                at the lowest level
+            If error should halt instrument activity, error should be raised to pxi class
+                Use logger.error(msg,exc_info=True) to log error with traceback
+            If error should not halt instrument activity, use logger.warning(msg,exc_info=t/f)
+                (t/f = with/without traceback)
+            When error is raised to pxi class, this function should be called
+            This function should send a message to the terminal output as well as to cspy, warning
+                the user that an error has occurred and that the PXI settings should be updated
+            The acquisition of data should stop, data sent back should be empty or useless
+            Devices which output signals (e.g Analog out, hsdio) should continue to cycle if they
+                can
+            Self.is_error should be set to True, regular operation can only resume once it is set
+                to false when PXI settings have been updated
+
+        It's entirely likely that this function won't be able to implement all of that, and instead
+            changes to the code above will need to take place. In either case this is here to detail
+            the error handling plan.
+        Args:
+            error : The error that was raised. Maybe it's useful to keep it around
+            traceback_str : string useful for traceback
+        """
+        pass

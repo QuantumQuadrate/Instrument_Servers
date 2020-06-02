@@ -107,7 +107,7 @@ class AnalogOutput(Instrument):
                     self.waveforms = self.wave_from_str(child.text)
 
                 elif child.tag == "waitForStartTrigger":
-                    self.startTrigger.waitForStartTrigger = str_to_bool(child.text)
+                    self.startTrigger.wait_for_start_trigger = str_to_bool(child.text)
 
                 elif child.tag == "exportStartTrigger":
                     self.exportTrigger.exportStartTrigger = str_to_bool(child.text)
@@ -166,7 +166,7 @@ class AnalogOutput(Instrument):
                         sample_mode=AcquisitionType.FINITE, # default
                         samps_per_chan=1000) # default
                     
-                if self.startTrigger.waitForStartTrigger:
+                if self.startTrigger.wait_for_start_trigger:
                     self.task.start_trigger.cfg_dig_edge_start_trig(
                         trigger_source=self.startTrigger.source,
                         trigger_edge=self.startTrigger.edge) # default

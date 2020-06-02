@@ -6,129 +6,106 @@ SaffmanLab, University of Wisconsin - Madison
 from ctypes import c_uint32
 import xml.etree.ElementTree as ET
 from nidaqmx.constants import Edge
+from instrument import XMLLoader
 
 
-class Trigger:
+class Trigger(XMLLoader):
     """ Trigger data type for PXI server """
-    # TODO: Give these default keys like in the Hamamatsu class
-    types = {"Edge": 0,
-             "Level": 1}
-    edges = {"Rising Edge": 12,
-             "Falling Edge": 13}
-    levels = {"High Level": 34,
-              "Low Level": 35}
+    EDGES = {"Rising Edge": 12,
+             "Falling Edge": 13,
+             "Default": "Rising Edge"}
+
+    TYPES = {"Edge": 0,
+             "Level": 1,
+             "Default": "Edge"}
+
+    LEVELS = {"High Level": 34,
+              "Low Level": 35,
+              "Default": "High Level"}
     
-    def __init__(self, trigID="", source="", trigType=types["Edge"], 
-                 edge=edges["Rising Edge"], level=levels["High Level"]):
-        
-        self.trigID = trigID
-        self.source = source # PFI 0
-        self.trigType = trigType
-        self.edge = edge
-        self.level = level
-        
-    def init_from_xml(self, node):
+    def __init__(self, node: ET.Element = None):
+        self.source = ""
+        self.trig_ID = ""
+        self.trig_type = self.TYPES[self.TYPES["Default"]]
+        self.edge = self.EDGES[self.EDGES["Default"]]
+        self.level = self.LEVELS[self.LEVELS["Default"]]
+
+        super().__init__(node)
+
+    def load_xml(self, node: ET.Element):
         """
         re-initialize attributes for existing Trigger from children of node. 
         'node' is of type xml.etree.ElementTree.Element, with tag="trigger"
         """
+
         for child in node:
-            
-            if type(child) == ET.Element:
-            
-                if child.tag == "id": 
-                    self.trigID = child.text # script trigger 0
 
-                elif child.tag == "source":
-                    self.source = child.text # PFI 0
+            if child.tag == "id":
+                self.trig_ID = child.text  # script trigger 0
 
-                elif child.tag == "type":
+            elif child.tag == "source":
+                self.source = child.text  # PFI 0
 
-                    if child.text == "level":
-                        self.trigType = self.trigTypes["Level"]
+            elif child.tag == "type":
+                self.set_by_dict("trig_type", child.text, self.TYPES)
 
-                    # else, stick with default initialization
+            elif child.tag == "edge":
+                self.set_by_dict("edge", child.text, self.EDGES)
 
-                elif child.tag == "edge":
+            elif child.tag == "level":
+                self.set_by_dict("level", child.text, self.LEVELS)
 
-                    if child.text == "Falling Edge":
-                        self.edge = self.edges["Falling Edge"]
-                        pass
+            else:
+                self.logger.warning(f"{child.tag} is not a valid trigger attribute")
 
-                    # else, stick with default initialization
-
-                elif child.tag == "level":
-
-                    if child.text == "Low Level":
-                        self.level = self.levels["Low Level"]
-                        pass
-                    
-                else:
-                    # TODO: replace with logger
-                    print("Not a valid trigger attribute") 
-        
-    def __repr__(self): # mostly for debugging
-        return (f"Trigger(id={self.trigID}, source={self.source}, "
-                f"type={self.trigType}, edge={self.edge}, level={self.level})")
+    def __repr__(self):  # mostly for debugging
+        return (f"Trigger(id={self.trig_ID}, source={self.source}, "
+                f"type={self.trig_type}, edge={self.edge}, level={self.level})")
                 
 
-# with some refactoring, this could inherit from Trigger
-class StartTrigger: 
+class StartTrigger(XMLLoader):
+    """
+    TODO : @Preston write docstring for this class
+    """
+    EDGES = {"Rising Edge": 12,
+             "Falling Edge": 13,
+             "Default": "Rising Edge"}
 
-    # TODO add Default key
-    edges = {"Rising Edge": 12,
-             "Falling Edge": 13}
-
-    nidaqmx_edges = {"Rising" : Edge.RISING,
+    nidaqmx_edges = {"Rising": Edge.RISING,
                      "Falling": Edge.FALLING,
                      "Default": "Rising"}
 
-    def __init__(self, waitForStartTrigger=False, source="", description="", 
-                    edge=edges["Rising Edge"]):
-        self.waitForStartTrigger = waitForStartTrigger
-        self.source = source
-        self.description = description
-        self.edge = edge
+    def __init__(self, node: ET.Element = None):
+        self.source = ""
+        self.wait_for_start_trigger = False
+        self.description = ""
+        self.edge = self.EDGES[self.EDGES["Default"]]
 
-    def init_from_xml(self, node):
+        super().__init__(node)
+
+    def load_xml(self, node: ET.Element):
         """
         re-initialize attributes for existing StartTrigger from children of node. 
         'node' is of type xml.etree.ElementTree.Element, with tag="startTrigger"
         """
         for child in node:
 
-            if type(child) == ET.Element: 
+            if child.tag == "waitForStartTrigger":
+                self.wait_for_start_trigger = self.str_to_bool(child.tag)
 
-                if child.tag == "waitForStartTrigger":
+            elif child.tag == "source":
+                self.source = child.text  # PFI 0
 
-                    if child.text.lower() == "true":
-                        wait_bool = True
-                    else: # if it wasn't True, assume False
-                        wait_bool = False
-                    self.waitForStartTrigger = wait_bool
+            elif child.tag == "description":
+                self.description = child.text
 
-                elif child.tag == "source":
-                    self.source = child.text # PFI 0
-
-                elif child.tag == "description":
-                    self.description = child.text
-
-                elif child.tag == "edge":
-                
-                    if child.text == "falling":
-                        self.edge = StartTrigger.edges["Falling"]
-                    elif child.text == "rising":
-                        # this is the default value, do nothing
-                        pass
-                    else:
-                        # TODO: replace with logger
-                        print("Invalid edge type for StartTrigger")
+            elif child.tag == "edge":
+                self.set_by_dict("edge", child.text, self.EDGES)
 
             else:
-                print("Unrecognized XML tag for StartTrigger")
+                self.logger.warning("Unrecognized XML tag for StartTrigger")
 
-
-        def __repr__(self): # mostly for debugging
-            return (f"StartTrigger(waitForStartTrigger={self.waitForStartTrigger}, "
-                    f"source={self.source}, description={self.description}, "
-                    f"edge={self.edge})")
+    def __repr__(self):  # mostly for debugging
+        return (f"StartTrigger(waitForStartTrigger={self.wait_for_start_trigger}, "
+                f"source={self.source}, description={self.description}, "
+                f"edge={self.edge})")

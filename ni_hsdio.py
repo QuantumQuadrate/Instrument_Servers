@@ -2,14 +2,30 @@ from ctypes import *
 import os
 import struct
 import platform # for checking the os bitness
+import logging
+from typing import Tuple
 
 
-class HsdioSession:
+class HSDIOError(Exception):
+    """
+    Raised for errors coming from NI HSDIO drivers
+
+    Attributes:
+        error_code : Integer code representing the error state
+        message : message corresponding to the error_code with some traceback info
+    """
+    def __init__(self, error_code, message):
+        self.error_code = error_code
+        super().__init__(message)
+
+
+class HSDIOSession:
     """"
     Class to serve as a wrapper for niHSDIO.dll functions in a more python-like manner and store the
     information and state related to a single hsdio generation or acquisition session.
     """
 
+# Setting up DLL -----------------------------------------------------------------------------------
     if platform.machine().endswith("64"):
         programsDir32 = "Program Files (x86)"
     else:
@@ -18,6 +34,22 @@ class HsdioSession:
     dllpath32 = os.path.join(f"C:\{programsDir32}\IVI Foundation\IVI\Bin", "niHSDIO.dll")
     dllpath64 = os.path.join("C:\Program Files\IVI Foundation\IVI\Bin", "niHSDIO_64.dll")
 
+# NI HSDIO Constants -------------------------------------------------------------------------------
+    # Generation Mode
+    NIHSDIO_VAL_WAVEFORM = 14
+    NIHSDIO_VAL_SCRIPTED = 15
+
+    # Digital Edge
+    NIHSDIO_VAL_RISING_EDGE = 12
+    NIHSDIO_VAL_FALLING_EDGE = 13
+
+    # Level Trigger Values
+    NIHSDIO_VAL_HIGH = 34
+    NIHSDIO_VAL_LOW = 35
+
+    NIHSDIO_VAL_GROUP_BY_SAMPLE = 71
+    NIHSDIO_VAL_GROUP_BY_CHANNEL = 72
+
     def __init__(self, handle: str):
         """
         Initialization function. Locates dll
@@ -25,6 +57,7 @@ class HsdioSession:
             handle :  address of device to be accessed as it shows up in NI MAX (e.g. "Dev1")
         """
 
+        self.logger = logging.getLogger(str(self.__class__))
         # Quick test for bitness
         self.bitness = struct.calcsize("P") * 8
         if self.bitness == 32:
@@ -45,11 +78,6 @@ class HsdioSession:
         Checks error_code against NI HSDIO built in error codes, prints (should become logs) error
         if operation was unsuccessful.
 
-        TODO : Make this do proper traceback
-        TODO : Setup logging
-        TODO : Raise Errors and Warnings where appropriate
-
-
         Args:
             error_code: error code which reports status of operation.
 
@@ -61,27 +89,31 @@ class HsdioSession:
             return
 
         # unsure this will work, c function requires buffer array of length 256
-        err_msg = c_char_p("".encode("utf-8"))
+        c_err_msg = c_char_p("".encode("utf-8"))
 
         self.hsdio.niHSDIO_error_message(
             self.vi,              # ViSession
             c_int32(error_code),  # ViStatus
-            err_msg               # ViChar[256]
+            c_err_msg             # ViChar[256]
         )
 
+        err_msg = c_err_msg.value
         if error_code < 0:
-            message = "Error Code"
+            code_type = "Error Code"
         elif error_code > 0:
-            message = "Warning Code"
+            code_type = "Warning Code"
         else:
-            message = ""
-        message += " {} : {}"
-        if traceback_msg is not None:
-            message += "\n{}"
+            code_type = ""
+        if traceback_msg is None:
+            message = f"{code_type} {error_code} :\n {err_msg}"
+        else:
+            message = f"{code_type} {error_code} in {traceback_msg}:\n {err_msg}"
 
-        message = message.format(error_code, err_msg.value, traceback_msg)
-
-        print(message)
+        if error_code < 0:
+            self.logger.error(message)
+            raise HSDIOError(error_code, message)
+        else:
+            self.logger.warning(message)
         return
 
     def init_generation_sess(
@@ -204,9 +236,8 @@ class HsdioSession:
                 negative values = Errors
         """
 
-        # TODO : Is this the right way to perform this check?
         allowed_sources = ["OnBoardClock", "STROBE", "ClkIn", "PXI_STAR"]
-        assert clock_source in allowed_sources
+        assert clock_source in allowed_sources, f"clock_source needs to be in {allowed_sources}"
 
         c_clock_source = c_char_p(clock_source.encode('utf-8'))
         error_code = self.hsdio.niHSDIO_ConfigureSampleClock(
@@ -233,10 +264,10 @@ class HsdioSession:
 
         Args:
             generation_mode : code specifying generation mode to configure
-                14(WAVEFORM) - Calling self.initiate generates the named waveform represented by
-                NIHSDIO_ATTR_WAVEFORM_TO_GENERATE
-                15(SCRIPTED) - Calling niHSDIO_Initiate generates the script represented by
-                NIHSDIO_ATTR_SCRIPT_TO_GENERATE
+                14(self.NIHSDIO_VAL_WAVEFORM) - Calling self.initiate generates the named waveform
+                represented by the attribute NIHSDIO_ATTR_WAVEFORM_TO_GENERATE
+                15(self.NIHSDIO_VAL_SCRIPTED) - Calling niHSDIO_Initiate generates the script
+                represented by the attribute NIHSDIO_ATTR_SCRIPT_TO_GENERATE
 
             check_error : should the check() function be called once operation has completed
         Returns:
@@ -246,8 +277,7 @@ class HsdioSession:
                 negative values = Errors
         """
 
-        # TODO : Is this the right way to perform this check?
-        allowed_modes = [14, 15]
+        allowed_modes = [self.NIHSDIO_VAL_WAVEFORM, self.NIHSDIO_VAL_SCRIPTED]
         assert generation_mode in allowed_modes
 
         error_code = self.hsdio.niHSDIO_ConfigureGenerationMode(
@@ -401,8 +431,8 @@ class HsdioSession:
                 http://zone.ni.com/reference/en-XX/help/370520P-01/hsdiocref/cvinihsdio_configuredigitaledgestarttrigger
                 Note : Only NI 6555/6556 devices support PFI <24..31> and PXIe DStarB.
             edge : Specifies the edges to detect
-                12 - rising edge trigger
-                13 - falling edge trigger
+                12(HSDIOSession.NIHSDIO_RISING_EDGE) - rising edge trigger
+                13(HSDIOSession.NIHSDIO_FALLING_EDGE) - falling edge trigger
             check_error : should the check() function be called once operation has completed
         Returns:
             error code which reports status of operation.
@@ -411,7 +441,7 @@ class HsdioSession:
                 negative values = Errors
         """
 
-        allowed_edges = [12, 13]
+        allowed_edges = [self.NIHSDIO_VAL_RISING_EDGE, self.NIHSDIO_VAL_FALLING_EDGE]
         assert edge in allowed_edges
 
         c_source = c_char_p(source.encode('utf-8'))
@@ -470,7 +500,7 @@ class HsdioSession:
                 negative values = Errors
         """
 
-        allowed_levels = [34, 35]
+        allowed_levels = [self.NIHSDIO_VAL_HIGH, self.NIHSDIO_VAL_LOW]
         assert level in allowed_levels
         allowed_ids = ["ScriptTrigger0",
                        "ScriptTrigger1",
@@ -535,7 +565,7 @@ class HsdioSession:
                 negative values = Errors
         """
 
-        allowed_edges = [12, 13]
+        allowed_edges = [self.NIHSDIO_VAL_RISING_EDGE, self.NIHSDIO_VAL_FALLING_EDGE]
         assert edge in allowed_edges
         allowed_ids = ["ScriptTrigger0",
                        "ScriptTrigger1",
@@ -700,6 +730,43 @@ class HsdioSession:
             self.check(error_code, traceback_msg="write_waveform_unit32")
 
         return error_code
+
+    def is_done(
+            self,
+            check_error: bool = True
+    ) -> Tuple[int, bool]:
+        """
+        Checks if the task being run is is completed.
+
+        Call this function to check the hardware to determine if your dynamic data operation has
+        completed. You can also use this function for continuous dynamic data operations to poll for
+        error conditions.
+
+        wraps niHSDIO_IsDone
+
+        Args:
+            check_error : should the check() function be called once operation has completed
+
+        Returns:
+            (error_code, done)
+                error code : code reports status of operation.
+
+                    0 = Success, positive values = Warnings,
+                    negative values = Errors
+                done : boolean indicating whether task has been successfully completed
+        """
+        c_done = c_bool(False)
+
+        error_code = self.hsdio.niHSDIO_IsDone(
+            self.vi,       # ViSession
+            byref(c_done)  # ViBoolean
+        )
+
+        if error_code != 0 and check_error:
+            self.check(error_code, traceback_msg="is_done")
+
+        return error_code, c_done.value
+
 
     def close(
             self,
