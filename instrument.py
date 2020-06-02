@@ -89,7 +89,7 @@ class XMLLoader(ABC):
         try:
             ret = int(re.findall("^-?\d+", num_str)[0])
         except IndexError:
-            m = f"num_str = {num_str} is non numeric!"
+            m = f"num_str = {num_str} is non-numeric!"
             raise ValueError(m)
         return ret
 
@@ -111,7 +111,7 @@ class XMLLoader(ABC):
         try:
             ret = float(num_str)
         except ValueError:
-            m = f"num_str = {num_str} is non numeric!"
+            m = f"num_str = {num_str} is non-numeric!"
             raise ValueError(m)
         return ret
 

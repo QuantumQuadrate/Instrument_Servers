@@ -40,25 +40,23 @@ class Trigger(XMLLoader):
 
         for child in node:
 
-            if type(child) == ET.Element:
+            if child.tag == "id":
+                self.trig_ID = child.text  # script trigger 0
 
-                if child.tag == "id":
-                    self.trig_ID = child.text  # script trigger 0
+            elif child.tag == "source":
+                self.source = child.text  # PFI 0
 
-                elif child.tag == "source":
-                    self.source = child.text  # PFI 0
+            elif child.tag == "type":
+                self.set_by_dict("trig_type", child.text, self.TYPES)
 
-                elif child.tag == "type":
-                    self.set_by_dict("trig_type", child.text, self.TYPES)
+            elif child.tag == "edge":
+                self.set_by_dict("edge", child.text, self.EDGES)
 
-                elif child.tag == "edge":
-                    self.set_by_dict("edge", child.text, self.EDGES)
+            elif child.tag == "level":
+                self.set_by_dict("level", child.text, self.LEVELS)
 
-                elif child.tag == "level":
-                    self.set_by_dict("level", child.text, self.LEVELS)
-
-                else:
-                    self.logger.warning(f"{child.tag} is not a valid trigger attribute")
+            else:
+                self.logger.warning(f"{child.tag} is not a valid trigger attribute")
 
     def __repr__(self):  # mostly for debugging
         return (f"Trigger(id={self.trig_ID}, source={self.source}, "
@@ -73,7 +71,6 @@ class StartTrigger(XMLLoader):
              "Falling Edge": 13,
              "Default": "Rising Edge"}
 
-    # TODO : This is unused... Remove? -Juan
     nidaqmx_edges = {"Rising": Edge.RISING,
                      "Falling": Edge.FALLING,
                      "Default": "Rising"}
@@ -93,22 +90,20 @@ class StartTrigger(XMLLoader):
         """
         for child in node:
 
-            if type(child) == ET.Element: 
+            if child.tag == "waitForStartTrigger":
+                self.wait_for_start_trigger = self.str_to_bool(child.tag)
 
-                if child.tag == "waitForStartTrigger":
-                    self.wait_for_start_trigger = self.str_to_bool(child.tag)
+            elif child.tag == "source":
+                self.source = child.text  # PFI 0
 
-                elif child.tag == "source":
-                    self.source = child.text  # PFI 0
+            elif child.tag == "description":
+                self.description = child.text
 
-                elif child.tag == "description":
-                    self.description = child.text
+            elif child.tag == "edge":
+                self.set_by_dict("edge", child.text, self.EDGES)
 
-                elif child.tag == "edge":
-                    self.set_by_dict("edge", child.text, self.EDGES)
-
-                else:
-                    self.logger.warning("Unrecognized XML tag for StartTrigger")
+            else:
+                self.logger.warning("Unrecognized XML tag for StartTrigger")
 
     def __repr__(self):  # mostly for debugging
         return (f"StartTrigger(waitForStartTrigger={self.wait_for_start_trigger}, "

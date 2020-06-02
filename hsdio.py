@@ -68,60 +68,55 @@ class HSDIO(Instrument): # could inherit from an Instrument class if helpful
         super().load_xml(node)
 
         for child in node:
-            # the LabView code ignores non-element nodes. not sure if this
-            # equivalent
-            if isinstance(child, ET.Element):
-                self.logger.debug(child)
-                # handle each tag by name:
-                if child.tag == "enable":
-                    self.enable = self.str_to_bool(child.text)
+            self.logger.debug(child)
+            # handle each tag by name:
+            if child.tag == "enable":
+                self.enable = self.str_to_bool(child.text)
 
-                elif child.tag == "description":
-                    self.description = child.text
+            elif child.tag == "description":
+                self.description = child.text
 
-                elif child.tag == "resourceName":
-                    resources = np.array(child.text.split(","))
-                    self.resourceNames = resources
+            elif child.tag == "resourceName":
+                resources = np.array(child.text.split(","))
+                self.resourceNames = resources
 
-                elif child.tag == "clockRate":
-                    self.clockRate = self.str_to_float(child.text)
+            elif child.tag == "clockRate":
+                self.clockRate = self.str_to_float(child.text)
 
-                elif child.tag == "hardwareAlignmentQuantum":
-                    self.hardwareAlignmentQuantum = child.text
+            elif child.tag == "hardwareAlignmentQuantum":
+                self.hardwareAlignmentQuantum = child.text
 
-                elif child.tag == "triggers":
+            elif child.tag == "triggers":
 
-                    if type(child) == ET.Element:
-                        trigger_node = child
-                        for t_child in trigger_node:
-                            if type(t_child) == ET.Element:  # TODO : Should we deal with the else?
-                                self.scriptTriggers.append(Trigger(t_child))
+                if type(child) == ET.Element:
+                    trigger_node = child
+                    for t_child in trigger_node:
+                        self.scriptTriggers.append(Trigger(t_child))
 
-                elif child.tag == "waveforms":
-                    self.logger.debug("found a waveform")
-                    wvforms_node = child
-                    for wvf_child in wvforms_node:
-                        if type(wvf_child) == ET.Element:  # TODO : Should we deal with the else?
-                            if wvf_child.tag == "waveform":
-                                self.waveformArr.append(HSDIOWaveform(wvf_child))
+            elif child.tag == "waveforms":
+                self.logger.debug("found a waveform")
+                wvforms_node = child
+                for wvf_child in wvforms_node:
+                    if wvf_child.tag == "waveform":
+                        self.waveformArr.append(HSDIOWaveform(wvf_child))
 
-                elif child.tag == "script":
-                    self.pulseGenScript = "Loren Ipsum"  # TODO : @Preston What goes here?
+            elif child.tag == "script":
+                self.pulseGenScript = child.text
 
-                elif child.tag == "startTrigger":
-                    self.startTrigger = StartTrigger(child)
+            elif child.tag == "startTrigger":
+                self.startTrigger = StartTrigger(child)
 
-                elif child.tag == "InitialState":
-                    self.initialStates = np.array(child.text.split(","))
+            elif child.tag == "InitialState":
+                self.initialStates = np.array(child.text.split(","))
 
-                elif child.tag == "IdleState":
-                    self.idleStates = np.array(child.text.split(","))
+            elif child.tag == "IdleState":
+                self.idleStates = np.array(child.text.split(","))
 
-                elif child.tag == "ActiveChannels":
-                    self.activeChannels = np.array(child.text.split("\n"))
+            elif child.tag == "ActiveChannels":
+                self.activeChannels = np.array(child.text.split("\n"))
 
-                else:
-                    self.logger.warning("Not a valid XML tag for HSDIO initialization")
+            else:
+                self.logger.warning("Unrecognized XML tag '{child.tag}' in <{self.expectedRoot}>")
 
     def init(self):
         """
