@@ -116,7 +116,7 @@ class HSDIO(Instrument): # could inherit from an Instrument class if helpful
                 self.activeChannels = np.array(child.text.split("\n"))
 
             else:
-                self.logger.warning("Unrecognized XML tag '{child.tag}' in <{self.expectedRoot}>")
+                self.logger.warning(f"Unrecognized XML tag '{child.tag}' in <{self.expectedRoot}>")
 
     def init(self):
         """
