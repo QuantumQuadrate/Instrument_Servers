@@ -16,24 +16,25 @@ general TODOs and ideas:
     would be useful in loops that should exit on exception raised
 '''
 
-#### modules
+## modules
 import socket
 import logging
 import threading
 import xml.etree.ElementTree as ET
 from typing import Tuple
 from queue import Queue, Empty
+from time import perf_counter_ns
 
-#### misc local classes
+## misc local classes
 from keylistener import KeyListener
 
-#### local device classes
+## local device classes
 from hsdio import HSDIO, HSDIOError
 from hamamatsu import Hamamatsu, IMAQError
 from tcp import TCP
 
 
-# TODO : Should this inherit from XMLLoader?
+# TODO : Should this inherit from XMLLoader? <-- i'm on board with this. - Preston
 class PXI:
     
     help_str = ("At any time, type... \n" +
@@ -112,7 +113,7 @@ class PXI:
         Update devices with xml from CsPy and, get and return data from devices
 
         Pop a command from self.command_queue on each iteration, parse the xml
-        in that command, and update the instruments accordingly. When th queue
+        in that command, and update the instruments accordingly. When the queue
         is empty, try to receive measurements from the data if cycling
         continuously.
 
@@ -133,8 +134,7 @@ class PXI:
 
                 if self.cycle_continuously:
                     # This method returns the data as well as updates
-                    # 'return_data_str', so having a return in this method
-                    # seems unnecessary
+                    # 'return_data_str'
                     return_data_str = self.measurement()
 
     def launch_keylisten_thread(self):
@@ -330,13 +330,22 @@ class PXI:
 
             _is_done = False
             _is_error = False
-            # TODO : labview uses timed loop with 1kHz clock and dt=10 ms.
-            # How precise does this loop need to be?
-            # loop until pulse output is completed
+           
+            ## timed loop to frequently check if tasks are done
+            tau = 10 # loop period in [ms]
+            scl = 1e-6 # scale factor to convert ns to ms
+            t0 = perf_counter_ns() # integer ns. reference point is undefined.             
             while not (_is_done or _is_error or self.stop_connections
                        or self.exit_measurement):
-                _is_done, error_out = self.is_done()
+                _is_done, error_out = self.is_done()              
                 # _is_error = error_out["IsError?"] # TODO implement somehow
+                
+                # sleep until this iteration has teken at least 1 ms
+                while True:
+                    dt = perf_counter_ns() - t0
+                    if dt*scl > tau: # compare time in ms
+                        t0 = perf_counter_ns()
+                        break
 
             self.get_data()
             self.system_checks()
