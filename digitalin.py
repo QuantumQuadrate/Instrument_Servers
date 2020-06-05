@@ -70,7 +70,15 @@ class TTLInput(Instrument):
                         
             # Clear old task
             if self.task != None:
-                self.task.close()
+                try:
+                    self.task.close()
+                    
+                except DaqError as e:
+                    msg = '\n TTLInput failed to close current task'
+                    raise DaqError(e.message+msg, e.error_code)
+
+                except DaqWarning as e:
+                    self.logger.warning(str(e.message))
                
             try:
                 self.task = nidaqmx.Task() # might be task.Task()

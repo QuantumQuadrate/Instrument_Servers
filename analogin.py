@@ -8,6 +8,7 @@ SaffmanLab, University of Wisconsin - Madison
 ## modules 
 import nidaqmx
 from nidaqmx.constants import Edge, AcquisitionType, Signal, TerminalConfiguration
+from nidaqmx.errors import DaqError, DaqWarning, DaqResourceWarning
 import numpy as np
 import xml.etree.ElementTree as ET
 import csv
@@ -57,71 +58,75 @@ class AnalogInput(Instrument):
         assert node.tag == self.expectedRoot
 
         for child in node: 
-
-            # not sure if this is necessary... could probably remove
-            if type(child) == ET.Element:
             
-                if child.tag == "enable":
-                    self.enable = str_to_bool(child.text)
+            if child.tag == "enable":
+                self.enable = str_to_bool(child.text)
+        
+            elif child.tag == "sample_rate":
+                self.sampleRate = float(child.text) # [Hz]
             
-                elif child.tag == "sample_rate":
-                    self.sampleRate = float(child.text) # [Hz]
+            elif child.tag == "samples_per_measurement":
+                self.samplesPerMeasurement = int_from_str(child.text)
                 
-                elif child.tag == "samples_per_measurement":
-                    self.samplesPerMeasurement = int_from_str(child.text)
-                    
-                elif child.tag == "source":
-                    self.source = child.text
-                    
-                elif child.tag == "waitForStartTrigger":
-                    self.startTrigger.wait_for_start_trigger = str_to_bool(child.text)
-                    
-                elif child.tag == "triggerSource":
-                    self.startTrigger.source = child.text
-                    
-                elif child.tag == "ground_mode":
-                    self.groundMode = child.text
+            elif child.tag == "source":
+                self.source = child.text
                 
-                elif child.tag == "triggerEdge":
-                    try:
-                        # CODO: could make dictionary keys in StartTrigger 
-                        # lowercase and then just .lower() the capitalized keys
-                        # passed in elsewhere 
-                        text = child.text[0].upper() + child.text[1:]
-                        self.startTrigger.edge = StartTrigger.nidaqmx_edges[text]
-                    except KeyError as e: 
-                        self.logger.error(f"Not a valid {child.tag} value {child.text} \n {e}")
-                        raise
+            elif child.tag == "waitForStartTrigger":
+                self.startTrigger.wait_for_start_trigger = str_to_bool(child.text)
                 
-                else:
-                    self.logger.warning(f"Unrecognized XML tag \'{child.tag}\' in <{self.expectedRoot}>")
+            elif child.tag == "triggerSource":
+                self.startTrigger.source = child.text
+                
+            elif child.tag == "ground_mode":
+                self.groundMode = child.text
+            
+            elif child.tag == "triggerEdge":
+                try:
+                    # CODO: could make dictionary keys in StartTrigger 
+                    # lowercase and then just .lower() the capitalized keys
+                    # passed in elsewhere 
+                    text = child.text[0].upper() + child.text[1:]
+                    self.startTrigger.edge = StartTrigger.nidaqmx_edges[text]
+                except KeyError as e: 
+                    self.logger.error(f"Not a valid {child.tag} value {child.text} \n {e}")
+                    raise
+            
+            else:
+                self.logger.warning(f"Unrecognized XML tag \'{child.tag}\' in <{self.expectedRoot}>")
 
         
     def init(self):
     
-        if not (self.stop_connections or self.reset_connection):
-    
-            if self.enable: 
-            
-                # Clear old task
-                if self.task != None:
+        if not (self.stop_connections or self.reset_connection) and self.enable:
+                
+            # Clear old task
+            if self.task != None:
+                try:
                     self.task.close()
-                
-                # configure the output terminal from an NI Enum
-                
-                # in the LabVIEW code, no error handling is done when an invalid
-                # terminal_config is supplied; the default is used. The xml coming 
-                # from Rb's CsPy supplies the channel name for self.source, rather 
-                # than a valid key for TerminalConfiguration, hence the default is 
-                # value is what gets used. This seems like a bug on the CsPy side,
-                # even if the default here is desired.
-                try: 
-                    inputTerminalConfig = TerminalConfiguration[self.source]
-                except KeyError as e:
-                    self.logger.error(f"Invalid output terminal setting \'{self.source}\' \n"+
-                             "Using default, 'NRSE' , instead")
-                    inputTerminalConfig = TerminalConfiguration['NRSE']
                     
+                except DaqError as e:
+                    msg = '\n AnalogInput failed to close current task'
+                    raise DaqError(e.message+msg, e.error_code)
+
+                except DaqWarning as e:
+                    self.logger.warning(str(e.message))
+            
+            # configure the output terminal from an NI Enum
+            
+            # in the LabVIEW code, no error handling is done when an invalid
+            # terminal_config is supplied; the default is used. The xml coming 
+            # from Rb's CsPy supplies the channel name for self.source, rather 
+            # than a valid key for TerminalConfiguration, hence the default is 
+            # value is what gets used. This seems like a bug on the CsPy side,
+            # even if the default here is desired.
+            try: 
+                inputTerminalConfig = TerminalConfiguration[self.source]
+            except KeyError as e:
+                self.logger.error(f"Invalid output terminal setting \'{self.source}\' \n"+
+                         "Using default, 'NRSE' , instead")
+                inputTerminalConfig = TerminalConfiguration['NRSE']
+                
+            try:
                 self.task = nidaqmx.Task() # might be task.Task()
                 self.task.ai_channels.add_ai_voltage_chan(
                     self.physicalChannels,
@@ -141,6 +146,13 @@ class AnalogInput(Instrument):
                     self.start_trigger.cfg_dig_edge_start_trig(
                         trigger_source = self.startTrigger.source,
                         trigger_edge=self.startTrigger.edge)
+            
+            except DaqError as e:
+                msg = '\n AnalogInput task initialization failed'
+                raise DaqError(e.message+msg, e.error_code)
+
+            except DaqWarning as e:
+                self.logger.warning(str(e.message))
                         
                         
     def is_done(self) -> bool:
@@ -155,9 +167,17 @@ class AnalogInput(Instrument):
         done = True
         if not (self.stop_connections or self.reset_connection) and self.enable:
         
-            # check if NI task is done
-            done = self.task.is_task_done()
-            
+            try:
+                # check if NI task is done
+                done = self.task.is_task_done()
+                
+            except DaqError as e:
+                msg = '\n AnalogInput check for task completion failed'
+                raise DaqError(e.message+msg, e.error_code)
+
+            except DaqWarning as e:
+                self.logger.warning(str(e.message))
+
         return done
         
 
@@ -165,9 +185,17 @@ class AnalogInput(Instrument):
         """
         Start the task
         """
-        
+
         if not (self.stop_connections or self.reset_connection) and self.enable:
-            self.task.start()
+            try:
+                self.task.start()
+                
+            except DaqError as e:
+                msg = '\n AnalogInput failed to start task'
+                raise DaqError(e.message+msg, e.error_code)
+
+            except DaqWarning as e:
+                self.logger.warning(str(e.message))
             
 
     def stop(self):
@@ -176,7 +204,15 @@ class AnalogInput(Instrument):
         """
         
         if self.enable:
-            self.task.stop()
+            try:
+                self.task.stop()
+                
+            except DaqError as e:
+                msg = '\n AnalogInput failed to stop current task'
+                raise DaqError(e.message+msg, e.error_code)
+
+            except DaqWarning as e:
+                self.logger.warning(str(e.message))
             
             
     def get_data(self):
@@ -189,9 +225,17 @@ class AnalogInput(Instrument):
         
         if not (self.stop_connections or self.reset_connection) and self.enable:
         
-            # dadmx read 2D DBL N channel N sample. use defaults args. 
-            # measurement type inferred from the task virtual channel
-            self.data = self.task.read()
+            try:
+                # dadmx read 2D DBL N channel N sample. use defaults args. 
+                # measurement type inferred from the task virtual channel
+                self.data = self.task.read()
+                
+            except DaqError as e:
+                msg = '\n AnalogInput failed to read data from hardware'
+                raise DaqError(e.message+msg, e.error_code)
+
+            except DaqWarning as e:
+                self.logger.warning(str(e.message))
             
     # TODO: compare output to what the LabVIEW method returns
     def data_out(self) -> str:

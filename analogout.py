@@ -6,9 +6,14 @@ SaffmanLab, University of Wisconsin - Madison
 # TODO: could use nidaqmx task register_done_event, which can pass out and allow
 # error handling if a task ends unexpectedly due to an error
 
+# TODO: there exist DaqResourceWarning warnings that i neither handle nor log, 
+# as it seems that the class merely points to a built-in Python ResourceWarning, 
+# which is itself abstract. - Preston
+
 ## modules 
 import nidaqmx
 from nidaqmx.constants import Edge, AcquisitionType, Signal
+from nidaqmx.errors import DaqError, DaqWarning, DaqResourceWarning
 import numpy as np
 import xml.etree.ElementTree as ET
 import csv
@@ -85,57 +90,54 @@ class AnalogOutput(Instrument):
 
         for child in node: 
 
-            # not sure if this is necessary... could probably remove
-            if type(child) == ET.Element:
+            if child.tag == "enable":
+                self.enable = str_to_bool(child.text)
 
-                if child.tag == "enable":
-                    self.enable = str_to_bool(child.text)
+            elif child.tag == "physicalChannels":
+                self.physicalChannels = child.text
 
-                elif child.tag == "physicalChannels":
-                    self.physicalChannels = child.text
+            elif child.tag == "minimum":
+                self.minValue = str_to_float(child.text)
 
-                elif child.tag == "minimum":
-                    self.minValue = float(child.text)
+            elif child.tag == "maximum":
+                self.maxValue = str_to_float(child.text)
 
-                elif child.tag == "maximum":
-                    self.maxValue = float(child.text)
+            elif child.tag == "clockRate":
+                self.sampleRate = float(child.text) # samples per second in LabVIEW
 
-                elif child.tag == "clockRate":
-                    self.sampleRate = float(child.text) # samples per second in LabVIEW
+            elif child.tag == "waveform":
+                self.waveforms = self.wave_from_str(child.text)
 
-                elif child.tag == "waveform":
-                    self.waveforms = self.wave_from_str(child.text)
+            elif child.tag == "waitForStartTrigger":
+                self.startTrigger.wait_for_start_trigger = str_to_bool(child.text)
 
-                elif child.tag == "waitForStartTrigger":
-                    self.startTrigger.wait_for_start_trigger = str_to_bool(child.text)
+            elif child.tag == "exportStartTrigger":
+                self.exportTrigger.exportStartTrigger = str_to_bool(child.text)
 
-                elif child.tag == "exportStartTrigger":
-                    self.exportTrigger.exportStartTrigger = str_to_bool(child.text)
+            elif child.tag == "triggerSource":
+                self.startTrigger.source = child.text
 
-                elif child.tag == "triggerSource":
-                    self.startTrigger.source = child.text
+            elif child.tag == "exportStartTriggerDestination":
+                self.exportTrigger.outputTerminal = child.text
 
-                elif child.tag == "exportStartTriggerDestination":
-                    self.exportTrigger.outputTerminal = child.text
+            elif child.tag == "triggerEdge":
+                try:
+                    self.startTrigger.edge = StartTrigger.nidaqmx_edges[child.text]
+                except KeyError as e:
+                    self.logger.error(f"Not a valid {child.tag} value {child.text} \n {e}")
+                    raise
 
-                elif child.tag == "triggerEdge":
-                    try:
-                        self.startTrigger.edge = StartTrigger.nidaqmx_edges[child.text]
-                    except KeyError as e:
-                        self.logger.error(f"Not a valid {child.tag} value {child.text} \n {e}")
-                        raise
+            elif child.tag == "useExternalClock":
+                self.externalClock.useExternalClock = str_to_bool(child.text)
 
-                elif child.tag == "useExternalClock":
-                    self.externalClock.useExternalClock = str_to_bool(child.text)
+            elif child.tag == "externalClockSource":
+                self.externalClock.source = child.text
 
-                elif child.tag == "externalClockSource":
-                    self.externalClock.source = child.text
+            elif child.tag == "maxExternalClockRate":
+                self.externalClock.maxClockRate = str_to_float(child.text)
 
-                elif child.tag == "maxExternalClockRate":
-                    self.externalClock.maxClockRate = float(child.text)
-
-                else:
-                    self.logger.warning(f"Unrecognized XML tag \'{child.tag}\' in <AnalogOutput>")
+            else:
+                self.logger.warning(f"Unrecognized XML tag \'{child.tag}\' in <AnalogOutput>")
 
 
     # TODO: test with hardware
@@ -149,35 +151,51 @@ class AnalogOutput(Instrument):
             if self.enable:
 
                 # Clear old task
-                if self.task != None:
-                    self.task.close()
+                try:
+                    if self.task != None:
+                        try:
+                            self.task.close()
+                            
+                        except DaqError as e:
+                            msg = '\n AnalogOutput failed to close current task'
+                            raise DaqError(e.message+msg, e.error_code)
 
-                self.task = nidaqmx.Task() # might be task.Task()
-                self.task.ao_channels.add_ao_voltage_chan(
-                    self.physicalChannels,
-                    min_val = self.minValue,
-                    max_val = self.maxValue)
-                
-                if self.externalClock.useExternalClock:
-                    self.task.timing.cfg_samp_clk_timing(
-                        rate=self.externalClock.maxClockRate, 
-                        source=self.externalClock.source, 
-                        active_edge=Edge.RISING, # default
-                        sample_mode=AcquisitionType.FINITE, # default
-                        samps_per_chan=1000) # default
+                        except DaqWarning as e:
+                            self.logger.warning(str(e.message))
+                        
+                try:
+                    self.task = nidaqmx.Task() # might be task.Task()
+                    self.task.ao_channels.add_ao_voltage_chan(
+                        self.physicalChannels,
+                        min_val = self.minValue,
+                        max_val = self.maxValue)
                     
-                if self.startTrigger.wait_for_start_trigger:
-                    self.task.start_trigger.cfg_dig_edge_start_trig(
-                        trigger_source=self.startTrigger.source,
-                        trigger_edge=self.startTrigger.edge) # default
-                                    
-                if self.exportStartTrigger:
-                    self.task.export_signals.export_signal(
-                        Signal.START_TRIGGER,
-                        self.exportTrigger.outputTerminal)
+                    if self.externalClock.useExternalClock:
+                        self.task.timing.cfg_samp_clk_timing(
+                            rate=self.externalClock.maxClockRate, 
+                            source=self.externalClock.source, 
+                            active_edge=Edge.RISING, # default
+                            sample_mode=AcquisitionType.FINITE, # default
+                            samps_per_chan=1000) # default
+                        
+                    if self.startTrigger.wait_for_start_trigger:
+                        self.task.start_trigger.cfg_dig_edge_start_trig(
+                            trigger_source=self.startTrigger.source,
+                            trigger_edge=self.startTrigger.edge) # default
+                                        
+                    if self.exportStartTrigger:
+                        self.task.export_signals.export_signal(
+                            Signal.START_TRIGGER,
+                            self.exportTrigger.outputTerminal)
+                
+                except DaqError as e:
+                    msg = '\n AnalogOutput hardware initialization failed'
+                    raise DaqError(e.message+msg, e.error_code)
+
+                except DaqWarning as e:
+                    self.logger.warning(str(e.message))
                     
                 self.isInitialized = True
-
 
     # TODO: test with hardware
     def update(self):
@@ -186,13 +204,12 @@ class AnalogOutput(Instrument):
         """
         
         # TODO: check if stop or reset
-        if not (self.stop_connections or self.reset_connection):
-        
-            if self.enable:
-                pass
-                
-                channels, samples = self.waveforms.shape
-                sample_mode = AcquisitionType.FINITE 
+        if not (self.stop_connections or self.reset_connection) and self.enable:
+                        
+            channels, samples = self.waveforms.shape
+            sample_mode = AcquisitionType.FINITE 
+            
+            try:
                 self.task.timing.cfg_samp_clk_timing(
                         rate=self.sampleRate, 
                         active_edge=Edge.RISING, # default
@@ -203,6 +220,12 @@ class AnalogOutput(Instrument):
                 # more than one sample per channel
                 self.task.write(self.waveforms)
                 
+            except DaqError as e:
+                msg = '\n AnalogOutput hardware update failed'
+                raise DaqError(e.message+msg, e.error_code)
+
+            except DaqWarning as e:
+                self.logger.warning(str(e.message))
                 
     def is_done(self) -> bool:
         """
@@ -216,8 +239,16 @@ class AnalogOutput(Instrument):
         done = True
         if not (self.stop_connections or self.reset_connection) and self.enable:
         
+            try:
             # check if NI task is dones
-            done = self.task.is_task_done()
+                done = self.task.is_task_done()
+                
+            except DaqError as e:
+                msg = '\n AnalogOutput check for task completion failed'
+                raise DaqError(e.message+msg, e.error_code)
+
+            except DaqWarning as e:
+                self.logger.warning(str(e.message))
             
         return done
         
@@ -228,8 +259,16 @@ class AnalogOutput(Instrument):
         """
         
         if not (self.stop_connections or self.reset_connection) and self.enable:
-            self.task.start()
-            
+        
+            try:
+                self.task.start()
+                
+            except DaqError as e:
+                msg = '\n AnalogOutput attempt to start task failed'
+                raise DaqError(e.message+msg, e.error_code)
+
+            except DaqWarning as e:
+                self.logger.warning(str(e.message))
 
     def stop(self):
         """
@@ -237,4 +276,12 @@ class AnalogOutput(Instrument):
         """
         
         if self.enable:
-            self.task.stop()
+            try:
+                self.task.stop()
+                        
+            except DaqError as e:
+                msg = '\n AnalogOutput failed to stop current task'
+                raise DaqError(e.message+msg, e.error_code)
+
+            except DaqWarning as e:
+                self.logger.warning(str(e.message))    
