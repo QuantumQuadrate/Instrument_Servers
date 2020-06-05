@@ -44,9 +44,10 @@ class DAQmxDO(Instrument):
         assert node.tag == self.expectedRoot, "expected node"+\
             f" <{self.expectedRoot}> but received <{node.tag}>"
 
-        try:
-            for child in node: 
-                
+        for child in node: 
+        
+            try:
+            
                 if child.tag == "enable":
                     self.enable = str_to_bool(child.text)
             
@@ -54,7 +55,7 @@ class DAQmxDO(Instrument):
                     self.physicalChannels = child.text
                 
                 elif child.tag == "clockRate":
-                    self.clockRate = float(child.text) 
+                    self.clockRate = float(child.text)
                     
                 elif child.tag == "startTrigger":
                     node = child
@@ -71,9 +72,8 @@ class DAQmxDO(Instrument):
                                 # passed in elsewhere 
                                 text = child.text[0].upper() + child.text[1:]
                                 self.startTrigger.edge = StartTrigger.nidaqmx_edges[text]
-                            except KeyError as e: 
-                                self.logger.error(f"Not a valid {child.tag} value {child.text} \n {e}")
-                                raise
+                            except KeyError:
+                                raise KeyError(f"Not a valid {child.tag} value {child.text} \n {e}")
                         else:
                             self.logger.warning(f"Unrecognized XML tag \'{node.tag}\' in <{child.tag}>")
                 
@@ -91,7 +91,8 @@ class DAQmxDO(Instrument):
                 else:
                     self.logger.warning(f"Unrecognized XML tag \'{child.tag}\' in <{self.expectedRoot}>")
             
-            except Exception as e:
+            except (KeyError, ValueError):
+                self.logger.exceptions()
                 raise XMLError(self, child)
                 
                     

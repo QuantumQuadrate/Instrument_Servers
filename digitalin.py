@@ -45,13 +45,14 @@ class TTLInput(Instrument):
             node.tag == self.expectedRoot
         """
         
-        try:
-            if not (self.stop_connections or self.reset_connection):
-            
-                assert node.tag == self.expectedRoot, "Expected tag "+
-                    f"<{self.expectedRoot}>, but received <{node.tag}>"
+        assert node.tag == self.expectedRoot, "Expected tag "+
+                f"<{self.expectedRoot}>, but received <{node.tag}>"
+        
+        if not (self.stop_connections or self.reset_connection):
 
-                for child in node: 
+            for child in node: 
+            
+                try:
                     
                     if child.tag == "enable":
                         self.enable = str_to_bool(child.text)
@@ -61,9 +62,10 @@ class TTLInput(Instrument):
                     
                     else:
                         self.logger.warning(f"Unrecognized XML tag \'{child.tag}\' in <{self.expectedRoot}>")
-                        
-        except Exception as e:
-                raise XMLError(self, child)
+                            
+                except ValueError:
+                    self.logger.exceptions()
+                    raise XMLError(self, child)
                         
     
     def init(self):
@@ -146,7 +148,7 @@ class TTLInput(Instrument):
                 # Stop the task and reset it to the state it was initiially
                 self.task.stop()
            
-           except DaqError as e:
+            except DaqError as e:
                 msg = '\n TTLInput data check failed'
                 raise HardwareError(self, task, message=msg)
                 
