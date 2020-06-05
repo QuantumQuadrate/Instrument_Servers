@@ -45,7 +45,6 @@ class XMLLoader(ABC):
 
     @staticmethod
     def str_to_bool(boolstr: str) -> bool:
-        # TODO : Replace usages of instrumentfuncs versions with this one
         """
         return True or False case-insensitively for a string 'true' or 'false'
 
@@ -67,7 +66,6 @@ class XMLLoader(ABC):
 
     @staticmethod
     def str_to_int(num_str: str) -> int:
-        # TODO : replace usages of instrumentfuncs version with this one
         """
         return a signed integer anchored to the beginning of num_str
 
