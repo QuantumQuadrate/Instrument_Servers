@@ -26,7 +26,6 @@ class DAQmxDO(Instrument):
     def __init__(self, pxi):
         super().__init__(pxi, "DAQmxDO")
         self.logger = logging.getLogger(str(self.__class__))
-        self.l
         self.physicalChannels = None
         self.startTrigger = StartTrigger()
         
@@ -40,8 +39,8 @@ class DAQmxDO(Instrument):
             node.tag == self.expectedRoot
         """
         
-        assert node.tag == self.expectedRoot, "expected node"+ 
-            f" <self.expectedRoot> but received <node.tag>"
+        assert node.tag == self.expectedRoot, "expected node"+\
+            f" <{self.expectedRoot}> but received <{node.tag}>"
 
         for child in node: 
             
@@ -138,14 +137,14 @@ class DAQmxDO(Instrument):
                         auto_start=AUTO_START_UNSET, #default
                         timeout=10.0) # default
             
-            except DaqError as e:
-                msg = '\n DAQmxDO hardware initialization failed'
-                raise DaqError(e.message+msg, e.error_code)
-                
-            except DaqWarning as e:
-                self.logger.warning(str(e.message))
+                except DaqError as e:
+                    msg = '\n DAQmxDO hardware initialization failed'
+                    raise DaqError(e.message+msg, e.error_code)
+                    
+                except DaqWarning as e:
+                    self.logger.warning(str(e.message))
             
-            self.isInitialized = True
+                self.isInitialized = True
                 
                 
     def is_done(self) -> bool:

@@ -55,7 +55,8 @@ class AnalogInput(Instrument):
             node.tag == "AnalogInput"
         """
         
-        assert node.tag == self.expectedRoot
+        assert node.tag == self.expectedRoot, "expected node"+\
+            f" <{self.expectedRoot}> but received <{node.tag}>"
 
         for child in node: 
             

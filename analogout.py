@@ -86,7 +86,8 @@ class AnalogOutput(Instrument):
             node.tag == "AnalogOutput"
         """
         
-        assert node.tag == self.expectedRoot, f"Expected xml tag {self.expectedRoot}"
+        assert node.tag == self.expectedRoot, "expected node"+\
+            f" <{self.expectedRoot}> but received <{node.tag}>"
 
         for child in node: 
 
@@ -264,7 +265,7 @@ class AnalogOutput(Instrument):
                 self.task.start()
                 
             except DaqError as e:
-                msg = '\n AnalogOutput attempt to start task failed'
+                msg = '\n AnalogOutput failed to start task'
                 raise DaqError(e.message+msg, e.error_code)
 
             except DaqWarning as e:
