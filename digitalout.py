@@ -3,7 +3,11 @@ DAQmx Digital Output class for the PXI Server
 SaffmanLab, University of Wisconsin - Madison
 """
 
-#### modules
+# TODO: there exist DaqResourceWarning warnings that i neither handle nor log, 
+# as it seems that the class merely points to a built-in Python ResourceWarning, 
+# which is itself abstract. - Preston
+
+## modules
 import nidaqmx
 from nidaqmx.constants import Edge, LineGrouping
 from nidaqmx.errors import DaqError, DaqWarning, DaqResourceWarning
@@ -11,7 +15,7 @@ import xml.etree.ElementTree as ET
 import numpy as np
 import logging
 
-#### local imports
+## local imports
 from trigger import StartTrigger
 from waveform import DAQmxDOWaveform
 from instrument import Instrument
@@ -127,7 +131,7 @@ class DAQmxDO(Instrument):
                         timeout=10.0) # default
             
             except DaqError as e:
-                msg = 'DAQmxDO hardware initialization failed'
+                msg = '\n DAQmxDO hardware initialization failed'
                 raise DaqError(e.message+msg, e.error_code)
                 
             except DaqWarning as e:
@@ -153,7 +157,7 @@ class DAQmxDO(Instrument):
             try:
                 done = self.task.is_task_done()
             except DaqError as e:
-                msg = 'DAQmxDO check for task completion failed'
+                msg = '\n DAQmxDO check for task completion failed'
                 raise DaqError(e.message+msg, e.error_code)
                 
             except DaqWarning as e:
@@ -172,7 +176,7 @@ class DAQmxDO(Instrument):
             try:
                 self.task.start()
             except DaqError as e:
-                msg = 'DAQmxDO failed to start task'
+                msg = '\n DAQmxDO failed to start task'
                 raise DaqError(e.message+msg, e.error_code)
                 
             except DaqWarning as e:
@@ -187,7 +191,7 @@ class DAQmxDO(Instrument):
             try:
                 self.task.stop()
             except DaqError as e:
-                msg = 'DAQmxDO failed while attempting to stop current task'
+                msg = '\n DAQmxDO failed while attempting to stop current task'
                 raise DaqError(e.message+msg, e.error_code)
                 
             except DaqWarning as e:
