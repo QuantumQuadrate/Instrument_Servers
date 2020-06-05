@@ -80,7 +80,7 @@ class TTLInput(Instrument):
                     
                 except DaqError as e:
                     msg = '\n TTLInput failed to close current task'
-                    raise DaqError(e.message+msg, e.error_code)
+                    raise HardwareError(self, task, message=msg)
 
                 except DaqWarning as e:
                     self.logger.warning(str(e.message))
@@ -100,7 +100,7 @@ class TTLInput(Instrument):
                     
             except DaqError as e:
                 msg = '\n TTLInput hardware initialization failed'
-                raise DaqError(e.message+msg, e.error_code)
+                raise HardwareError(self, task, message=msg)
                 
             except DaqWarning as e:
                 self.logger.warning(str(e.message))
@@ -148,7 +148,7 @@ class TTLInput(Instrument):
            
            except DaqError as e:
                 msg = '\n TTLInput data check failed'
-                raise DaqError(e.message+msg, e.error_code)
+                raise HardwareError(self, task, message=msg)
                 
             except DaqWarning as e:
                 self.logger.warning(str(e.message))

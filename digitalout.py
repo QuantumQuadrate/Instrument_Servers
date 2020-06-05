@@ -111,7 +111,7 @@ class DAQmxDO(Instrument):
                         
                     except DaqError as e:
                         msg = '\n DAQmxDO failed to close current task'
-                        raise DaqError(e.message+msg, e.error_code)
+                        raise HardwareError(self, task, message=msg)
 
                     except DaqWarning as e:
                         self.logger.warning(str(e.message))
@@ -146,7 +146,7 @@ class DAQmxDO(Instrument):
             
                 except DaqError as e:
                     msg = '\n DAQmxDO hardware initialization failed'
-                    raise DaqError(e.message+msg, e.error_code)
+                    raise HardwareError(self, task, message=msg)
                     
                 except DaqWarning as e:
                     self.logger.warning(str(e.message))
@@ -172,7 +172,7 @@ class DAQmxDO(Instrument):
                 done = self.task.is_task_done()
             except DaqError as e:
                 msg = '\n DAQmxDO check for task completion failed'
-                raise DaqError(e.message+msg, e.error_code)
+                raise HardwareError(self, task, message=msg)
                 
             except DaqWarning as e:
                 self.logger.warning(str(e.message))
@@ -191,7 +191,7 @@ class DAQmxDO(Instrument):
                 self.task.start()
             except DaqError as e:
                 msg = '\n DAQmxDO failed to start task'
-                raise DaqError(e.message+msg, e.error_code)
+                raise HardwareError(self, task, message=msg)
                 
             except DaqWarning as e:
                 self.logger.warning(str(e.message))
@@ -206,7 +206,7 @@ class DAQmxDO(Instrument):
                 self.task.stop()
             except DaqError as e:
                 msg = '\n DAQmxDO failed while attempting to stop current task'
-                raise DaqError(e.message+msg, e.error_code)
+                raise HardwareError(self, task, message=msg)
                 
             except DaqWarning as e:
                 self.logger.warning(str(e.message))

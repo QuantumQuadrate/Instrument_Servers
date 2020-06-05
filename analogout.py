@@ -165,7 +165,7 @@ class AnalogOutput(Instrument):
                             
                         except DaqError as e:
                             msg = '\n AnalogOutput failed to close current task'
-                            raise DaqError(e.message+msg, e.error_code)
+                            raise raise HardwareError(self, task, message=msg)
 
                         except DaqWarning as e:
                             self.logger.warning(str(e.message))
@@ -197,7 +197,7 @@ class AnalogOutput(Instrument):
                 
                 except DaqError as e:
                     msg = '\n AnalogOutput hardware initialization failed'
-                    raise DaqError(e.message+msg, e.error_code)
+                    raise HardwareError(self, task, message=msg)
 
                 except DaqWarning as e:
                     self.logger.warning(str(e.message))
@@ -229,7 +229,7 @@ class AnalogOutput(Instrument):
                 
             except DaqError as e:
                 msg = '\n AnalogOutput hardware update failed'
-                raise DaqError(e.message+msg, e.error_code)
+                raise HardwareError(self, task, message=msg)
 
             except DaqWarning as e:
                 self.logger.warning(str(e.message))
@@ -252,7 +252,7 @@ class AnalogOutput(Instrument):
                 
             except DaqError as e:
                 msg = '\n AnalogOutput check for task completion failed'
-                raise DaqError(e.message+msg, e.error_code)
+                raise HardwareError(self, task, message=msg)
 
             except DaqWarning as e:
                 self.logger.warning(str(e.message))
@@ -272,7 +272,7 @@ class AnalogOutput(Instrument):
                 
             except DaqError as e:
                 msg = '\n AnalogOutput failed to start task'
-                raise DaqError(e.message+msg, e.error_code)
+                raise HardwareError(self, task, message=msg)
 
             except DaqWarning as e:
                 self.logger.warning(str(e.message))
@@ -288,7 +288,7 @@ class AnalogOutput(Instrument):
                         
             except DaqError as e:
                 msg = '\n AnalogOutput failed to stop current task'
-                raise DaqError(e.message+msg, e.error_code)
+                raise HardwareError(self, task, message=msg)
 
             except DaqWarning as e:
                 self.logger.warning(str(e.message))    

@@ -33,7 +33,7 @@ class PXIError(Exception):
         self._device = device
         
     @property
-    def device(self):
+    def device(self) -> XMLLoader:
         """
         Reference to an instance of the device class where the error occured
         """
@@ -69,7 +69,7 @@ class XMLError(PXIError):
         super().__init__(message, device)
         
     @property
-    def node(self):
+    def node(self) -> ET.Element:
         """
         XML node associated with the error
         """
