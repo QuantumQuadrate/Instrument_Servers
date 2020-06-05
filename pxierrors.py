@@ -52,7 +52,7 @@ class XMLError(PXIError):
     Exception pertaining to errors in parsing xml for setting device parameters
     """
     
-    def __init__(self, device: XMLLoader, node: ET.Element, message: str=None,):
+    def __init__(self, device: XMLLoader, node: ET.Element, message: str=None):
         """
         Constructor for XMLError. 
         
@@ -90,14 +90,17 @@ class HardwareError(PXIError):
             task: reference to an instance of an object that controls a hardware process, 
                 e.g. an NI-DAQmx task or an HSDIOSession
                 # TODO: maybe other info is useful too/instead?
-            message: error message. if None (default), initialized internally
+            message: additional error information to be appended to a message
+                describing the origin of the error. if None (default), the error
+                message is simply f"{device} encountered error in {self.task}"
             
         """
         self._task = task
-        if message is None:
-            message = f"{device} encountered error in {self.task}"
+        msg = f"{device} encountered error in {self.task}"
+        if message is not None:
+            msg += message
                 
-        super().__init__(message, device)
+        super().__init__(msg, device)
         
     @property
     def task(self):

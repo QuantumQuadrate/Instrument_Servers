@@ -90,14 +90,14 @@ class AnalogInput(Instrument):
                         # passed in elsewhere 
                         text = child.text[0].upper() + child.text[1:]
                         self.startTrigger.edge = StartTrigger.nidaqmx_edges[text]
-                    except KeyError as e: 
-                        self.logger.error(f"Not a valid {child.tag} value {child.text} \n {e}")
-                        raise
+                    except KeyError: 
+                        raise KeyError(f"Not a valid {child.tag} value {child.text} \n {e}")
                 
                 else:
                     self.logger.warning(f"Unrecognized XML tag \'{child.tag}\' in <{self.expectedRoot}>")
         
-            except Exception as e:
+            except (KeyError, ValueError):
+                self.logger.exceptions()
                 raise XMLError(self, child)
 
         
