@@ -340,7 +340,7 @@ class PXI:
                 _is_done, error_out = self.is_done()              
                 # _is_error = error_out["IsError?"] # TODO implement somehow
                 
-                # sleep until this iteration has teken at least 1 ms
+                # sleep until this iteration has taken at least 1 ms
                 while True:
                     dt = perf_counter_ns() - t0
                     if dt*scl > tau: # compare time in ms

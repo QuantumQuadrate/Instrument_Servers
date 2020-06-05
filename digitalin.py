@@ -5,6 +5,10 @@ SaffmanLab, University of Wisconsin - Madison
 For parsing XML strings which setup NI DAQ hardware for reading digital input.
 """
 
+# TODO: there exist DaqResourceWarning warnings that i neither handle nor log, 
+# as it seems that the class merely points to a built-in Python ResourceWarning, 
+# which is itself abstract. - Preston
+
 ## built-in modules
 import xml.etree.ElementTree as ET
 
@@ -12,7 +16,7 @@ import xml.etree.ElementTree as ET
 import numpy as np # for arrays
 import nidaqmx
 from nidaqmx.constants import Edge, AcquisitionType, Signal, TerminalConfiguration
-import nidaqmx
+from nidaqmx.errors import DaqError, DaqWarning, DaqResourceWarning
 import logging
 import struct
 
@@ -31,31 +35,30 @@ class TTLInput(Instrument):
         self.lines = ""
         
         
-    def load_xml(self, node):
+    def load_xml(self, node: ET.Element):
         """
         Initialize the instrument class attributes from XML received from CsPy
         
          Args:
-            'node': type is ET.Element. tag should match self.expectedRoot
+            node (ET.Element): tag should match self.expectedRoot, that is
             node.tag == self.expectedRoot
         """
         
         if not (self.stop_connections or self.reset_connection):
         
-            assert node.tag == self.expectedRoot
+            assert node.tag == self.expectedRoot, "Expected tag "+
+                f"<{self.expectedRoot}>, but received <{node.tag}>"
 
             for child in node: 
-
-                if type(child) == ET.Element:
                 
-                    if child.tag == "enable":
-                        self.enable = str_to_bool(child.text)
+                if child.tag == "enable":
+                    self.enable = str_to_bool(child.text)
+            
+                elif child.tag == "lines":
+                    self.lines = child.text
                 
-                    elif child.tag == "lines":
-                        self.lines = child.text
-                    
-                    else:
-                        self.logger.warning(f"Unrecognized XML tag \'{child.tag}\' in <{self.expectedRoot}>")
+                else:
+                    self.logger.warning(f"Unrecognized XML tag \'{child.tag}\' in <{self.expectedRoot}>")
                     
     
     def init(self):
@@ -68,23 +71,31 @@ class TTLInput(Instrument):
             # Clear old task
             if self.task != None:
                 self.task.close()
-                
-            self.task = nidaqmx.Task() # might be task.Task()
+               
+            try:
+                self.task = nidaqmx.Task() # might be task.Task()
             
-            # Create a digital input channel.
-            # Number of samples_per channel unspecified, so returns only one 
-            #   sample at a time
-            # Line grouping is 1 Channel for All Lines, so samples returned by 
-            #   task.read will be of type int
-            self.task.di_channels.add_di_chan(
-                lines=self.lines
-                name_to_assign_to_lines=u'', # this looks like a typo but came from nidaqmx docs...
-                line_grouping=<LineGrouping.CHAN_FOR_ALL_LINES: 1>)
+                # Create a digital input channel.
+                # Number of samples_per channel unspecified, so returns only one 
+                #   sample at a time
+                # Line grouping is 1 Channel for All Lines, so samples returned by 
+                #   task.read will be of type int
+                self.task.di_channels.add_di_chan(
+                    lines=self.lines
+                    name_to_assign_to_lines=u'', # this looks like a typo but came from nidaqmx docs...
+                    line_grouping=<LineGrouping.CHAN_FOR_ALL_LINES: 1>)
+                    
+            except DaqError as e:
+                msg = '\n TTLInput hardware initialization failed'
+                raise DaqError(e.message+msg, e.error_code)
+                
+            except DaqWarning as e:
+                self.logger.warning(str(e.message))
             
     
     def reset_data(self):
         """
-        Reset the aqcuired data array to an empty array []
+        Reset the aqcuired data array to an empty array
         """
         
         # labview initializes an empty binary 2D array. 
@@ -104,24 +115,30 @@ class TTLInput(Instrument):
         
         if not (self.stop_connections or self.reset_connection) and self.enable:
             
-            # TODO: daqmx start task
-            self.task.start()
-            
-            # number_of_samples_per_channel unset means 1 sample per channel
-            # 1 second timeout
-            data = self.task.read(timeout=1)
-            
-            #for debugging:
-            self.logger.debug('TTL Data out: ', data)
-            
-            # get data out and append it to the extant data array
-            # i think this ends up being an array of dimensions (1, samples)
-            # so it is technically 2D as each newly acquired datum is a column
-            self.data = np.append(self.data, data)
-            
-            # Stop the task and reset it to the state it was initiially
-            self.task.stop()
-            
+            try:
+                self.task.start()
+                
+                # number_of_samples_per_channel unset means 1 sample per channel
+                # 1 second timeout
+                data = self.task.read(timeout=1)
+                
+                #for debugging:
+                self.logger.debug('TTL Data out: ', data)
+                
+                # get data out and append it to the extant data array
+                # i think this ends up being an array of dimensions (1, samples)
+                # so it is technically 2D as each newly acquired datum is a column
+                self.data = np.append(self.data, data)
+                
+                # Stop the task and reset it to the state it was initiially
+                self.task.stop()
+           
+           except DaqError as e:
+                msg = '\n TTLInput data check failed'
+                raise DaqError(e.message+msg, e.error_code)
+                
+            except DaqWarning as e:
+                self.logger.warning(str(e.message))
             
     def data_out(self) -> str:
         """
