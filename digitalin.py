@@ -23,6 +23,7 @@ import struct
 ## local class imports
 from instrumentfuncs import str_to_bool
 import TCP
+from pxierrors import XMLError, HardwareError
 
 
 class TTLInput(Instrument):
@@ -44,22 +45,26 @@ class TTLInput(Instrument):
             node.tag == self.expectedRoot
         """
         
-        if not (self.stop_connections or self.reset_connection):
-        
-            assert node.tag == self.expectedRoot, "Expected tag "+
-                f"<{self.expectedRoot}>, but received <{node.tag}>"
-
-            for child in node: 
-                
-                if child.tag == "enable":
-                    self.enable = str_to_bool(child.text)
+        try:
+            if not (self.stop_connections or self.reset_connection):
             
-                elif child.tag == "lines":
-                    self.lines = child.text
-                
-                else:
-                    self.logger.warning(f"Unrecognized XML tag \'{child.tag}\' in <{self.expectedRoot}>")
+                assert node.tag == self.expectedRoot, "Expected tag "+
+                    f"<{self.expectedRoot}>, but received <{node.tag}>"
+
+                for child in node: 
                     
+                    if child.tag == "enable":
+                        self.enable = str_to_bool(child.text)
+                
+                    elif child.tag == "lines":
+                        self.lines = child.text
+                    
+                    else:
+                        self.logger.warning(f"Unrecognized XML tag \'{child.tag}\' in <{self.expectedRoot}>")
+                        
+        except Exception as e:
+                raise XMLError(self, child)
+                        
     
     def init(self):
         """

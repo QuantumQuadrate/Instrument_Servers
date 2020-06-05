@@ -21,6 +21,7 @@ from recordclass import recordclass as rc
 from instrument import Instrument
 from trigger import StartTrigger
 from instrumentfuncs import *
+from pxierrors import XMLError, HardwareError
 
 
 class AnalogInput(Instrument):
@@ -60,40 +61,44 @@ class AnalogInput(Instrument):
 
         for child in node: 
             
-            if child.tag == "enable":
-                self.enable = str_to_bool(child.text)
+            try:
+                if child.tag == "enable":
+                    self.enable = str_to_bool(child.text)
+            
+                elif child.tag == "sample_rate":
+                    self.sampleRate = float(child.text) # [Hz]
+                
+                elif child.tag == "samples_per_measurement":
+                    self.samplesPerMeasurement = int_from_str(child.text)
+                    
+                elif child.tag == "source":
+                    self.source = child.text
+                    
+                elif child.tag == "waitForStartTrigger":
+                    self.startTrigger.wait_for_start_trigger = str_to_bool(child.text)
+                    
+                elif child.tag == "triggerSource":
+                    self.startTrigger.source = child.text
+                    
+                elif child.tag == "ground_mode":
+                    self.groundMode = child.text
+                
+                elif child.tag == "triggerEdge":
+                    try:
+                        # CODO: could make dictionary keys in StartTrigger 
+                        # lowercase and then just .lower() the capitalized keys
+                        # passed in elsewhere 
+                        text = child.text[0].upper() + child.text[1:]
+                        self.startTrigger.edge = StartTrigger.nidaqmx_edges[text]
+                    except KeyError as e: 
+                        self.logger.error(f"Not a valid {child.tag} value {child.text} \n {e}")
+                        raise
+                
+                else:
+                    self.logger.warning(f"Unrecognized XML tag \'{child.tag}\' in <{self.expectedRoot}>")
         
-            elif child.tag == "sample_rate":
-                self.sampleRate = float(child.text) # [Hz]
-            
-            elif child.tag == "samples_per_measurement":
-                self.samplesPerMeasurement = int_from_str(child.text)
-                
-            elif child.tag == "source":
-                self.source = child.text
-                
-            elif child.tag == "waitForStartTrigger":
-                self.startTrigger.wait_for_start_trigger = str_to_bool(child.text)
-                
-            elif child.tag == "triggerSource":
-                self.startTrigger.source = child.text
-                
-            elif child.tag == "ground_mode":
-                self.groundMode = child.text
-            
-            elif child.tag == "triggerEdge":
-                try:
-                    # CODO: could make dictionary keys in StartTrigger 
-                    # lowercase and then just .lower() the capitalized keys
-                    # passed in elsewhere 
-                    text = child.text[0].upper() + child.text[1:]
-                    self.startTrigger.edge = StartTrigger.nidaqmx_edges[text]
-                except KeyError as e: 
-                    self.logger.error(f"Not a valid {child.tag} value {child.text} \n {e}")
-                    raise
-            
-            else:
-                self.logger.warning(f"Unrecognized XML tag \'{child.tag}\' in <{self.expectedRoot}>")
+            except Exception as e:
+                raise XMLError(self, child)
 
         
     def init(self):

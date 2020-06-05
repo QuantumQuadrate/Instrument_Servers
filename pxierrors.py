@@ -15,7 +15,7 @@ from instrument import XMLLoader
 from digitalout import *
 
 
-class PXIError(Exception, ABC):
+class PXIError(Exception):
     """
     Base class for categorizing device class-level exceptions
     """
@@ -28,7 +28,8 @@ class PXIError(Exception, ABC):
             message: error message
             device: a instance of an object which inherits from XMLLoader
         """
-        super().__init__(message)
+        self._message = message
+        super().__init__(self.message)
         self._device = device
         
     @property
@@ -38,28 +39,33 @@ class PXIError(Exception, ABC):
         """
         return self._device
         
-    @abstractmethod
-    def more_info(self) -> str:
+    @property
+    def message(self) -> str:
         """
         Return additional info about the error that occured
         """
-        pass
-    
+        return self._message
+   
+   
 class XMLError(PXIError):
     """
     Exception pertaining to errors in parsing xml for setting device parameters
     """
     
-    def __init__(self, message: str, node: ET.Element, device: XMLLoader):
+    def __init__(self, device: XMLLoader, node: ET.Element, message: str=None,):
         """
         Constructor for XMLError. 
         
         Args:
-            message: error message
             node: xml node being read or set when the error occurred
             device: a instance of an object which inherits from XMLLoader
+            message: error message. if None (default), initialized internally
         """
         self._node = node
+        if message is None:
+            message = f"{device} encountered error at XML node {self.node.tag}"+\
+                f"\n with text {self.node.text}"
+
         super().__init__(message, device)
         
     @property
@@ -68,35 +74,30 @@ class XMLError(PXIError):
         XML node associated with the error
         """
         return self._node
-        
-    def more_info(self):
-        """
-        Return additional info about the error that occured
-        """
-        info = f"{self.device} encountered error at XML node {self.node.tag}"+\
-             f"\n with text {self.node.text}"
-        return info
+    
     
 class HardwareError(PXIError):
     """
     Exception pertaining to failure in reading from or writing to hardware
     """
     
-    def __init__(self, message: str, device: XMLLoader, task):
+    def __init__(self, device: XMLLoader, task, message: str=None):
         """
         Constructor for HardwareError. 
         
         Args:
-            message: error message
             node: xml node being read or set when the error occurred
             task: reference to an instance of an object that controls a hardware process, 
                 e.g. an NI-DAQmx task or an HSDIOSession
                 # TODO: maybe other info is useful too/instead?
+            message: error message. if None (default), initialized internally
             
         """
-        super().__init__(message, device)
         self._task = task
-        self.message += self.more_info()
+        if message is None:
+            message = f"{device} encountered error in {self.task}"
+                
+        super().__init__(message, device)
         
     @property
     def task(self):
@@ -104,14 +105,7 @@ class HardwareError(PXIError):
         Reference to an instance of the task class where the error occured
         """
         return self._task
-        
-    def more_info(self):
-        """
-        Return additional info about the error that occured
-        """
-        info = f"{self.device} encountered error in task/sesssion {self.task}"+\
-             f"\n with text {self.node.text}"
-        return info
+
     
 class TimeoutError(PXIError):
     pass
@@ -123,9 +117,9 @@ if __name__ == '__main__':
     
     do = DAQmxDO(None) # some device instance 
     try: 
-        node = ET.Element('wumbo', text="it's first grade, SpongeBob")
+        node = ET.Element('wumbo')
         do.load_xml(node)
     except Exception as e:
-        xml_err = XMLError(e, node, do)
-        print(xml_err.more_info())
+        xml_err = XMLError(do, node)
+        print(xml_err.message)
         raise xml_err

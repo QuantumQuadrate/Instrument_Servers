@@ -20,6 +20,8 @@ from trigger import StartTrigger
 from waveform import DAQmxDOWaveform
 from instrument import Instrument
 from instrumentfuncs import str_to_bool
+from pxierrors import XMLError, HardwareError
+
 
 class DAQmxDO(Instrument):
 
@@ -42,51 +44,56 @@ class DAQmxDO(Instrument):
         assert node.tag == self.expectedRoot, "expected node"+\
             f" <{self.expectedRoot}> but received <{node.tag}>"
 
-        for child in node: 
-            
-            if child.tag == "enable":
-                self.enable = str_to_bool(child.text)
-        
-            elif child.tag == "resourceName":
-                self.physicalChannels = child.text
-            
-            elif child.tag == "clockRate":
-                self.clockRate = float(child.text) 
+        try:
+            for child in node: 
                 
-            elif child.tag == "startTrigger":
-                node = child
-                for child in node:
-                
-                    if node.text == "waitForStartTrigger":
-                        self.startTrigger.wait_for_start_trigger = str_to_bool(child.text)
-                    elif child.text == "source":
-                        self.startTrigger.source = child.text
-                    elif child.text == "edge":
-                        try:
-                            # CODO: could make dictionary keys in StartTrigger 
-                            # lowercase and then just .lower() the capitalized keys
-                            # passed in elsewhere 
-                            text = child.text[0].upper() + child.text[1:]
-                            self.startTrigger.edge = StartTrigger.nidaqmx_edges[text]
-                        except KeyError as e: 
-                            self.logger.error(f"Not a valid {child.tag} value {child.text} \n {e}")
-                            raise
-                    else:
-                        self.logger.warning(f"Unrecognized XML tag \'{node.tag}\' in <{child.tag}>")
+                if child.tag == "enable":
+                    self.enable = str_to_bool(child.text)
             
-            elif child.tag == "waveform":
-                self.waveform = Waveform()
-                self.waveform.init_from_xml(child)
-                self.waveform.samplesPerChannel = self.waveform.length # the number of transitions
+                elif child.tag == "resourceName":
+                    self.physicalChannels = child.text
                 
-                # reverse each state array 
-                self.numChannels = len(self.waveform.states[0])
-                self.data = np.empty((self.samplesPerChannel, self.numChannels))
-                for i, state in enumerate(self.waveform.states):
-                    self.data[i] = np.flip(state)
-                        
-            else:
-                self.logger.warning(f"Unrecognized XML tag \'{child.tag}\' in <{self.expectedRoot}>")
+                elif child.tag == "clockRate":
+                    self.clockRate = float(child.text) 
+                    
+                elif child.tag == "startTrigger":
+                    node = child
+                    for child in node:
+                    
+                        if node.text == "waitForStartTrigger":
+                            self.startTrigger.wait_for_start_trigger = str_to_bool(child.text)
+                        elif child.text == "source":
+                            self.startTrigger.source = child.text
+                        elif child.text == "edge":
+                            try:
+                                # CODO: could make dictionary keys in StartTrigger 
+                                # lowercase and then just .lower() the capitalized keys
+                                # passed in elsewhere 
+                                text = child.text[0].upper() + child.text[1:]
+                                self.startTrigger.edge = StartTrigger.nidaqmx_edges[text]
+                            except KeyError as e: 
+                                self.logger.error(f"Not a valid {child.tag} value {child.text} \n {e}")
+                                raise
+                        else:
+                            self.logger.warning(f"Unrecognized XML tag \'{node.tag}\' in <{child.tag}>")
+                
+                elif child.tag == "waveform":
+                    self.waveform = Waveform()
+                    self.waveform.init_from_xml(child)
+                    self.waveform.samplesPerChannel = self.waveform.length # the number of transitions
+                    
+                    # reverse each state array 
+                    self.numChannels = len(self.waveform.states[0])
+                    self.data = np.empty((self.samplesPerChannel, self.numChannels))
+                    for i, state in enumerate(self.waveform.states):
+                        self.data[i] = np.flip(state)
+                            
+                else:
+                    self.logger.warning(f"Unrecognized XML tag \'{child.tag}\' in <{self.expectedRoot}>")
+            
+            except Exception as e:
+                raise XMLError(self, child)
+                
                     
     def init(self):
         """

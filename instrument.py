@@ -12,11 +12,14 @@ that inherits from Instrument.
 For example usage, go look at implementation in hsdio.py, analogin.py, etc. 
 """
 
+## built-in modules
 import xml.etree.ElementTree as ET
 from abc import ABC, abstractmethod
-from instrumentfuncs import str_to_bool
 import logging
 import re
+
+## local class imports
+from instrumentfuncs import str_to_bool
 
 
 class XMLLoader(ABC):
@@ -234,7 +237,7 @@ class Instrument(XMLLoader):
 
         if not self.enable:
             return
-                    
+                                
             
     
         
