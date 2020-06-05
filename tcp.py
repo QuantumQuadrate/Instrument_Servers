@@ -117,7 +117,7 @@ class TCP:
     @staticmethod
     def format_message(message: str) -> str:
         """
-        Formats a message according to how CsPy expects to receive it. This is done by preprending
+        Formats a message according to how CsPy expects to receive it. This is done by pre-prending
         the length of the message to the message in byte form
         Args:
             message : message to be sent
