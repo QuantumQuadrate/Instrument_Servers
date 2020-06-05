@@ -14,7 +14,6 @@ For example usage, go look at implementation in hsdio.py, analogin.py, etc.
 
 import xml.etree.ElementTree as ET
 from abc import ABC, abstractmethod
-from instrumentfuncs import str_to_bool
 import logging
 import re
 
