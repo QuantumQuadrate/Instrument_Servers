@@ -132,7 +132,7 @@ class Hamamatsu(Instrument):
 
             elif child.tag == "exposureTime":
                 # can convert scientifically-formatted numbers - good
-                self.exposure_time = Instrument.str_to_float(child.text)
+                self.exposure_time = float(child.text)
 
             elif child.tag == "EMGain":
                 gain = Instrument.str_to_int(child.text)

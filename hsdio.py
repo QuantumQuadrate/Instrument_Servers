@@ -80,7 +80,7 @@ class HSDIO(Instrument): # could inherit from an Instrument class if helpful
                 self.resourceNames = resources
 
             elif child.tag == "clockRate":
-                self.clockRate = Instrument.str_to_float(child.text)
+                self.clockRate = float(child.text)
 
             elif child.tag == "hardwareAlignmentQuantum":
                 self.hardwareAlignmentQuantum = child.text
