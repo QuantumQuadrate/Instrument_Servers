@@ -122,20 +122,20 @@ class Hamamatsu(Instrument):
                 # TODO : Check if this info is used anywhere in labview
                 pass
             elif child.tag == "enable":
-                self.enable = self.str_to_bool(child.text)
+                self.enable = Instrument.str_to_bool(child.text)
 
             elif child.tag == "analogGain":
-                gain = self.str_to_int(child.text)
+                gain = Instrument.str_to_int(child.text)
                 as_ms = f"analogGain = {gain}\n analogGain must be between 0  and 5"
                 assert 0 < gain < 5, as_ms
                 self.analog_gain = gain
 
             elif child.tag == "exposureTime":
                 # can convert scientifically-formatted numbers - good
-                self.exposure_time = self.str_to_float(child.text)
+                self.exposure_time = float(child.text)
 
             elif child.tag == "EMGain":
-                gain = self.str_to_int(child.text)
+                gain = Instrument.str_to_int(child.text)
                 as_ms = f"EMGain is {gain}\n EMGain must be between 0 and 255"
                 assert 0 < gain < 255, as_ms
                 self.em_gain = gain
@@ -180,37 +180,37 @@ class Hamamatsu(Instrument):
                 self.super_pixel_binning = child.text
 
             elif child.tag == "subArrayLeft":
-                self.sub_array.left = self.str_to_int(child.text)
+                self.sub_array.left = Instrument.str_to_int(child.text)
 
             elif child.tag == "subArrayTop":
-                self.sub_array.top = self.str_to_int(child.text)
+                self.sub_array.top = Instrument.str_to_int(child.text)
 
             elif child.tag == "subArrayWidth":
-                self.sub_array.width = self.str_to_int(child.text)
+                self.sub_array.width = Instrument.str_to_int(child.text)
 
             elif child.tag == "subArrayHeight":
-                self.sub_array.height = self.str_to_int(child.text)
+                self.sub_array.height = Instrument.str_to_int(child.text)
 
             elif child.tag == "frameGrabberAcquisitionRegionLeft":
-                self.fg_acquisition_region.left = self.str_to_int(child.text)
+                self.fg_acquisition_region.left = Instrument.str_to_int(child.text)
 
             elif child.tag == "frameGrabberAcquisitionRegionTop":
-                self.fg_acquisition_region.top = self.str_to_int(child.text)
+                self.fg_acquisition_region.top = Instrument.str_to_int(child.text)
 
             elif child.tag == "frameGrabberAcquisitionRegionRight":
-                self.fg_acquisition_region.right = self.str_to_int(child.text)
+                self.fg_acquisition_region.right = Instrument.str_to_int(child.text)
 
             elif child.tag == "frameGrabberAcquisitionRegionBottom":
-                self.fg_acquisition_region.bottom = self.str_to_int(child.text)
+                self.fg_acquisition_region.bottom = Instrument.str_to_int(child.text)
 
             elif child.tag == "numImageBuffers":
-                self.num_img_buffers = self.str_to_int(child.text)
+                self.num_img_buffers = Instrument.str_to_int(child.text)
 
             elif child.tag == "shotsPerMeasurement":
-                self.shots_per_measurement = self.str_to_int(child.text)
+                self.shots_per_measurement = Instrument.str_to_int(child.text)
 
             elif child.tag == "forceImagesToU16":
-                self.images_to_U16 = self.str_to_bool(child.text)
+                self.images_to_U16 = Instrument.str_to_bool(child.text)
 
             else:
                 self.logger.warning(f"Node {child.tag} is not a valid Hamamatsu attribute")

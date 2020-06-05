@@ -7,19 +7,16 @@ SaffmanLab, University of Wisconsin - Madison
 
 ## modules 
 import nidaqmx
-from nidaqmx.constants import Edge, AcquisitionType, Signal, TerminalConfiguration
+from nidaqmx.constants import Edge, AcquisitionType, TerminalConfiguration
 import numpy as np
 import xml.etree.ElementTree as ET
-import csv
-import re
-from io import StringIO
+import struct
 import logging
-from recordclass import recordclass as rc
 
 ## local imports
+from tcp import TCP
 from instrument import Instrument
 from trigger import StartTrigger
-from instrumentfuncs import *
 
 
 class AnalogInput(Instrument):
@@ -62,19 +59,19 @@ class AnalogInput(Instrument):
             if type(child) == ET.Element:
             
                 if child.tag == "enable":
-                    self.enable = str_to_bool(child.text)
+                    self.enable = Instrument.str_to_bool(child.text)
             
                 elif child.tag == "sample_rate":
                     self.sampleRate = float(child.text) # [Hz]
                 
                 elif child.tag == "samples_per_measurement":
-                    self.samplesPerMeasurement = int_from_str(child.text)
+                    self.samplesPerMeasurement = Instrument.int_from_str(child.text)
                     
                 elif child.tag == "source":
                     self.source = child.text
                     
                 elif child.tag == "waitForStartTrigger":
-                    self.startTrigger.wait_for_start_trigger = str_to_bool(child.text)
+                    self.startTrigger.wait_for_start_trigger = Instrument.str_to_bool(child.text)
                     
                 elif child.tag == "triggerSource":
                     self.startTrigger.source = child.text
