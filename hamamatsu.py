@@ -515,7 +515,7 @@ class Hamamatsu(Instrument):
             else:
                 # A failed measurement returns useless data of all 0
                 flat_ar = np.zeroes(sz[1]*sz[2])
-            tmp_str = u16_ar_to_str(flat_ar)
+            tmp_str = u16_ar_to_bytes(flat_ar)
             hm_str += TCP.format_data(f"{hm}/shots/{shot}", tmp_str)
 
         hm_str += TCP.format_data(f"{hm}/temperature", "{:.3f}".format(self.camera_temp))
@@ -523,14 +523,13 @@ class Hamamatsu(Instrument):
         return hm_str
 
 
-def u16_ar_to_str(ar: np.ndarray) -> str:  # Should the type hint on the return be modified?
+def u16_ar_to_bytes(ar: np.ndarray) -> bytes:
     """
     Converts ar to a string encoded as useful for parsing xml messages sent back to cspy
 
     Args:
         ar : input array. should be 1D ndarray
     Returns:
-        string that's parsable by cspy xml reciever
+        string to be parsed by cspy xml receiver
     """
-
     return struct.pack(f"!{len(ar)}H", *ar)
