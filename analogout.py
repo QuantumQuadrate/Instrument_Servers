@@ -10,7 +10,6 @@ SaffmanLab, University of Wisconsin - Madison
 import nidaqmx
 from nidaqmx.constants import Edge, AcquisitionType, Signal
 import numpy as np
-import xml.etree.ElementTree as ET
 import csv
 from io import StringIO
 import logging
@@ -21,13 +20,14 @@ from instrument import Instrument
 from trigger import StartTrigger
 from instrumentfuncs import *
 
+
 class AnalogOutput(Instrument):
 
     ExportTrigger = rc('ExportTrigger', ('exportStartTrigger', 'outputTerminal'))
     ExternalClock = rc('ExternalClock', ('useExternalClock', 'source', 'maxClockRate'))
     
     def __init__(self, pxi):
-        super().__init__(pxi, "AnalogOutput")
+        super().__init__(pxi=pxi, expected_root="AnalogOutput")
         self.logger = logging.getLogger(str(self.__class__))
         self.physicalChannels = ""
         self.minValue = -10
@@ -40,34 +40,30 @@ class AnalogOutput(Instrument):
         self.task = None
         self.isInitialized = False
 
-
-    def wave_from_str(self, wave_str, delim=' '):
+    @staticmethod
+    def wave_from_str(wave_str: str, delim: str = ' ') -> 'np.ndarray[float]':
         """
         Efficiently build return waveform as a numpy ndarray from a string
 
         Args:
-            'wave_str': (str) a (possibly multi-line) string of space-delimited
+            'wave_str': A (possibly multi-line) string of space-delimited
                 float-convertable values. 
-            'delim': (str, optional) the value delimiter. ' ' by default
+            'delim':  The string value delimiter. ' ' by default
         Returns:
-            'wave_arr': (np.ndarray, float) the waveform with one row per line 
-                in wave_str, and one column per value in a line. The shape for 
-                of the output is (samples, channels per sample)
+            The waveform with one row per line in wave_str, and one column per value in a line. The
+                shape for of the output is (samples, channels per sample)
         """
 
         with StringIO(wave_str) as f:
             reader = csv.reader(f, delimiter=delim)
             cols = len(next(reader))
-            try:
-                rows = sum([1 for row in reader]) + 1
-            except StopIteration:
-                rows = 1
+            rows = sum([1 for row in reader]) + 1
             wave_arr = np.empty((rows, cols), float)
     
         with StringIO(wave_str) as f:
             reader = csv.reader(f, delimiter=delim)
-            for i,row in enumerate(reader):
-                wave_arr[i,:] = row
+            for i, row in enumerate(reader):
+                wave_arr[i, :] = row
 
         return wave_arr
 
@@ -83,59 +79,55 @@ class AnalogOutput(Instrument):
         
         assert node.tag == self.expectedRoot, f"Expected xml tag {self.expectedRoot}"
 
-        for child in node: 
+        for child in node:
+            if child.tag == "enable":
+                self.enable = str_to_bool(child.text)
 
-            # not sure if this is necessary... could probably remove
-            if type(child) == ET.Element:
+            elif child.tag == "physicalChannels":
+                self.physicalChannels = child.text
 
-                if child.tag == "enable":
-                    self.enable = str_to_bool(child.text)
+            elif child.tag == "minimum":
+                self.minValue = float(child.text)
 
-                elif child.tag == "physicalChannels":
-                    self.physicalChannels = child.text
+            elif child.tag == "maximum":
+                self.maxValue = float(child.text)
 
-                elif child.tag == "minimum":
-                    self.minValue = float(child.text)
+            elif child.tag == "clockRate":
+                self.sampleRate = float(child.text) # samples per second in LabVIEW
 
-                elif child.tag == "maximum":
-                    self.maxValue = float(child.text)
+            elif child.tag == "waveform":
+                self.waveforms = AnalogOutput.wave_from_str(child.text)
 
-                elif child.tag == "clockRate":
-                    self.sampleRate = float(child.text) # samples per second in LabVIEW
+            elif child.tag == "waitForStartTrigger":
+                self.startTrigger.wait_for_start_trigger = str_to_bool(child.text)
 
-                elif child.tag == "waveform":
-                    self.waveforms = self.wave_from_str(child.text)
+            elif child.tag == "exportStartTrigger":
+                self.exportTrigger.exportStartTrigger = str_to_bool(child.text)
 
-                elif child.tag == "waitForStartTrigger":
-                    self.startTrigger.wait_for_start_trigger = str_to_bool(child.text)
+            elif child.tag == "triggerSource":
+                self.startTrigger.source = child.text
 
-                elif child.tag == "exportStartTrigger":
-                    self.exportTrigger.exportStartTrigger = str_to_bool(child.text)
+            elif child.tag == "exportStartTriggerDestination":
+                self.exportTrigger.outputTerminal = child.text
 
-                elif child.tag == "triggerSource":
-                    self.startTrigger.source = child.text
+            elif child.tag == "triggerEdge":
+                try:
+                    self.startTrigger.edge = StartTrigger.nidaqmx_edges[child.text]
+                except KeyError as e:
+                    self.logger.error(f"Not a valid {child.tag} value {child.text} \n {e}")
+                    raise
 
-                elif child.tag == "exportStartTriggerDestination":
-                    self.exportTrigger.outputTerminal = child.text
+            elif child.tag == "useExternalClock":
+                self.externalClock.useExternalClock = str_to_bool(child.text)
 
-                elif child.tag == "triggerEdge":
-                    try:
-                        self.startTrigger.edge = StartTrigger.nidaqmx_edges[child.text]
-                    except KeyError as e:
-                        self.logger.error(f"Not a valid {child.tag} value {child.text} \n {e}")
-                        raise
+            elif child.tag == "externalClockSource":
+                self.externalClock.source = child.text
 
-                elif child.tag == "useExternalClock":
-                    self.externalClock.useExternalClock = str_to_bool(child.text)
+            elif child.tag == "maxExternalClockRate":
+                self.externalClock.maxClockRate = float(child.text)
 
-                elif child.tag == "externalClockSource":
-                    self.externalClock.source = child.text
-
-                elif child.tag == "maxExternalClockRate":
-                    self.externalClock.maxClockRate = float(child.text)
-
-                else:
-                    self.logger.warning(f"Unrecognized XML tag \'{child.tag}\' in <AnalogOutput>")
+            else:
+                self.logger.warning(f"Unrecognized XML tag \'{child.tag}\' in <AnalogOutput>")
 
 
     # TODO: test with hardware
