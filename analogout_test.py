@@ -12,10 +12,16 @@ def test_wave_from_str():
     empty_str = ""
     with pytest.raises(StopIteration):
         AnalogOutput.wave_from_str(empty_str)
-    non_rectangular = "1 2 3 4\n 5 6 7"
+
+    non_rectangular = "1 2 3 4\n5 6 7"
     with pytest.raises(ValueError, match="cannot copy sequence"):
         AnalogOutput.wave_from_str(non_rectangular)
+
     extra_space = "1 2 3 4\n 5 6 7 8"
     with pytest.raises(ValueError, match="cannot copy sequence"):
         AnalogOutput.wave_from_str(extra_space)
+
+    non_numerics = "a e v 4\n1 2 3 b"
+    with pytest.raises(ValueError, match="could not convert string to float"):
+        AnalogOutput.wave_from_str(non_numerics)
 
