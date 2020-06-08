@@ -80,7 +80,7 @@ class AnalogOutput(Instrument):
 
         for child in node:
             if child.tag == "enable":
-                self.enable = str_to_bool(child.text)
+                self.enable = Instrument.str_to_bool(child.text)
 
             elif child.tag == "physicalChannels":
                 self.physicalChannels = child.text
