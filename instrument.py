@@ -14,7 +14,6 @@ For example usage, go look at implementation in hsdio.py, analogin.py, etc.
 
 import xml.etree.ElementTree as ET
 from abc import ABC, abstractmethod
-from instrumentfuncs import str_to_bool
 import logging
 import re
 
@@ -46,74 +45,47 @@ class XMLLoader(ABC):
 
     @staticmethod
     def str_to_bool(boolstr: str) -> bool:
-        # TODO : Replace usages of instrumentfuncs versions with this one
         """
-        return True or False case-insensitively for a string 'true' or 'false'
-
-        If boolstr is not 'true' or 'false' this function will raise a KeyError
+       Converts a string encoding "True" or "False" to boolean form case-insensitively.
 
         Args:
             'boolstr': string to be converted; not case-sensitive
-        Return:
-            'boolean': True or False.
+        Returns:
+             True or False depending on contents of string
+        Throws:
+            ValueError if the string cannot be converted due to a typo or other error
         """
         conv = {"true": True,
                 "false": False}
         try:
-            ret = conv[boolstr.lower()]
-        except ValueError as e:
-            m = f"boolstr = {boolstr} is non-boolean!"
-            raise ValueError(m)
-        return conv[boolstr.lower()]
+            return conv[boolstr.lower()]
+        except KeyError:
+            raise ValueError(f"Expected a string 'true' or 'false' but received {boolstr}")
 
     @staticmethod
     def str_to_int(num_str: str) -> int:
-        # TODO : replace usages of instrumentfuncs version with this one
         """
-        return a signed integer anchored to the beginning of num_str
+        Extracts a leading signed integer from a string.
+
+        Example input/output pairs:
+
+            Input     | Output
+            -----------------
+            '-4.50A'  | -4
+            '31415q' | 31415
+            'ph7cy'   | None, throws ValueError
 
         Args:
-            num_str : a signed integer, if found
-
-                Example input/output pairs:
-
-                    Input     | Output
-                    -----------------
-                    '-4.50A'  | -4
-                    '31415q' | 31415
-                    'ph7cy'   | None, throws IndexError
-
+            num_str : string containing a leading integer
         Returns:
             integer value encoded in num_str
+        Throws:
+            ValueError: If no leading integer was found
         """
         try:
-            ret = int(re.findall("^-?\d+", num_str)[0])
+            return int(re.findall("^-?\d+", num_str)[0])
         except IndexError:
-            m = f"num_str = {num_str} is non-numeric!"
-            raise ValueError(m)
-        return ret
-
-    @staticmethod
-    def str_to_float(num_str: str) -> float:
-        """
-        Return a float based on input string, handle errors gracefully
-        Args:
-            num_str : floating point number encoded in a string.
-                Example i/o pairs:
-
-                    Input   | Output
-                    '6.345' | 6.345
-                    '-924.3'| -924.3
-                    'a775'  | None, throws ValueError
-        Returns:
-            float value encoded in num_str
-        """
-        try:
-            ret = float(num_str)
-        except ValueError:
-            m = f"num_str = {num_str} is non-numeric!"
-            raise ValueError(m)
-        return ret
+            raise ValueError(f"num_str = {num_str} is non-numeric!")
 
     def set_by_dict(self, attr: str, node_text: str, values: {str: str}):
         """

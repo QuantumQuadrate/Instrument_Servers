@@ -17,7 +17,6 @@ from ni_hsdio import HSDIOSession, HSDIOError
 from typing import List
 
 ## local class imports
-from instrumentfuncs import str_to_bool
 from trigger import Trigger, StartTrigger
 from waveform import HSDIOWaveform
 from instrument import Instrument
@@ -71,7 +70,7 @@ class HSDIO(Instrument): # could inherit from an Instrument class if helpful
             self.logger.debug(child)
             # handle each tag by name:
             if child.tag == "enable":
-                self.enable = self.str_to_bool(child.text)
+                self.enable = Instrument.str_to_bool(child.text)
 
             elif child.tag == "description":
                 self.description = child.text
@@ -81,7 +80,7 @@ class HSDIO(Instrument): # could inherit from an Instrument class if helpful
                 self.resourceNames = resources
 
             elif child.tag == "clockRate":
-                self.clockRate = self.str_to_float(child.text)
+                self.clockRate = float(child.text)
 
             elif child.tag == "hardwareAlignmentQuantum":
                 self.hardwareAlignmentQuantum = child.text

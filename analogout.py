@@ -18,7 +18,6 @@ from recordclass import recordclass as rc
 ## local imports
 from instrument import Instrument
 from trigger import StartTrigger
-from instrumentfuncs import *
 
 
 class AnalogOutput(Instrument):
@@ -99,10 +98,10 @@ class AnalogOutput(Instrument):
                 self.waveforms = AnalogOutput.wave_from_str(child.text)
 
             elif child.tag == "waitForStartTrigger":
-                self.startTrigger.wait_for_start_trigger = str_to_bool(child.text)
+                self.startTrigger.wait_for_start_trigger = Instrument.str_to_bool(child.text)
 
             elif child.tag == "exportStartTrigger":
-                self.exportTrigger.exportStartTrigger = str_to_bool(child.text)
+                self.exportTrigger.exportStartTrigger = Instrument.str_to_bool(child.text)
 
             elif child.tag == "triggerSource":
                 self.startTrigger.source = child.text
@@ -118,7 +117,7 @@ class AnalogOutput(Instrument):
                     raise
 
             elif child.tag == "useExternalClock":
-                self.externalClock.useExternalClock = str_to_bool(child.text)
+                self.externalClock.useExternalClock = Instrument.str_to_bool(child.text)
 
             elif child.tag == "externalClockSource":
                 self.externalClock.source = child.text
