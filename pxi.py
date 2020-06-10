@@ -66,10 +66,10 @@ class PXI:
         # instantiate the device objects
         self.hsdio = HSDIO(self)
         self.tcp = TCP(self, address)
-        # self.analog_input = AnalogOutput(self)
-        # self.analog_output = AnalogInput(self)
-        # self.ttl = TTLInput(self)
-        # self.daqmx_do = DAQmxDO(self)
+        self.analog_input = AnalogOutput(self)
+        self.analog_output = AnalogInput(self)
+        self.ttl = TTLInput(self)
+        self.daqmx_do = DAQmxDO(self)
         self.hamamatsu = Hamamatsu(self)
         # TODO: implement these classes
         self.counters = None  # Counters()
@@ -171,107 +171,104 @@ class PXI:
         else:
             # loop non-recursively over children in root
             for child in root:
+            
                 self.element_tags.append(child)
 
-                if child.tag == "measure":
-                    if self.return_data_queue.empty():
-                        # if no data ready, take one measurement
-                        self.measurement()
-                    else:
+                try:
+                
+                    if child.tag == "measure":
+                        if self.return_data_queue.empty():
+                            # if no data ready, take one measurement
+                            self.measurement()
+                        else:
+                            # TODO: do something here?
+                            pass
+
+                    elif child.tag == "pause":
+                        # TODO: set state of server to 'pause';
+                        # i don't know if this a feature that currently gets used,
+                        # so might be able to omit this.
                         pass
-                        # Cast return_data_queue to a string? in labview the
-                        # global "Return Data" is simply assigned the value of
-                        # "Return Data Queue", despite the fact that the latter
-                        # is a Queue instance and the former is filled elsewhere
-                        # with a string built from concatenated xml.
-                        #
-                        # self.return_data_str = str(return_data_queue
 
-                elif child.tag == "pause":
-                    # TODO: set state of server to 'pause';
-                    # i don't know if this a feature that currently gets used,
-                    # so might be able to omit this.
-                    pass
+                    elif child.tag == "run":
+                        # TODO: set state of server to 'run';
+                        # i don't know if this a feature that currently gets used,
+                        # so might be able to omit this.
+                        pass
 
-                elif child.tag == "run":
-                    # TODO: set state of server to 'run';
-                    # i don't know if this a feature that currently gets used,
-                    # so might be able to omit this.
-                    pass
-
-                elif child.tag == "HSDIO":
-                    # set up the HSDIO
-                    try:
+                    elif child.tag == "HSDIO":
+                        # set up the HSDIO
                         self.hsdio.load_xml(child)
                         self.hsdio.init()
                         self.hsdio.update()
-                    except (HSDIOError, AssertionError, ValueError, KeyError) as e:
-                        self.handle_errors(e, "Initializing HSDIO")
+                        
+                    elif child.tag == "TTL":
+                        # self.ttl.load_xml(child)
+                        # self.ttl.init()
                         pass
-                elif child.tag == "TTL":
-                    # self.ttl.load_xml(child)
-                    # self.ttl.init()
-                    pass
-                elif child.tag == "DAQmxDO":
-                    # self.daqmxdo.load_xml(child)
-                    # self.daqmxdo.init() # called setup in labview
-                    pass
-                elif child.tag == "timeout":
-                    try:
-                        # get timeout in [ms]
-                        self.measurement_timeout = 1000*float(child.text)
-                    except ValueError as e:
-                        self.logger.error(f"{e} \n {child.text} is not valid "+
-                                          f"text for node {child.tag}")
+                        
+                    elif child.tag == "DAQmxDO":
+                        # self.daqmxdo.load_xml(child)
+                        # self.daqmxdo.init()
+                        pass
 
-                elif child.tag == "cycleContinuously":
-                    cycle = False
-                    if child.text.lower() == "True":
-                        cycle = True
-                    self.cycle_continuously = cycle
+                    elif child.tag == "timeout":
+                        try:
+                            # get timeout in [ms]
+                            self.measurement_timeout = 1000*float(child.text)
+                        except ValueError as e:
+                            msg = f"{e} \n {child.text} is not valid "+
+                                              f"text for node {child.tag}"
+                            raise XMLError(self, msg)
 
-                elif child.tag == "camera":
-                    pass
-                    # set up the Hamamatsu camera
-                    try:
+                    elif child.tag == "cycleContinuously":
+                        cycle = False
+                        if child.text.lower() == "True":
+                            cycle = True
+                        self.cycle_continuously = cycle
+
+                    elif child.tag == "camera":
+                        # set up the Hamamatsu camera
                         self.hamamatsu.load_xml(child)  # Raises ValueError
                         self.hamamatsu.init()  # Raises IMAQErrors
-                    # Errors below are raised due to improper settings, should not stop executions
-                    except (IMAQError, AssertionError, ValueError, KeyError) as e:
-                        self.handle_errors(e, "initializing hamamatsu")
+
+                    elif child.tag == "AnalogOutput":
+                        # set up the analog_output
+                        # self.analog_output.load_xml(child)
+                        # self.analog_output.init() # setup in labview
+                        # self.analog_output.update()
                         pass
 
-                elif child.tag == "AnalogOutput":
-                    # set up the analog_output
-                    # self.analog_output.load_xml(child)
-                    # self.analog_output.init() # setup in labview
-                    # self.analog_output.update()
-                    pass
+                    elif child.tag == "AnalogInput":
+                        # set up the analog_input
+                        # self.analog_input.load_xml(child)
+                        # self.analog_input.init()
+                        pass
 
-                elif child.tag == "AnalogInput":
-                    # set up the analog_input
-                    # self.analog_input.load_xml(child)
-                    # self.analog_input.init()
-                    pass
+                    elif child.tag == "Counters":
+                        # TODO: implement counters class
+                        # set up the counters
+                        # self.counters.load_xml(child)
+                        # self.counters.init()
+                        pass
 
-                elif child.tag == "Counters":
-                    # TODO: implement counters class
-                    # set up the counters
-                    # self.counters.load_xml(child)
-                    # self.counters.init()
-                    pass
+                    # might implement, or might move RF generator functionality to
+                    # CsPy based on code used by Hybrid.
+                    elif child.tag == "RF_generators":
+                        pass
 
-                # might implement, or might move RF generator functionality to
-                # CsPy based on code used by Hybrid.
-                elif child.tag == "RF_generators":
-                    pass
-
-                else:
-                    self.logger.warning(f"Node {child.tag} received is not a valid"+
-                                   f"child tag under root <{root.tag}>")
-
-        # TODO: some sort of error handling. could have several try/except
-        # blocks in the if/elifs above
+                    else:
+                        self.logger.warning(f"Node {child.tag} received is not a valid"+
+                                       f"child tag under root <{root.tag}>")
+                                       
+                # I do not catch AssertionErrors. The one at the top of load_xml in every 
+                # device class can only occur if the device is passed the wrong xml node, 
+                # which can never occur in pxi.parse_xml, as we check the tag before 
+                # instantiating a device. those assertions are there in case someone down the 
+                # road does something more careless. 
+                except (XMLError, HardwareError) as e:
+                    self.handle_errors(e)
+                
 
         # send a message back to CsPy
         self.tcp.send_message(self.return_data)
@@ -280,7 +277,7 @@ class PXI:
         self.return_data = ""
         self.return_data_queue = Queue(0)
 
-    def data_to_xml(self):
+    def data_to_xml(self): # TODO: this does not do what the docstring says. 
         """
         Convert responses from devices to xml and append to self.return_data_str
 
@@ -294,24 +291,18 @@ class PXI:
 
         return_data_str = ""
 
-        '''
-        Once all data_out methods are implemented, could do something like this:
+        # the devices which have a method named 'data_out' which returns a str
+        devices = [
+            self.hamamatsu, 
+            self.counters,
+            self.ttl,
+            self.analog_input
+            # self.demo # not implemented, and debatable whether it needs to be
+        ]
         
-        # the devices that have a data_out method
-        data_devices = [self.counters, self.ttl, self.analog_input]
-
-        for dev in data_devices:
-            try:
-                self.return_data_str += dev.data_out()
-            except Exception as e:
-                self.logger.error(f"encountered error in {dev}.data_out: \n {e}")
-        '''
-
-        return_data_str += self.hamamatsu.data_out()
-        return_data_str += self.counters.data_out()
-        return_data_str += self.ttl.data_out()
-        return_data_str += self.analog_input.data_out()
-        # return_data_str += self.demo.data_out()  # TODO : Implement
+        for dev in devices:
+            if dev.isInitialized: 
+                return_data_str += self.dev.data_out()
 
         return return_data_str
 
@@ -338,8 +329,7 @@ class PXI:
             t0 = perf_counter_ns() # integer ns. reference point is undefined.             
             while not (_is_done or _is_error or self.stop_connections
                        or self.exit_measurement):
-                _is_done, error_out = self.is_done()              
-                # _is_error = error_out["IsError?"] # TODO implement somehow
+                _is_done = self.is_done()              
                 
                 # sleep until this iteration has taken at least 1 ms
                 while True:
@@ -360,7 +350,11 @@ class PXI:
 
         For now, only applies to TTL
         """
-        self.ttl.reset_data()
+        try:
+            self.ttl.reset_data()
+        except HardwareError as e:
+            self.handle_errors(e)
+            
 
     def system_checks(self):
         """
@@ -368,42 +362,81 @@ class PXI:
 
         For now, only applies to TTL
         """
-        self.ttl.check()
+        try:
+            self.ttl.check()
+        except HardwareError as e:
+            self.handle_errors(e)
+            
+    """
+    many of the following methods have a generalizable format, and could easily
+    be replaced with a general method which would have the following signature:
+    
+    device_method_call(device_list: List[Instrument], method_name: str)
+    
+    this foregoes some transparency but would be cleaner. thoughts?
+    """
+
 
     def start_tasks(self):
         """
         Start measurement and output tasks for relevant devices
         """
-        # self.counters.start()  # TODO : Implement
-        self.daqmx_do.start()
-        try:
-            self.hsdio.start()
-        except HSDIOError as e:
-            self.handle_errors(e, "hsdio start")
-            pass
-        self.analog_input.start()
-        self.analog_output.start()
-        # self.reset_timeout()  # TODO : Implement. need to discuss how we want to handle timing
+
+        if not (self.stop_connections or self.exit_measurement):
+
+            # devices which have a method 'start'
+            devices = [
+                self.hsdio,
+                self.daqmx_do,
+                self.analog_input,
+                self.analog_output
+                # self.counters # TODO: implement Counters.start
+            ]
+            
+            for dev in devices:
+                if dev.isInitialized:
+                    try: 
+                        dev.stop()
+                    except HardwareError as e:
+                        self.handle_errors(e)
+            
+            # self.reset_timeout()  # TODO : Implement. we still need to discuss how we want to handle timing
 
     def stop_tasks(self):
         """
         Stop measurement and output tasks for relevant devices
         """
-        # self.counters.stop()  # TODO : Implement
-        try:
-            self.hsdio.stop()
-        except HSDIOError as e:
-            self.handle_errors(e, "hsdio stop")
-        self.daqmx_do.stop()
-        self.analog_input.stop()
-        self.analog_output.stop()
-
+        
+        # devices which have a method 'stop'
+        devices = [
+            self.hsdio, 
+            self.daqmx_do,
+            self.analog_input,
+            self.analog_output
+            # self.counters # TODO: implement Counters.stop
+        ]
+        
+        for dev in devices:
+            if dev.isInitialized:
+                try: 
+                    dev.stop()
+                except HardwareError as e:
+                    self.handle_errors(e)
+                    
+                    
     def get_data(self):
-        # self.counters.get_data()
-        self.hamamatsu.minimal_acquire()
-        self.analog_input.get_data()
+    
+        if not (self.stop_connections or self.exit_measurement):
+        
+            try:
+                # self.counters.get_data() # TODO: implement
+                self.hamamatsu.minimal_acquire()
+                self.analog_input.get_data()
+            except HardwareError as e:
+                self.handle_errors(e)
+        
 
-    def is_done(self) -> Tuple[bool, int]:
+    def is_done(self) -> bool:
         """
         Check if devices running processes are done yet
 
@@ -420,25 +453,31 @@ class PXI:
         """
 
         done = True
-        # TODO : @Preston Fill out except blocks to deal with other instruments
         if not (self.stop_connections or self.exit_measurement):
+            
+            # devices which have a method named 'is_done' that returns a bool
             devices = [
                 self.hsdio,
                 self.analog_output,
                 self.analog_input,
-                self.daqmx_do]
+                self.daqmx_do
+            ]
 
-            # loop over devices which have is_done method
             try:
                 for dev in devices:
-                    if not dev.is_done():
-                        done = False
-                        break
-            except HSDIOError as e:
-                self.handle_errors(e, "check hsdio.is_done")
-                return done, e.error_code
+                    if dev.isInitialized:
+                        if not dev.is_done():
+                            done = False
+                            break
+            except (HardwareError, XMLError) as e:
+                self.handle_errors(e)
+                return done
+                
+            # By the time errors get up to the PXI, they should have been 
+            # wrapped into a more general category like XMLError, HardwareError, 
+            # etc. so they can be handled at this level accordingly
 
-        return done, 0
+        return done
 
     def reset_timeout(self):
         """
@@ -493,7 +532,7 @@ class PXI:
         """
         pass
 
-    def handle_errors(self, error, traceback_str):
+    def handle_errors(self, error, traceback_str=None):
         """
         Placeholder function for error handling in pxi class
 
@@ -550,18 +589,21 @@ class PXI:
         3) anything else that needs to be done
         4) call the function that cycles the exp. 
         """
+        
+        # maybe there are some cases when we would want to overwrite or add to
+        # the detailed message already acquired where the exception arose?
+        if traceback_str != None:
+            error.message = traceback_str # i'm open to proposed changes here
          
         if isinstance(error, XMLError):
-            
-            
             self.logger.error(error.message + "\n Fix the pertinent XML in CsPy, then try again.")
             cycle_message(error.device)
  
         elif isinstance(error, HardwareError):
-            
             self.logger.error(error.message)
             cycle_message(error.device)
             
         elif isinstance(error, TimeoutError):
             # TODO: log and handle timeout error
             pass 
+            
