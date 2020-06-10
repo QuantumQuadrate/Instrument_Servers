@@ -27,6 +27,7 @@ from time import perf_counter_ns
 
 ## misc local classes
 from keylistener import KeyListener
+from pxierrors import XMLError, HardwareError, TimeoutError
 
 ## local device classes
 from hsdio import HSDIO, HSDIOError
@@ -519,4 +520,34 @@ class PXI:
             error : The error that was raised. Maybe it's useful to keep it around
             traceback_str : string useful for traceback
         """
-        pass
+        
+        ## handle errors according to type. in principle, all errors should be 
+        ## classifiable by these types, or maybe an additional type or two is
+        ## needed. 
+         
+        if isinstance(error, XMLError):
+            # TODO: log and handle XML error
+            pass
+            
+            """
+            1) log the error message. should include action to be taken
+            2) log a message giving the state of the server now (e.g. we'll cycle but w/o the dev. that failed)
+            3) call the function that cycles the exp. 
+            """
+            
+        elif isinstance(error, HardwareError):
+            # TODO: log and handle hardware error
+            pass 
+            
+            """
+            
+            # before writing code here, make sure that the task or session is properly closed 
+            # where the error occurred before it is raised
+            1) log the error message. should include action to be taken. 
+            2) log a message giving the state of the server now (e.g. we'll cycle but w/o the dev. that failed)
+            3) call the function that cycles the exp.
+            """
+            
+        elif isinstance(error, TimeoutError):
+            # TODO: log and handle hardware error
+            pass 

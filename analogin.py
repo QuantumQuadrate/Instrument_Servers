@@ -106,16 +106,7 @@ class AnalogInput(Instrument):
         if not (self.stop_connections or self.reset_connection) and self.enable:
                 
             # Clear old task
-            if self.task != None:
-                try:
-                    self.task.close()
-                    
-                except DaqError as e:
-                    msg = '\n AnalogInput failed to close current task'
-                    raise HardwareError(self, task, message=msg)
-
-                except DaqWarning as e:
-                    self.logger.warning(str(e.message))
+            self.close()
             
             # configure the output terminal from an NI Enum
             
@@ -154,6 +145,9 @@ class AnalogInput(Instrument):
                         trigger_edge=self.startTrigger.edge)
             
             except DaqError as e:
+                # end the task nicely
+                self.stop()
+                self.close()
                 msg = '\n AnalogInput task initialization failed'
                 raise HardwareError(self, task, message=msg)
 
@@ -177,7 +171,10 @@ class AnalogInput(Instrument):
                 # check if NI task is done
                 done = self.task.is_task_done()
                 
-            except DaqError as e:
+            except DaqError as e:               
+                # end the task nicely
+                self.stop()
+                self.close()
                 msg = '\n AnalogInput check for task completion failed'
                 raise HardwareError(self, task, message=msg)
 
@@ -185,40 +182,6 @@ class AnalogInput(Instrument):
                 self.logger.warning(str(e.message))
 
         return done
-        
-
-    def start(self):
-        """
-        Start the task
-        """
-
-        if not (self.stop_connections or self.reset_connection) and self.enable:
-            try:
-                self.task.start()
-                
-            except DaqError as e:
-                msg = '\n AnalogInput failed to start task'
-                raise HardwareError(self, task, message=msg)
-
-            except DaqWarning as e:
-                self.logger.warning(str(e.message))
-            
-
-    def stop(self):
-        """
-        Stop the task
-        """
-        
-        if self.enable:
-            try:
-                self.task.stop()
-                
-            except DaqError as e:
-                msg = '\n AnalogInput failed to stop current task'
-                raise raise HardwareError(self, task, message=msg)
-
-            except DaqWarning as e:
-                self.logger.warning(str(e.message))
             
             
     def get_data(self):
@@ -237,11 +200,15 @@ class AnalogInput(Instrument):
                 self.data = self.task.read()
                 
             except DaqError as e:
+                # end the task nicely
+                self.stop()
+                self.close()
                 msg = '\n AnalogInput failed to read data from hardware'
                 raise raise HardwareError(self, task, message=msg)
 
             except DaqWarning as e:
                 self.logger.warning(str(e.message))
+            
             
     # TODO: compare output to what the LabVIEW method returns
     def data_out(self) -> str:
@@ -269,3 +236,58 @@ class AnalogInput(Instrument):
                 TCP.format_data('AI/data', data_bytes)
                 
             return self.data_string
+            
+            
+    def start(self):
+        """
+        Start the task
+        """
+
+        if not (self.stop_connections or self.reset_connection) and self.enable:
+            try:
+                self.task.start()
+                
+            except DaqError as e:
+                # end the task nicely
+                self.stop()
+                self.close()
+                msg = '\n AnalogInput failed to start task'
+                raise HardwareError(self, task, message=msg)
+
+            except DaqWarning as e:
+                self.logger.warning(str(e.message))
+            
+
+    def stop(self):
+        """
+        Stop the task
+        """
+        
+        if self.task != None:
+            try:
+                self.task.stop()
+                
+            except DaqError as e:
+                self.close()
+                msg = '\n AnalogInput failed to stop current task'
+                raise raise HardwareError(self, task, message=msg)
+
+            except DaqWarning as e:
+                self.logger.warning(str(e.message))
+                
+                
+    def close(self):
+        """
+        Close the task
+        """
+        
+        if self.task != None:
+            try:
+                self.task.close()
+                
+            except DaqError as e:
+                msg = '\n AnalogInput failed to close current task'
+                raise HardwareError(self, task, message=msg)
+
+            except DaqWarning as e:
+                self.logger.warning(str(e.message))

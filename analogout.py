@@ -165,8 +165,11 @@ class AnalogOutput(Instrument):
                             self.task.close()
                             
                         except DaqError as e:
+                            # end the task nicely
+                            self.stop()
+                            self.close()
                             msg = '\n AnalogOutput failed to close current task'
-                            raise raise HardwareError(self, task, message=msg)
+                            raise HardwareError(self, task, message=msg)
 
                         except DaqWarning as e:
                             self.logger.warning(str(e.message))
@@ -197,6 +200,9 @@ class AnalogOutput(Instrument):
                             self.exportTrigger.outputTerminal)
                 
                 except DaqError as e:
+                    # end the task nicely
+                    self.stop()
+                    self.close()
                     msg = '\n AnalogOutput hardware initialization failed'
                     raise HardwareError(self, task, message=msg)
 
@@ -219,16 +225,19 @@ class AnalogOutput(Instrument):
             
             try:
                 self.task.timing.cfg_samp_clk_timing(
-                        rate=self.sampleRate, 
-                        active_edge=Edge.RISING, # default
-                        sample_mode=AcquisitionType.FINITE, # default
-                        samps_per_chan=samples)
+                    rate=self.sampleRate, 
+                    active_edge=Edge.RISING, # default
+                    sample_mode=AcquisitionType.FINITE, # default
+                    samps_per_chan=samples)
             
                 # Auto-start is false by default when the data passed in contains
                 # more than one sample per channel
                 self.task.write(self.waveforms)
                 
             except DaqError as e:
+                # end the task nicely
+                self.stop()
+                self.close()
                 msg = '\n AnalogOutput hardware update failed'
                 raise HardwareError(self, task, message=msg)
 
@@ -252,6 +261,9 @@ class AnalogOutput(Instrument):
                 done = self.task.is_task_done()
                 
             except DaqError as e:
+                # end the task nicely
+                self.stop()
+                self.close()
                 msg = '\n AnalogOutput check for task completion failed'
                 raise HardwareError(self, task, message=msg)
 
@@ -271,12 +283,16 @@ class AnalogOutput(Instrument):
             try:
                 self.task.start()
                 
-            except DaqError as e:
+            except DaqError as e
+                # end the task nicely
+                self.stop()
+                self.close()
                 msg = '\n AnalogOutput failed to start task'
                 raise HardwareError(self, task, message=msg)
 
             except DaqWarning as e:
                 self.logger.warning(str(e.message))
+
 
     def stop(self):
         """
@@ -288,8 +304,26 @@ class AnalogOutput(Instrument):
                 self.task.stop()
                         
             except DaqError as e:
+                self.close()
                 msg = '\n AnalogOutput failed to stop current task'
                 raise HardwareError(self, task, message=msg)
 
             except DaqWarning as e:
                 self.logger.warning(str(e.message))    
+                
+                
+    def close(self):
+        """
+        Close the task
+        """
+        
+        if self.task != None:
+            try:
+                self.task.close()
+                
+            except DaqError as e:
+                msg = '\n AnalogOutput failed to close current task'
+                raise HardwareError(self, task, message=msg)
+
+            except DaqWarning as e:
+                self.logger.warning(str(e.message))

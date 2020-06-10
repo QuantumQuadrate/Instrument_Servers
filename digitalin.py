@@ -81,6 +81,9 @@ class TTLInput(Instrument):
                     self.task.close()
                     
                 except DaqError as e:
+                    # end the task nicely
+                    self.stop()
+                    self.close()
                     msg = '\n TTLInput failed to close current task'
                     raise HardwareError(self, task, message=msg)
 
@@ -101,6 +104,9 @@ class TTLInput(Instrument):
                     line_grouping=<LineGrouping.CHAN_FOR_ALL_LINES: 1>)
                     
             except DaqError as e:
+                # end the task nicely
+                self.stop()
+                self.close()
                 msg = '\n TTLInput hardware initialization failed'
                 raise HardwareError(self, task, message=msg)
                 
@@ -130,9 +136,9 @@ class TTLInput(Instrument):
         
         if not (self.stop_connections or self.reset_connection) and self.enable:
             
-            try:
-                self.task.start()
-                
+            self.start()
+            
+            try:                
                 # number_of_samples_per_channel unset means 1 sample per channel
                 # 1 second timeout
                 data = self.task.read(timeout=1)
@@ -145,15 +151,19 @@ class TTLInput(Instrument):
                 # so it is technically 2D as each newly acquired datum is a column
                 self.data = np.append(self.data, data)
                 
-                # Stop the task and reset it to the state it was initiially
-                self.task.stop()
-           
+                # Stop the task and reset it to the state it was initially
+                self.stop()
+                           
             except DaqError as e:
+                # end the task nicely
+                self.stop()
+                self.close()
                 msg = '\n TTLInput data check failed'
                 raise HardwareError(self, task, message=msg)
-                
+                                
             except DaqWarning as e:
                 self.logger.warning(str(e.message))
+                
             
     def data_out(self) -> str:
         """
@@ -176,3 +186,56 @@ class TTLInput(Instrument):
                 TCP.format_data('TTL/data', data_bytes)
                 
             return self.data_string
+            
+            
+    def start(self):
+        """
+        Start the task
+        """
+        
+        if not (self.stop_connections or self.reset_connection) and self.enable:
+            
+            try:
+                self.task.start()
+            except DaqError as e:
+                # end the task nicely
+                self.stop()
+                self.close()
+                msg = '\n TTLInput failed to start task'
+                raise HardwareError(self, task, message=msg)
+                
+            except DaqWarning as e:
+                self.logger.warning(str(e.message))
+            
+            
+    def stop(self):
+        """
+        Stop the task
+        """
+        
+        if self.enable:
+            try:
+                self.task.stop()
+            except DaqError as e:
+                msg = '\n TTLInput failed while attempting to stop current task'
+                raise HardwareError(self, task, message=msg)
+                
+            except DaqWarning as e:
+                self.logger.warning(str(e.message))
+                
+                
+    def close(self):
+        """
+        Close the task
+        """
+        
+        if self.task != None:
+            try:
+                self.task.close()
+                
+            except DaqError as e:
+                msg = '\n TTLInput failed to close current task'
+                raise HardwareError(self, task, message=msg)
+
+            except DaqWarning as e:
+                self.logger.warning(str(e.message))

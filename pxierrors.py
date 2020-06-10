@@ -49,7 +49,17 @@ class PXIError(Exception):
    
 class XMLError(PXIError):
     """
-    Exception pertaining to errors in parsing xml for setting device parameters
+    Exception type pertaining to errors in parsing xml
+    
+    When handling an error in an class which inherits from XMLLoader, 
+    use this type to raise an XMLError in except statements dealing
+    with XML related exceptions. 
+    
+    Examples of XML exceptions:
+        failure in any of the following (but not limited to):
+        - a waveform specified in xml was not formatted as expected
+        - an invalid value was supplied for setting a device attribute (e.g. 
+        allowed values were 'true' or 'false', but recieved 7 from xml)
     """
     
     def __init__(self, device: XMLLoader, node: ET.Element, message: str=None):
@@ -78,7 +88,17 @@ class XMLError(PXIError):
     
 class HardwareError(PXIError):
     """
-    Exception pertaining to failure in reading from or writing to hardware
+    Exception type pertaining to failure in reading from or writing to hardware
+    
+    When handling an error at the device level, e.g. in the HSDIO class, 
+    use this type to raise a HardwareError in except statements dealing
+    with hardware related exceptions. 
+    
+    Examples of hardware exceptions:
+        failure in any of the following (but not limited to):
+        - reading/writing to NI-DAQmx Task
+        - anything to do with an HSDIOSession
+        - setting up triggers for hardware
     """
     
     def __init__(self, device: XMLLoader, task, message: str=None):
@@ -111,6 +131,9 @@ class HardwareError(PXIError):
 
     
 class TimeoutError(PXIError):
+    """
+    """
+    
     pass
     
     

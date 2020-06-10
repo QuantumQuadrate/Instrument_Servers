@@ -111,6 +111,9 @@ class DAQmxDO(Instrument):
                         self.task.close()
                         
                     except DaqError as e:
+                        # end the task nicely
+                        self.stop()
+                        self.close()
                         msg = '\n DAQmxDO failed to close current task'
                         raise HardwareError(self, task, message=msg)
 
@@ -146,6 +149,9 @@ class DAQmxDO(Instrument):
                         timeout=10.0) # default
             
                 except DaqError as e:
+                    # end the task nicely
+                    self.stop()
+                    self.close()
                     msg = '\n DAQmxDO hardware initialization failed'
                     raise HardwareError(self, task, message=msg)
                     
@@ -172,6 +178,9 @@ class DAQmxDO(Instrument):
             try:
                 done = self.task.is_task_done()
             except DaqError as e:
+                # end the task nicely
+                self.stop()
+                self.close()
                 msg = '\n DAQmxDO check for task completion failed'
                 raise HardwareError(self, task, message=msg)
                 
@@ -191,11 +200,15 @@ class DAQmxDO(Instrument):
             try:
                 self.task.start()
             except DaqError as e:
+                # end the task nicely
+                self.stop()
+                self.close()
                 msg = '\n DAQmxDO failed to start task'
                 raise HardwareError(self, task, message=msg)
                 
             except DaqWarning as e:
                 self.logger.warning(str(e.message))
+            
             
     def stop(self):
         """
@@ -209,5 +222,22 @@ class DAQmxDO(Instrument):
                 msg = '\n DAQmxDO failed while attempting to stop current task'
                 raise HardwareError(self, task, message=msg)
                 
+            except DaqWarning as e:
+                self.logger.warning(str(e.message))
+                
+                
+    def close(self):
+        """
+        Close the task
+        """
+        
+        if self.task != None:
+            try:
+                self.task.close()
+                
+            except DaqError as e:
+                msg = '\n DAQmxDO failed to close current task'
+                raise HardwareError(self, task, message=msg)
+
             except DaqWarning as e:
                 self.logger.warning(str(e.message))
