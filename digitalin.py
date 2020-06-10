@@ -45,6 +45,8 @@ class TTLInput(Instrument):
             node.tag == self.expectedRoot
         """
         
+        self.isInitialized = False
+        
         assert node.tag == self.expectedRoot, "Expected tag "+
                 f"<{self.expectedRoot}>, but received <{node.tag}>"
         
@@ -112,6 +114,8 @@ class TTLInput(Instrument):
                 
             except DaqWarning as e:
                 self.logger.warning(str(e.message))
+                
+            self.isInitialized = True
             
     
     def reset_data(self):

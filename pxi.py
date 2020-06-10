@@ -521,33 +521,47 @@ class PXI:
             traceback_str : string useful for traceback
         """
         
-        ## handle errors according to type. in principle, all errors should be 
-        ## classifiable by these types, or maybe an additional type or two is
-        ## needed. 
+        # NOTE:
+        # This code is not a janitor, your mother/father, etc. If your device soiled itself, it is your
+        # responsibility to clean up the problem where it occurred. The code that follows is only
+        # intended to change the state the of the server and/or log a report of what happened,
+        # in response to whatever mess was made. 
+         
+        def cycle_message(dev: XMLLoader):
+            """
+            Log a message about the status of the server cycling. 
+            Args:
+                dev: the device instance where the problem occurred
+            """
+            if self.cycle_continuously:
+                self.logger.info(f"The server will now cycle, but without {dev}")
+            else:
+                self.logger.info(f"The server is not taking data. Cycle continuously to resume, but without {dev}")
+                
+                
+        """
+        handle errors according to type. in principle, all errors should be 
+        classifiable by these types, or maybe an additional type or two is
+        needed. 
+        
+        In each case, 
+        1) log the error message. should include action to be taken
+        2) log a message giving the state of the server now (e.g. we'll cycle but w/o the dev. that failed)
+        3) anything else that needs to be done
+        4) call the function that cycles the exp. 
+        """
          
         if isinstance(error, XMLError):
-            # TODO: log and handle XML error
-            pass
             
-            """
-            1) log the error message. should include action to be taken
-            2) log a message giving the state of the server now (e.g. we'll cycle but w/o the dev. that failed)
-            3) call the function that cycles the exp. 
-            """
             
+            self.logger.error(error.message + "\n Fix the pertinent XML in CsPy, then try again.")
+            cycle_message(error.device)
+ 
         elif isinstance(error, HardwareError):
-            # TODO: log and handle hardware error
-            pass 
             
-            """
-            
-            # before writing code here, make sure that the task or session is properly closed 
-            # where the error occurred before it is raised
-            1) log the error message. should include action to be taken. 
-            2) log a message giving the state of the server now (e.g. we'll cycle but w/o the dev. that failed)
-            3) call the function that cycles the exp.
-            """
+            self.logger.error(error.message)
+            cycle_message(error.device)
             
         elif isinstance(error, TimeoutError):
-            # TODO: log and handle hardware error
+            # TODO: log and handle timeout error
             pass 

@@ -45,7 +45,6 @@ class AnalogOutput(Instrument):
         self.externalClock = self.ExternalClock(False, '', 0)
         self.startTrigger = StartTrigger()
         self.task = None
-        self.isInitialized = False
 
 
     def wave_from_str(self, wave_str, delim=' '):
@@ -87,6 +86,8 @@ class AnalogOutput(Instrument):
             'node': type is ET.Element. tag should be "HSDIO". Expects 
             node.tag == "AnalogOutput"
         """
+        
+        self.isInitialized = False
         
         assert node.tag == self.expectedRoot, "expected node"+\
             f" <{self.expectedRoot}> but received <{node.tag}>"

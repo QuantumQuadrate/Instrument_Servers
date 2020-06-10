@@ -74,7 +74,7 @@ class XMLError(PXIError):
         self._node = node
         if message is None:
             message = f"{device} encountered error at XML node {self.node.tag}"+\
-                f"\n with text {self.node.text}"
+                f"\n with text \'{self.node.text}\'"
 
         super().__init__(message, device)
         

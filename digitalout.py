@@ -41,6 +41,8 @@ class DAQmxDO(Instrument):
             node.tag == self.expectedRoot
         """
         
+        self.isInitialized = False
+        
         assert node.tag == self.expectedRoot, "expected node"+\
             f" <{self.expectedRoot}> but received <{node.tag}>"
 
@@ -101,10 +103,8 @@ class DAQmxDO(Instrument):
         Initialize the device hardware with the attributes set in load_xml
         """
     
-        if not (self.stop_connections or self.reset_connection):
+        if not (self.stop_connections or self.reset_connection) and self.enable:
             
-             if self.enable:
-
                 # Clear old task
                 if self.task != None:
                     try:

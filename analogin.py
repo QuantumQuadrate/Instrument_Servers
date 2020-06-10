@@ -56,6 +56,8 @@ class AnalogInput(Instrument):
             node.tag == "AnalogInput"
         """
         
+        self.isInitialized = False
+        
         assert node.tag == self.expectedRoot, "expected node"+\
             f" <{self.expectedRoot}> but received <{node.tag}>"
 
@@ -99,7 +101,7 @@ class AnalogInput(Instrument):
             except (KeyError, ValueError):
                 self.logger.exceptions()
                 raise XMLError(self, child)
-
+                
         
     def init(self):
     
@@ -153,6 +155,8 @@ class AnalogInput(Instrument):
 
             except DaqWarning as e:
                 self.logger.warning(str(e.message))
+                
+            self.isInitialized = True
                         
                         
     def is_done(self) -> bool:

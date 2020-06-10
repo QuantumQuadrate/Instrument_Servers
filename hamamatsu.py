@@ -111,6 +111,8 @@ class Hamamatsu(Instrument):
             'node': node with tag="camera"
         """
 
+        self.isInitialized = False
+        
         super().load_xml(node)
 
         for child in node:
@@ -363,7 +365,7 @@ class Hamamatsu(Instrument):
             ),
             dtype=np.uint16
         )
-        self.is_initialized = True
+        self.isInitialized = True
         self.num_images = 0
         self.start()
 

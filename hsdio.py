@@ -51,8 +51,6 @@ class HSDIO(Instrument): # could inherit from an Instrument class if helpful
         self.sessions: List[HSDIOSession] = []
         self.waveformArr: List[HSDIOWaveform] = []
 
-        # whether or not we've actually populated the attributes above
-        self.isInitialized = False
         # check this to see if waveform has been written and updated without error
         self.wvf_written = False
 
@@ -64,6 +62,8 @@ class HSDIO(Instrument): # could inherit from an Instrument class if helpful
         device settings
         'node': type is ET.Element. tag should be "HSDIO"
         """
+        
+        self.isInitialized = False
 
         super().load_xml(node)
 
@@ -129,15 +129,16 @@ class HSDIO(Instrument): # could inherit from an Instrument class if helpful
         if not self.enable:
             return
 
-        if self.isInitialized:
+        if not self.isInitialized: 
 
-            # TODO : Figure out error handling when these fail
+            # TODO : Figure out error handling when these fail 
+            # ^ @Juan: handle errors inside abort and close. see stop,close in 
+            # other device classes for inspiration. - Preston
             for session in self.sessions:
                 session.abort()
                 session.close()
 
             self.sessions = []  # reset
-            self.isInitialized = False
 
         iterables = zip(self.idleStates, self.initialStates,
                         self.activeChannels, self.resourceNames)
