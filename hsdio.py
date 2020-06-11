@@ -21,6 +21,7 @@ from instrumentfuncs import str_to_bool
 from trigger import Trigger, StartTrigger
 from waveform import HSDIOWaveform
 from instrument import Instrument
+from pxierrors import XMLError
 
 
 class HSDIO(Instrument): # could inherit from an Instrument class if helpful
@@ -68,56 +69,63 @@ class HSDIO(Instrument): # could inherit from an Instrument class if helpful
         super().load_xml(node)
 
         for child in node:
-            self.logger.debug(child)
-            # handle each tag by name:
-            if child.tag == "enable":
-                self.enable = self.str_to_bool(child.text)
+        
+            try:
+                self.logger.debug(child)
+                # handle each tag by name:
+                if child.tag == "enable":
+                    self.enable = self.str_to_bool(child.text)
 
-            elif child.tag == "description":
-                self.description = child.text
+                elif child.tag == "description":
+                    self.description = child.text
 
-            elif child.tag == "resourceName":
-                resources = np.array(child.text.split(","))
-                self.resourceNames = resources
+                elif child.tag == "resourceName":
+                    resources = np.array(child.text.split(","))
+                    self.resourceNames = resources
 
-            elif child.tag == "clockRate":
-                self.clockRate = self.str_to_float(child.text)
+                elif child.tag == "clockRate":
+                    self.clockRate = self.str_to_float(child.text)
 
-            elif child.tag == "hardwareAlignmentQuantum":
-                self.hardwareAlignmentQuantum = child.text
+                elif child.tag == "hardwareAlignmentQuantum":
+                    self.hardwareAlignmentQuantum = child.text
 
-            elif child.tag == "triggers":
+                elif child.tag == "triggers":
 
-                if type(child) == ET.Element:
-                    trigger_node = child
-                    for t_child in trigger_node:
-                        self.scriptTriggers.append(Trigger(t_child))
+                    if type(child) == ET.Element:
+                        trigger_node = child
+                        for t_child in trigger_node:
+                            self.scriptTriggers.append(Trigger(t_child))
 
-            elif child.tag == "waveforms":
-                self.logger.debug("found a waveform")
-                wvforms_node = child
-                for wvf_child in wvforms_node:
-                    if wvf_child.tag == "waveform":
-                        self.waveformArr.append(HSDIOWaveform(wvf_child))
+                elif child.tag == "waveforms":
+                    self.logger.debug("found a waveform")
+                    wvforms_node = child
+                    for wvf_child in wvforms_node:
+                        if wvf_child.tag == "waveform":
+                            self.waveformArr.append(HSDIOWaveform(wvf_child))
 
-            elif child.tag == "script":
-                self.pulseGenScript = child.text
+                elif child.tag == "script":
+                    self.pulseGenScript = child.text
 
-            elif child.tag == "startTrigger":
-                self.startTrigger = StartTrigger(child)
+                elif child.tag == "startTrigger":
+                    self.startTrigger = StartTrigger(child)
 
-            elif child.tag == "InitialState":
-                self.initialStates = np.array(child.text.split(","))
+                elif child.tag == "InitialState":
+                    self.initialStates = np.array(child.text.split(","))
 
-            elif child.tag == "IdleState":
-                self.idleStates = np.array(child.text.split(","))
+                elif child.tag == "IdleState":
+                    self.idleStates = np.array(child.text.split(","))
 
-            elif child.tag == "ActiveChannels":
-                self.activeChannels = np.array(child.text.split("\n"))
+                elif child.tag == "ActiveChannels":
+                    self.activeChannels = np.array(child.text.split("\n"))
 
-            else:
-                self.logger.warning(f"Unrecognized XML tag '{child.tag}' in <{self.expectedRoot}>")
-
+                else:
+                    self.logger.warning(f"Unrecognized XML tag '{child.tag}' in <{self.expectedRoot}>")
+                    
+            except ValueError: # maybe catch other errors too. 
+                self.logger.exceptions()
+                raise XMLError(self, child)
+                
+                
     def init(self):
         """
         set up the triggering, initial states, script triggers, etc
