@@ -12,9 +12,9 @@ from abc import ABC, abstractmethod
 import logging
 import xml.etree.ElementTree as ET
 from typing import List, Tuple
+from pxierrors import XMLError
 
-
-class Waveform(ABC):
+class Waveform(ABC): # should this be an XMLLoader?
     """
     The base class for Waveform data types for the PXI Server. 
     
@@ -42,23 +42,28 @@ class Waveform(ABC):
         waveform_attrs = node
         for child in waveform_attrs:
             
-            if child.tag == "name":
-                self.name = child.text
+            try:
+            
+                if child.tag == "name":
+                    self.name = child.text
 
-            elif child.tag == "transitions":
-                # TODO get the transitions from xml
-                # TODO optionally set the length parameter:
-                # self.length = len(self.transitions)
-                pass
+                elif child.tag == "transitions":
+                    # TODO get the transitions from xml
+                    # TODO optionally set the length parameter:
+                    # self.length = len(self.transitions)
+                    pass
 
-            elif child.tag == "states":
-                # TODO get the states from xml 
-                pass
+                elif child.tag == "states":
+                    # TODO get the states from xml 
+                    pass
 
-            else:
-                 # TODO: do something like the following with a logger in your class:
-                # print("Invalid Waveform attribute")
-                pass
+                else:
+                     # TODO: do something like the following with a logger in your class:
+                    # print("Invalid Waveform attribute")
+                    pass
+            
+            except Exception:
+                raise XMLError(self, child)
             
     @property
     def length(self) -> int:
@@ -102,23 +107,27 @@ class DAQmxDOWaveform(Waveform):
         waveform_attrs = node
         for child in waveform_attrs:
             
-            if child.tag == "name":
-                self.name = child.text
+            try:
+                if child.tag == "name":
+                    self.name = child.text
 
-            elif child.tag == "transitions":
-                t = np.array([x for x in child.text.split(" ")], 
-                             dtype=c_uint32)
-                self.transitions = t
-                self.length = len(self.transitions)
+                elif child.tag == "transitions":
+                    t = np.array([x for x in child.text.split(" ")], 
+                                 dtype=c_uint32)
+                    self.transitions = t
+                    self.length = len(self.transitions)
 
-            elif child.tag == "states":
-                states = np.array([[int(x) for x in line.split(" ")]
-                                  for line in child.text.split("\n")],
-                                  dtype=c_uint32)
-                self.states = states
+                elif child.tag == "states":
+                    states = np.array([[int(x) for x in line.split(" ")]
+                                      for line in child.text.split("\n")],
+                                      dtype=c_uint32)
+                    self.states = states
 
-            else:
-                self.logger.warning("Invalid Waveform attribute")
+                else:
+                    self.logger.warning("Invalid Waveform attribute")
+                    
+            except ValueError:
+                raise XMLError(self, child)
 
 
 class HSDIOWaveform(Waveform):
@@ -150,24 +159,30 @@ class HSDIOWaveform(Waveform):
         waveform_attrs = node
         for child in waveform_attrs:
             
-            if child.tag == "name":
-                self.name = child.text
+            try:
+            
+                if child.tag == "name":
+                    self.name = child.text
 
-            elif child.tag == "transitions":
-                t = np.array([x for x in child.text.split(" ")], 
-                             dtype=c_uint32)
-                self.transitions = t
-                self.length = len(self.transitions)
+                elif child.tag == "transitions":
+                    t = np.array([x for x in child.text.split(" ")], 
+                                 dtype=c_uint32)
+                    self.transitions = t
+                    self.length = len(self.transitions)
 
-            elif child.tag == "states":
-                states = np.array([[int(x) for x in line.split(" ")]
-                                  for line in child.text.split("\n")],
-                                  dtype=c_uint32)
-                self.states = states
-                self.check_state_len()
+                elif child.tag == "states":
+                    states = np.array([[int(x) for x in line.split(" ")]
+                                      for line in child.text.split("\n")],
+                                      dtype=c_uint32)
+                    self.states = states
+                    self.check_state_len()
 
-            else:
-                self.logger.warning("Invalid Waveform attribute")
+                else:
+                    self.logger.warning("Invalid Waveform attribute")
+            
+            except ValueError:
+                raise XMLError(self, child)
+
 
     def decompress(
             self,
