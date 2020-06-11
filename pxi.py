@@ -7,14 +7,14 @@ updating the relevant PXI device classes with the parsed xml, and returning
 responses from hardware to CsPy. 
 """
 
-'''
+"""
 general TODOs and ideas:
+- reset_connection never gets used here, as far as I can tell. maybe TCP references it?
+- there should be a way to re-start the measurement loop after an error is hit.
+the best way might be to close the thread running it and call launch_experiment_thread
+again 
 - could decorate methods like is_done with a timeout method
-- could implement error handling and checking whether connection has been 
-    stopped or restarted with a decorator
-- error object to bundle exception/error message returned with a boolean? 
-    would be useful in loops that should exit on exception raised
-'''
+"""
 
 ## modules
 import socket
@@ -47,6 +47,7 @@ class PXI:
         self.logger = logging.getLogger(str(self.__class__))
         self._stop_connections = False
         self._reset_connection = False
+        self._stop_measurement = False
         self.cycle_continuously = True
         self.exit_measurement = False
         self.return_data = ""
@@ -89,6 +90,14 @@ class PXI:
     @reset_connection.setter
     def reset_connection(self, value):
         self._reset_connection = value
+        
+    @property
+    def stop_measurement(self) -> bool:
+        return self._stop_measurement
+        
+    @stop_measurement.setter
+    def stop_measurement(self, value):
+        self._stop_measurement = value
 
     def queue_command(self, command):
         self.command_queue.put(command)
@@ -123,7 +132,7 @@ class PXI:
         hierarchy of methods in self.parse_xml and self.measurement.
         """
 
-        while not self.stop_connections:
+        while not self.stop_connections or self.stop_measurement:
             try:
                 # dequeue xml; non-blocking
                 xml_str = self.command_queue.get(block=False, timeout=0)
@@ -373,7 +382,8 @@ class PXI:
     
     device_method_call(device_list: List[Instrument], method_name: str)
     
-    this foregoes some transparency but would be cleaner. thoughts?
+    this would sacrifice some transparency but would be cleaner and lend to 
+    easier implementation of similar methods in the future. thoughts?
     """
 
 
@@ -425,6 +435,9 @@ class PXI:
                     
                     
     def get_data(self):
+        """
+        Get data from the devices
+        """
     
         if not (self.stop_connections or self.exit_measurement):
         
@@ -445,11 +458,8 @@ class PXI:
         is found to not be done.
 
         Returns:
-            (done,error_code)
+            done
                 'done': will return True iff all the device processes are done.
-                'error_code': code to indicate current error state, 0 means no error
-                    positive values indicate warnings
-                    negative values indicate errors
         """
 
         done = True
@@ -469,13 +479,9 @@ class PXI:
                         if not dev.is_done():
                             done = False
                             break
-            except (HardwareError, XMLError) as e:
+            except HardwareError as e:
                 self.handle_errors(e)
                 return done
-                
-            # By the time errors get up to the PXI, they should have been 
-            # wrapped into a more general category like XMLError, HardwareError, 
-            # etc. so they can be handled at this level accordingly
 
         return done
 
@@ -534,8 +540,6 @@ class PXI:
 
     def handle_errors(self, error, traceback_str=None):
         """
-        Placeholder function for error handling in pxi class
-
         General Error handling philosophy for errors from instruments:
             Instrument should log any error with a useful message detailing the source of the error
                 at the lowest level
@@ -551,10 +555,15 @@ class PXI:
                 can
             Self.is_error should be set to True, regular operation can only resume once it is set
                 to false when PXI settings have been updated
+            
+        Essentially everything that Juan describes above has been accomplished, with the exception 
+        (hehe) of an 'is_error' attribute. If such a parameter was set, I'm not sure what it would 
+        accomplish: the isInitialized parameter gets set to false if the initialization fails. we could 
+        that parameter to false in case of a hardware error too, and then the device will not be
+        included in subsequent measurement cycles until the error is resolved (of course, the user 
+        will know about the error through the detailed logging). Maybe we want to recurringly 
+        log an error message until said error has been fixed? that seems annoying. 
 
-        It's entirely likely that this function won't be able to implement all of that, and instead
-            changes to the code above will need to take place. In either case this is here to detail
-            the error handling plan.
         Args:
             error : The error that was raised. Maybe it's useful to keep it around
             traceback_str : string useful for traceback
@@ -565,19 +574,8 @@ class PXI:
         # responsibility to clean up the problem where it occurred. The code that follows is only
         # intended to change the state the of the server and/or log a report of what happened,
         # in response to whatever mess was made. 
-         
-        def cycle_message(dev: XMLLoader):
-            """
-            Log a message about the status of the server cycling. 
-            Args:
-                dev: the device instance where the problem occurred
-            """
-            if self.cycle_continuously:
-                self.logger.info(f"The server will now cycle, but without {dev}")
-            else:
-                self.logger.info(f"The server is not taking data. Cycle continuously to resume, but without {dev}")
-                
-                
+            
+           
         """
         handle errors according to type. in principle, all errors should be 
         classifiable by these types, or maybe an additional type or two is
@@ -593,17 +591,39 @@ class PXI:
         # maybe there are some cases when we would want to overwrite or add to
         # the detailed message already acquired where the exception arose?
         if traceback_str != None:
-            error.message = traceback_str # i'm open to proposed changes here
+            error.message = traceback_str # i'm open to suggestions here
          
         if isinstance(error, XMLError):
             self.logger.error(error.message + "\n Fix the pertinent XML in CsPy, then try again.")
-            cycle_message(error.device)
+            self.cycle_message(error.device)
+            self.reset_exp_thread()
  
         elif isinstance(error, HardwareError):
             self.logger.error(error.message)
-            cycle_message(error.device)
+            self.cycle_message(error.device)
+            self.reset_exp_thread()
             
         elif isinstance(error, TimeoutError):
             # TODO: log and handle timeout error
             pass 
             
+    def cycle_message(self, dev: XMLLoader):
+        """
+        Log a message about the status of the server cycling. 
+        
+        Args:
+            dev: the device instance where the problem occurred
+        """
+        if self.cycle_continuously:
+            self.logger.warning(f"The server will now cycle, but without {dev}")
+        else:
+            self.logger.info(f"The server is not taking data. Cycle continuously to resume, but without {dev}")
+           
+    def reset_exp_thread(self):
+        """
+        Restart experiment thread after current measurement ends
+        """
+        self.stop_measurement = True
+        self.experiment_thread.join() 
+        self.stop_measurement = False
+        self.launch_experiment_thread()
