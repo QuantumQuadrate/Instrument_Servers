@@ -21,9 +21,9 @@ import logging
 import struct
 
 ## local class imports
-from instrumentfuncs import str_to_bool
-import TCP
 from pxierrors import XMLError, HardwareError
+from instrument import Instrument
+from tcp import TCP
 
 
 class TTLInput(Instrument):
@@ -57,7 +57,7 @@ class TTLInput(Instrument):
                 try:
                     
                     if child.tag == "enable":
-                        self.enable = str_to_bool(child.text)
+                        self.enable = Instrument.str_to_bool(child.text)
                 
                     elif child.tag == "lines":
                         self.lines = child.text

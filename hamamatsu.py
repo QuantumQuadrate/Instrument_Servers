@@ -148,13 +148,15 @@ class Hamamatsu(Instrument):
                 elif child.tag == "triggerPolarity":
                     self.set_by_dict("trigger_polarity", child.text, self.TRIG_POLARITY_VALUES)
 
+                # this appears to not exist in the current master, but was in my branch.
+                # was it removed intentionally or should it be here?
                 elif child.tag == "externalTriggerMode":
                     self.set_by_dict(
                         "external_trigger_mode",
                         child.text,
                         self.EXT_TRIG_SOURCE_MODE_VALUES
                     )
-
+                    
                 elif child.tag == "scanSpeed":
                     self.set_by_dict("scan_speed", child.text, self.SCAN_SPEED_VALUES)
 
@@ -185,40 +187,40 @@ class Hamamatsu(Instrument):
                     self.super_pixel_binning = child.text
 
                 elif child.tag == "subArrayLeft":
-                    self.sub_array.left = self.str_to_int(child.text)
+                    self.sub_array.left = Instrument.str_to_int(child.text)
 
                 elif child.tag == "subArrayTop":
-                    self.sub_array.top = self.str_to_int(child.text)
+                    self.sub_array.top = Instrument.str_to_int(child.text)
 
                 elif child.tag == "subArrayWidth":
-                    self.sub_array.width = self.str_to_int(child.text)
+                    self.sub_array.width = Instrument.str_to_int(child.text)
 
                 elif child.tag == "subArrayHeight":
-                    self.sub_array.height = self.str_to_int(child.text)
+                    self.sub_array.height = Instrument.str_to_int(child.text)
 
                 elif child.tag == "frameGrabberAcquisitionRegionLeft":
-                    self.fg_acquisition_region.left = self.str_to_int(child.text)
+                    self.fg_acquisition_region.left = Instrument.str_to_int(child.text)
 
                 elif child.tag == "frameGrabberAcquisitionRegionTop":
-                    self.fg_acquisition_region.top = self.str_to_int(child.text)
+                    self.fg_acquisition_region.top = Instrument.str_to_int(child.text)
 
                 elif child.tag == "frameGrabberAcquisitionRegionRight":
-                    self.fg_acquisition_region.right = self.str_to_int(child.text)
+                    self.fg_acquisition_region.right = Instrument.str_to_int(child.text)
 
                 elif child.tag == "frameGrabberAcquisitionRegionBottom":
-                    self.fg_acquisition_region.bottom = self.str_to_int(child.text)
+                    self.fg_acquisition_region.bottom = Instrument.str_to_int(child.text)
 
                 elif child.tag == "numImageBuffers":
-                    self.num_img_buffers = self.str_to_int(child.text)
+                    self.num_img_buffers = Instrument.str_to_int(child.text)
 
                 elif child.tag == "shotsPerMeasurement":
-                    self.shots_per_measurement = self.str_to_int(child.text)
+                    self.shots_per_measurement = Instrument.str_to_int(child.text)
 
                 elif child.tag == "forceImagesToU16":
-                    self.images_to_U16 = self.str_to_bool(child.text)
+                    self.images_to_U16 = Instrument.str_to_bool(child.text)
 
                 else:
-                    self.logger.warning(f"Node {child.tag} is not a valid Hamamatsu attribute")
+                        self.logger.warning(f"Node {child.tag} is not a valid Hamamatsu attribute")
 
             except (KeyError, ValueError, AssertionError):
                 self.logger.exceptions()

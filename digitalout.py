@@ -19,7 +19,6 @@ import logging
 from trigger import StartTrigger
 from waveform import DAQmxDOWaveform
 from instrument import Instrument
-from instrumentfuncs import str_to_bool
 from pxierrors import XMLError, HardwareError
 
 
@@ -51,7 +50,7 @@ class DAQmxDO(Instrument):
             try:
             
                 if child.tag == "enable":
-                    self.enable = str_to_bool(child.text)
+                    self.enable = Instrument.str_to_bool(child.text)
             
                 elif child.tag == "resourceName":
                     self.physicalChannels = child.text
@@ -60,11 +59,14 @@ class DAQmxDO(Instrument):
                     self.clockRate = float(child.text)
                     
                 elif child.tag == "startTrigger":
+
+                    # This is modifying the definitions of the outer for loop child and node. This
+                    # seems dangerous.
                     node = child
                     for child in node:
                     
                         if node.text == "waitForStartTrigger":
-                            self.startTrigger.wait_for_start_trigger = str_to_bool(child.text)
+                            self.startTrigger.wait_for_start_trigger = Instrument.str_to_bool(child.text)
                         elif child.text == "source":
                             self.startTrigger.source = child.text
                         elif child.text == "edge":
