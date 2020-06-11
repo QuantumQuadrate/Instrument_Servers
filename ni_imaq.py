@@ -15,13 +15,14 @@ from ctypes import c_uint32
 from typing import Tuple, Callable, TypeVar
 import numpy as np
 from recordclass import recordclass as rc
-from hamamatsu import SubArray, FrameGrabberAqRegion
+from hamamatsu import SubArray, FrameGrabberAqRegion, Hamamatsu
+from pxierrors import HardwareError
 
 # Sub array acquisition RecordClasses for TypeHint convenience =================================
 ROI = TypeVar("ROI", SubArray, FrameGrabberAqRegion)
 
 
-class IMAQError(Exception):
+class IMAQError(HardwareError):
     """
     Raised for errors coming from NI IMAQ drivers
 
@@ -31,7 +32,11 @@ class IMAQError(Exception):
     """
     def __init__(self, error_code, message):
         self.error_code = error_code
-        super().__init__(message)
+        super().__init__(
+            device=Hamamatsu, 
+            task=NIIMAQSession,
+            message=message
+        )
 
 
 class NIIMAQSession:

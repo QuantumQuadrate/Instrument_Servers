@@ -101,19 +101,19 @@ class HardwareError(PXIError):
         - setting up triggers for hardware
     """
     
-    def __init__(self, device: XMLLoader, task, message: str=None):
+    def __init__(self, device: XMLLoader, task=None, message: str=None):
         """
         Constructor for HardwareError. 
         
         Args:
-            node: xml node being read or set when the error occurred
-            task: reference to an instance of an object that controls a hardware process, 
-                e.g. an NI-DAQmx task or an HSDIOSession
-                # TODO: maybe other info is useful too/instead?
+            device: class or instance of a type that inherits from 
+                XMLLoader
+            task: class or instance of an object that controls a hardware process, 
+                e.g. an NI-DAQmx task, HSDIOSession, or NIIMAQSession. None by
+                default. 
             message: additional error information to be appended to a message
                 describing the origin of the error. if None (default), the error
-                message is simply f"{device} encountered error in {self.task}"
-            
+                message is simply f"{device} encountered error in {self.task}".             
         """
         self._task = task
         msg = f"{device} encountered error in {self.task}"
