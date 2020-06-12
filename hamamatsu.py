@@ -112,7 +112,7 @@ class Hamamatsu(Instrument):
             'node': node with tag="camera"
         """
 
-        self.isInitialized = False
+        self.is_initialized = False
         
         super().load_xml(node)
 
@@ -137,7 +137,7 @@ class Hamamatsu(Instrument):
 
                 elif child.tag == "exposureTime":
                     # can convert scientifically-formatted numbers - good
-                    self.exposure_time = self.str_to_float(child.text)
+                    self.exposure_time = self.float(child.text)
 
                 elif child.tag == "EMGain":
                     gain = self.str_to_int(child.text)
@@ -148,8 +148,6 @@ class Hamamatsu(Instrument):
                 elif child.tag == "triggerPolarity":
                     self.set_by_dict("trigger_polarity", child.text, self.TRIG_POLARITY_VALUES)
 
-                # this appears to not exist in the current master, but was in my branch.
-                # was it removed intentionally or should it be here?
                 elif child.tag == "externalTriggerMode":
                     self.set_by_dict(
                         "external_trigger_mode",
@@ -223,7 +221,7 @@ class Hamamatsu(Instrument):
                         self.logger.warning(f"Node {child.tag} is not a valid Hamamatsu attribute")
 
             except (KeyError, ValueError, AssertionError):
-                self.logger.exceptions()
+                self.logger.exception()
                 raise XMLError(self, child)
 
     def init(self):
@@ -374,7 +372,7 @@ class Hamamatsu(Instrument):
             ),
             dtype=np.uint16
         )
-        self.isInitialized = True
+        self.is_initialized = True
         self.num_images = 0
         self.start()
 
@@ -417,7 +415,7 @@ class Hamamatsu(Instrument):
                           f"acquiring? = {acquiring}\n"
                           f"last buffer acquired image number = {last_buffer_number}")
 
-    def minimal_acquire(self):
+    def get_data(self): # name change to comply with name/functionality convention used in pxi.py
         """
         Writes data from session's image buffers to local image array (self.last_measurement)
 

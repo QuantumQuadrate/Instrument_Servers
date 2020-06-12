@@ -5,6 +5,7 @@ import platform # for checking the os bitness
 import logging
 from typing import Tuple
 from hsdio import HSDIO
+from pxierrors import HardwareError
 
 
 class HSDIOError(HardwareError):

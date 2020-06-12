@@ -8,7 +8,7 @@ SaffmanLab, University of Wisconsin - Madison
 ## modules 
 import nidaqmx
 from nidaqmx.constants import Edge, AcquisitionType, Signal, TerminalConfiguration
-from nidaqmx.errors import DaqError, DaqWarning, DaqResourceWarning
+from nidaqmx.errors import DaqError
 import numpy as np
 import xml.etree.ElementTree as ET
 import struct
@@ -89,14 +89,14 @@ class AnalogInput(Instrument):
                         # passed in elsewhere 
                         text = child.text[0].upper() + child.text[1:]
                         self.startTrigger.edge = StartTrigger.nidaqmx_edges[text]
-                    except KeyError: 
+                    except KeyError as e: 
                         raise KeyError(f"Not a valid {child.tag} value {child.text} \n {e}")
                 
                 else:
                     self.logger.warning(f"Unrecognized XML tag \'{child.tag}\' in <{self.expectedRoot}>")
         
             except (KeyError, ValueError):
-                self.logger.exceptions()
+                self.logger.exception()
                 raise XMLError(self, child)
                 
         
@@ -148,11 +148,8 @@ class AnalogInput(Instrument):
                 self.stop()
                 self.close()
                 msg = '\n AnalogInput task initialization failed'
-                raise HardwareError(self, task, message=msg)
+                raise HardwareError(self, task=self.task, message=msg)
 
-            except DaqWarning as e:
-                self.logger.warning(str(e.message))
-                
             self.isInitialized = True
                         
                         
@@ -177,10 +174,7 @@ class AnalogInput(Instrument):
                 self.stop()
                 self.close()
                 msg = '\n AnalogInput check for task completion failed'
-                raise HardwareError(self, task, message=msg)
-
-            except DaqWarning as e:
-                self.logger.warning(str(e.message))
+                raise HardwareError(self, task=self.task, message=msg)
 
         return done
             
@@ -195,7 +189,7 @@ class AnalogInput(Instrument):
         
         if not (self.stop_connections or self.reset_connection) and self.enable:
         
-            try:
+            try: 
                 # dadmx read 2D DBL N channel N sample. use defaults args. 
                 # measurement type inferred from the task virtual channel
                 self.data = self.task.read()
@@ -205,10 +199,7 @@ class AnalogInput(Instrument):
                 self.stop()
                 self.close()
                 msg = '\n AnalogInput failed to read data from hardware'
-                raise raise HardwareError(self, task, message=msg)
-
-            except DaqWarning as e:
-                self.logger.warning(str(e.message))
+                raise HardwareError(self, task=self.task, message=msg)
             
             
     # TODO: compare output to what the LabVIEW method returns
@@ -253,11 +244,8 @@ class AnalogInput(Instrument):
                 self.stop()
                 self.close()
                 msg = '\n AnalogInput failed to start task'
-                raise HardwareError(self, task, message=msg)
+                raise HardwareError(self, task=self.task, message=msg)
 
-            except DaqWarning as e:
-                self.logger.warning(str(e.message))
-            
 
     def stop(self):
         """
@@ -271,11 +259,8 @@ class AnalogInput(Instrument):
             except DaqError as e:
                 self.close()
                 msg = '\n AnalogInput failed to stop current task'
-                raise raise HardwareError(self, task, message=msg)
+                raise HardwareError(self, task=self.task, message=msg)
 
-            except DaqWarning as e:
-                self.logger.warning(str(e.message))
-                
                 
     def close(self):
         """
@@ -288,7 +273,4 @@ class AnalogInput(Instrument):
                 
             except DaqError as e:
                 msg = '\n AnalogInput failed to close current task'
-                raise HardwareError(self, task, message=msg)
-
-            except DaqWarning as e:
-                self.logger.warning(str(e.message))
+                raise HardwareError(self, task=self.task, message=msg)

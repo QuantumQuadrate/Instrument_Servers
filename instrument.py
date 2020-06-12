@@ -18,9 +18,6 @@ from abc import ABC, abstractmethod
 import logging
 import re
 
-## local class imports
-from instrumentfuncs import str_to_bool
-
 
 class XMLLoader(ABC):
     """
@@ -211,8 +208,3 @@ class Instrument(XMLLoader):
 
         if not self.enable:
             return
-                                
-            
-    
-        
-        

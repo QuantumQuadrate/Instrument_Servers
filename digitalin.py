@@ -15,8 +15,9 @@ import xml.etree.ElementTree as ET
 ## third-party modules
 import numpy as np # for arrays
 import nidaqmx
-from nidaqmx.constants import Edge, AcquisitionType, Signal, TerminalConfiguration
-from nidaqmx.errors import DaqError, DaqWarning, DaqResourceWarning
+from nidaqmx.constants import (Edge, AcquisitionType, Signal, 
+    TerminalConfiguration, LineGrouping)
+from nidaqmx.errors import DaqError
 import logging
 import struct
 
@@ -47,8 +48,8 @@ class TTLInput(Instrument):
         
         self.isInitialized = False
         
-        assert node.tag == self.expectedRoot, "Expected tag "+
-                f"<{self.expectedRoot}>, but received <{node.tag}>"
+        assert (node.tag == self.expectedRoot,
+                f"Expected tag <{self.expectedRoot}>, but received <{node.tag}>")
         
         if not (self.stop_connections or self.reset_connection):
 
@@ -66,7 +67,7 @@ class TTLInput(Instrument):
                         self.logger.warning(f"Unrecognized XML tag \'{child.tag}\' in <{self.expectedRoot}>")
                             
                 except ValueError:
-                    self.logger.exceptions()
+                    self.logger.exception()
                     raise XMLError(self, child)
                         
     
@@ -78,7 +79,7 @@ class TTLInput(Instrument):
         if not (self.stop_connections or self.reset_connection) and self.enable:
                         
             # Clear old task
-            if self.task != None:
+            if self.task is not None:
                 try:
                     self.task.close()
                     
@@ -87,10 +88,7 @@ class TTLInput(Instrument):
                     self.stop()
                     self.close()
                     msg = '\n TTLInput failed to close current task'
-                    raise HardwareError(self, task, message=msg)
-
-                except DaqWarning as e:
-                    self.logger.warning(str(e.message))
+                    raise HardwareError(self, task=self.task, message=msg)
                
             try:
                 self.task = nidaqmx.Task() # might be task.Task()
@@ -101,20 +99,17 @@ class TTLInput(Instrument):
                 # Line grouping is 1 Channel for All Lines, so samples returned by 
                 #   task.read will be of type int
                 self.task.di_channels.add_di_chan(
-                    lines=self.lines
+                    lines=self.lines,
                     name_to_assign_to_lines=u'', # this looks like a typo but came from nidaqmx docs...
-                    line_grouping=<LineGrouping.CHAN_FOR_ALL_LINES: 1>)
+                    line_grouping=LineGrouping.CHAN_FOR_ALL_LINES)
                     
             except DaqError as e:
                 # end the task nicely
                 self.stop()
                 self.close()
                 msg = '\n TTLInput hardware initialization failed'
-                raise HardwareError(self, task, message=msg)
-                
-            except DaqWarning as e:
-                self.logger.warning(str(e.message))
-                
+                raise HardwareError(self, task=self.task, message=msg)
+
             self.isInitialized = True
             
     
@@ -163,10 +158,7 @@ class TTLInput(Instrument):
                 self.stop()
                 self.close()
                 msg = '\n TTLInput data check failed'
-                raise HardwareError(self, task, message=msg)
-                                
-            except DaqWarning as e:
-                self.logger.warning(str(e.message))
+                raise HardwareError(self, task=self.task, message=msg)
                 
             
     def data_out(self) -> str:
@@ -206,10 +198,7 @@ class TTLInput(Instrument):
                 self.stop()
                 self.close()
                 msg = '\n TTLInput failed to start task'
-                raise HardwareError(self, task, message=msg)
-                
-            except DaqWarning as e:
-                self.logger.warning(str(e.message))
+                raise HardwareError(self, task=self.task, message=msg)
             
             
     def stop(self):
@@ -222,10 +211,7 @@ class TTLInput(Instrument):
                 self.task.stop()
             except DaqError as e:
                 msg = '\n TTLInput failed while attempting to stop current task'
-                raise HardwareError(self, task, message=msg)
-                
-            except DaqWarning as e:
-                self.logger.warning(str(e.message))
+                raise HardwareError(self, task=self.task, message=msg)
                 
                 
     def close(self):
@@ -233,13 +219,10 @@ class TTLInput(Instrument):
         Close the task
         """
         
-        if self.task != None:
+        if self.task is not None:
             try:
                 self.task.close()
                 
             except DaqError as e:
                 msg = '\n TTLInput failed to close current task'
-                raise HardwareError(self, task, message=msg)
-
-            except DaqWarning as e:
-                self.logger.warning(str(e.message))
+                raise HardwareError(self, task=self.task, message=msg)

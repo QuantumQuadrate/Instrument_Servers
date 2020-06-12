@@ -13,7 +13,7 @@ SaffmanLab, University of Wisconsin - Madison
 ## modules 
 import nidaqmx
 from nidaqmx.constants import Edge, AcquisitionType, Signal
-from nidaqmx.errors import DaqError, DaqWarning, DaqResourceWarning
+from nidaqmx.errors import DaqError
 import numpy as np
 import xml.etree.ElementTree as ET
 import csv
@@ -102,10 +102,10 @@ class AnalogOutput(Instrument):
                     self.physicalChannels = child.text
 
                 elif child.tag == "minimum":
-                    self.minValue = str_to_float(child.text)
+                    self.minValue = float(child.text)
 
                 elif child.tag == "maximum":
-                    self.maxValue = str_to_float(child.text)
+                    self.maxValue = float(child.text)
 
                 elif child.tag == "clockRate":
                     self.sampleRate = float(child.text) # samples per second in LabVIEW
@@ -128,7 +128,7 @@ class AnalogOutput(Instrument):
                 elif child.tag == "triggerEdge":
                     try:
                         self.startTrigger.edge = StartTrigger.nidaqmx_edges[child.text]
-                    except KeyError:
+                    except KeyError as e:
                         raise KeyError(f"Not a valid {child.tag} value {child.text} \n {e}")
 
                 elif child.tag == "useExternalClock":
@@ -138,13 +138,13 @@ class AnalogOutput(Instrument):
                     self.externalClock.source = child.text
 
                 elif child.tag == "maxExternalClockRate":
-                    self.externalClock.maxClockRate = str_to_float(child.text)
+                    self.externalClock.maxClockRate = float(child.text)
 
                 else:
                     self.logger.warning(f"Unrecognized XML tag \'{child.tag}\' in <AnalogOutput>")
                     
            except (KeyError, ValueError):
-                self.logger.exceptions()
+                self.logger.exception()
                 raise XMLError(self, child)
 
 
@@ -160,7 +160,7 @@ class AnalogOutput(Instrument):
 
                 # Clear old task
                 try:
-                    if self.task != None:
+                    if self.task is not None:
                         try:
                             self.task.close()
                             
@@ -169,10 +169,7 @@ class AnalogOutput(Instrument):
                             self.stop()
                             self.close()
                             msg = '\n AnalogOutput failed to close current task'
-                            raise HardwareError(self, task, message=msg)
-
-                        except DaqWarning as e:
-                            self.logger.warning(str(e.message))
+                            raise HardwareError(self, task=self.task, message=msg)
                         
                 try:
                     self.task = nidaqmx.Task() # might be task.Task()
@@ -204,11 +201,8 @@ class AnalogOutput(Instrument):
                     self.stop()
                     self.close()
                     msg = '\n AnalogOutput hardware initialization failed'
-                    raise HardwareError(self, task, message=msg)
+                    raise HardwareError(self, task=self.task, message=msg)
 
-                except DaqWarning as e:
-                    self.logger.warning(str(e.message))
-                    
                 self.isInitialized = True
 
     # TODO: test with hardware
@@ -221,7 +215,6 @@ class AnalogOutput(Instrument):
         if not (self.stop_connections or self.reset_connection) and self.enable:
                         
             channels, samples = self.waveforms.shape
-            sample_mode = AcquisitionType.FINITE 
             
             try:
                 self.task.timing.cfg_samp_clk_timing(
@@ -239,10 +232,8 @@ class AnalogOutput(Instrument):
                 self.stop()
                 self.close()
                 msg = '\n AnalogOutput hardware update failed'
-                raise HardwareError(self, task, message=msg)
+                raise HardwareError(self, task=self.task, message=msg)
 
-            except DaqWarning as e:
-                self.logger.warning(str(e.message))
                 
     def is_done(self) -> bool:
         """
@@ -265,10 +256,8 @@ class AnalogOutput(Instrument):
                 self.stop()
                 self.close()
                 msg = '\n AnalogOutput check for task completion failed'
-                raise HardwareError(self, task, message=msg)
+                raise HardwareError(self, task=self.task, message=msg)
 
-            except DaqWarning as e:
-                self.logger.warning(str(e.message))
             
         return done
         
@@ -288,10 +277,7 @@ class AnalogOutput(Instrument):
                 self.stop()
                 self.close()
                 msg = '\n AnalogOutput failed to start task'
-                raise HardwareError(self, task, message=msg)
-
-            except DaqWarning as e:
-                self.logger.warning(str(e.message))
+                raise HardwareError(self, task=self.task, message=msg)
 
 
     def stop(self):
@@ -306,24 +292,18 @@ class AnalogOutput(Instrument):
             except DaqError as e:
                 self.close()
                 msg = '\n AnalogOutput failed to stop current task'
-                raise HardwareError(self, task, message=msg)
+                raise HardwareError(self, task=self.task, message=msg)
 
-            except DaqWarning as e:
-                self.logger.warning(str(e.message))    
-                
                 
     def close(self):
         """
         Close the task
         """
         
-        if self.task != None:
+        if self.task is not None:
             try:
                 self.task.close()
                 
             except DaqError as e:
                 msg = '\n AnalogOutput failed to close current task'
-                raise HardwareError(self, task, message=msg)
-
-            except DaqWarning as e:
-                self.logger.warning(str(e.message))
+                raise HardwareError(self, task=self.task, message=msg)

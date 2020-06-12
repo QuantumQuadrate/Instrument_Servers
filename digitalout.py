@@ -9,8 +9,8 @@ SaffmanLab, University of Wisconsin - Madison
 
 ## modules
 import nidaqmx
-from nidaqmx.constants import Edge, LineGrouping
-from nidaqmx.errors import DaqError, DaqWarning, DaqResourceWarning
+from nidaqmx.constants import Edge, LineGrouping, AcquisitionType
+from nidaqmx.errors import DaqError
 import xml.etree.ElementTree as ET
 import numpy as np
 import logging
@@ -29,6 +29,7 @@ class DAQmxDO(Instrument):
         self.logger = logging.getLogger(str(self.__class__))
         self.physicalChannels = None
         self.startTrigger = StartTrigger()
+        self.task = None
         
     
     def load_xml(self, node):
@@ -76,7 +77,7 @@ class DAQmxDO(Instrument):
                                 # passed in elsewhere 
                                 text = child.text[0].upper() + child.text[1:]
                                 self.startTrigger.edge = StartTrigger.nidaqmx_edges[text]
-                            except KeyError:
+                            except KeyError as e:
                                 raise KeyError(f"Not a valid {child.tag} value {child.text} \n {e}")
                         else:
                             self.logger.warning(f"Unrecognized XML tag \'{node.tag}\' in <{child.tag}>")
@@ -84,7 +85,7 @@ class DAQmxDO(Instrument):
                 elif child.tag == "waveform":
                     self.waveform = Waveform()
                     self.waveform.init_from_xml(child)
-                    self.waveform.samplesPerChannel = self.waveform.length # the number of transitions
+                    self.samplesPerChannel = self.waveform.length # the number of transitions
                     
                     # reverse each state array 
                     self.numChannels = len(self.waveform.states[0])
@@ -96,7 +97,7 @@ class DAQmxDO(Instrument):
                     self.logger.warning(f"Unrecognized XML tag \'{child.tag}\' in <{self.expectedRoot}>")
             
             except (KeyError, ValueError):
-                self.logger.exceptions()
+                self.logger.exception()
                 raise XMLError(self, child)
                 
                     
@@ -108,7 +109,7 @@ class DAQmxDO(Instrument):
         if not (self.stop_connections or self.reset_connection) and self.enable:
             
                 # Clear old task
-                if self.task != None:
+                if self.task is not None:
                     try:
                         self.task.close()
                         
@@ -117,10 +118,7 @@ class DAQmxDO(Instrument):
                         self.stop()
                         self.close()
                         msg = '\n DAQmxDO failed to close current task'
-                        raise HardwareError(self, task, message=msg)
-
-                    except DaqWarning as e:
-                        self.logger.warning(str(e.message))
+                        raise HardwareError(self, task=self.task, message=msg)
 
                 try:
                     self.task = nidaqmx.Task() # might be task.Task()
@@ -136,7 +134,7 @@ class DAQmxDO(Instrument):
                         rate=self.clockRate, 
                         active_edge=Edge.RISING, # default
                         sample_mode=AcquisitionType.FINITE, # default
-                        samps_per_chan=samplesPerChannel) 
+                        samps_per_chan=self.samplesPerChannel) 
                         
                     # Optionally set up start trigger
                     if self.startTrigger.wait_for_start_trigger:
@@ -145,9 +143,9 @@ class DAQmxDO(Instrument):
                             trigger_edge=self.startTrigger.edge)
                                                             
                     # Write digital waveform 1 chan N samp
+                    # by default, auto starts
                     self.task.write(
                         self.data, 
-                        auto_start=AUTO_START_UNSET, #default
                         timeout=10.0) # default
             
                 except DaqError as e:
@@ -155,11 +153,8 @@ class DAQmxDO(Instrument):
                     self.stop()
                     self.close()
                     msg = '\n DAQmxDO hardware initialization failed'
-                    raise HardwareError(self, task, message=msg)
+                    raise HardwareError(self, task=self.task, message=msg)
                     
-                except DaqWarning as e:
-                    self.logger.warning(str(e.message))
-            
                 self.isInitialized = True
                 
                 
@@ -184,10 +179,7 @@ class DAQmxDO(Instrument):
                 self.stop()
                 self.close()
                 msg = '\n DAQmxDO check for task completion failed'
-                raise HardwareError(self, task, message=msg)
-                
-            except DaqWarning as e:
-                self.logger.warning(str(e.message))
+                raise HardwareError(self, task=self.task, message=msg)
             
         return done
                 
@@ -206,11 +198,8 @@ class DAQmxDO(Instrument):
                 self.stop()
                 self.close()
                 msg = '\n DAQmxDO failed to start task'
-                raise HardwareError(self, task, message=msg)
-                
-            except DaqWarning as e:
-                self.logger.warning(str(e.message))
-            
+                raise HardwareError(self, task=self.task, message=msg)
+
             
     def stop(self):
         """
@@ -222,10 +211,7 @@ class DAQmxDO(Instrument):
                 self.task.stop()
             except DaqError as e:
                 msg = '\n DAQmxDO failed while attempting to stop current task'
-                raise HardwareError(self, task, message=msg)
-                
-            except DaqWarning as e:
-                self.logger.warning(str(e.message))
+                raise HardwareError(self, task=self.task, message=msg)
                 
                 
     def close(self):
@@ -233,13 +219,10 @@ class DAQmxDO(Instrument):
         Close the task
         """
         
-        if self.task != None:
+        if self.task is not None:
             try:
                 self.task.close()
                 
             except DaqError as e:
                 msg = '\n DAQmxDO failed to close current task'
-                raise HardwareError(self, task, message=msg)
-
-            except DaqWarning as e:
-                self.logger.warning(str(e.message))
+                raise HardwareError(self, task=self.task, message=msg)

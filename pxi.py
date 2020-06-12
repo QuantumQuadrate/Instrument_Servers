@@ -26,6 +26,7 @@ from queue import Queue, Empty
 from time import perf_counter_ns
 
 ## misc local classes
+from instrument import XMLLoader
 from keylistener import KeyListener
 from pxierrors import XMLError, HardwareError, TimeoutError
 
@@ -35,7 +36,6 @@ from hamamatsu import Hamamatsu, IMAQError
 from tcp import TCP
 
 
-# TODO : Should this inherit from XMLLoader? <-- i'm on board with this. - Preston
 class PXI:
     
     help_str = ("At any time, type... \n" +
@@ -212,13 +212,13 @@ class PXI:
                         self.hsdio.update()
                         
                     elif child.tag == "TTL":
-                        # self.ttl.load_xml(child)
-                        # self.ttl.init()
+                        self.ttl.load_xml(child)
+                        self.ttl.init()
                         pass
                         
                     elif child.tag == "DAQmxDO":
-                        # self.daqmxdo.load_xml(child)
-                        # self.daqmxdo.init()
+                        self.daqmxdo.load_xml(child)
+                        self.daqmxdo.init()
                         pass
 
                     elif child.tag == "timeout":
@@ -226,7 +226,7 @@ class PXI:
                             # get timeout in [ms]
                             self.measurement_timeout = 1000*float(child.text)
                         except ValueError as e:
-                            msg = f"{e} \n {child.text} is not valid "+
+                            msg = f"{e} \n {child.text} is not valid" +\
                                               f"text for node {child.tag}"
                             raise XMLError(self, msg)
 
@@ -243,15 +243,15 @@ class PXI:
 
                     elif child.tag == "AnalogOutput":
                         # set up the analog_output
-                        # self.analog_output.load_xml(child)
-                        # self.analog_output.init() # setup in labview
-                        # self.analog_output.update()
+                        self.analog_output.load_xml(child)
+                        self.analog_output.init() # setup in labview
+                        self.analog_output.update()
                         pass
 
                     elif child.tag == "AnalogInput":
                         # set up the analog_input
-                        # self.analog_input.load_xml(child)
-                        # self.analog_input.init()
+                        self.analog_input.load_xml(child)
+                        self.analog_input.init()
                         pass
 
                     elif child.tag == "Counters":
@@ -310,8 +310,8 @@ class PXI:
         ]
         
         for dev in devices:
-            if dev.isInitialized: 
-                return_data_str += self.dev.data_out()
+            if dev.is_initialized: 
+                return_data_str += dev.data_out()
 
         return return_data_str
 
@@ -376,41 +376,52 @@ class PXI:
         except HardwareError as e:
             self.handle_errors(e)
             
-    """
-    many of the following methods have a generalizable format, and could easily
-    be replaced with a general method which would have the following signature:
-    
-    device_method_call(device_list: List[Instrument], method_name: str)
-    
-    this would sacrifice some transparency but would be cleaner and lend to 
-    easier implementation of similar methods in the future. thoughts?
-    """
 
+    def batch_method_call(self, device_list: List[Instrument], method: str):
+        """
+        Call a method common to several device classes
+        
+        Given a list of device instances, assumed to have method 'method' as
+        well as bool parameter 'is_initialized', 'method' will be called for 
+        each instance.
+        
+        For now, it is assumed that 'method' takes no arguments, and does
+        does not return anything.
+        
+        Args:
+            device_list: list of device instances
+            method: name of the method to be called. make sure every device
+                in device list has a method with this name.
+        """
+        
+        if not (self.stop_connections or self.exit_measurement):
+            for dev in devices:
+                if dev.is_initialized:
+                    try: 
+                        getattr(dev, method)() # call the method
+                    except HardwareError as e:
+                        self.handle_errors(e)
+        
+
+    # wrap batch_method_call calls in convenience functions
 
     def start_tasks(self):
         """
         Start measurement and output tasks for relevant devices
         """
 
-        if not (self.stop_connections or self.exit_measurement):
+        # devices which have a method 'start'
+        devices = [
+            self.hsdio,
+            self.daqmx_do,
+            self.analog_input,
+            self.analog_output
+            # self.counters # TODO: implement Counters.start
+        ]
+            
+        self.batch_method_call(devices, 'start')
+        # self.reset_timeout()  # TODO : Implement. we still need to discuss how we want to handle timing
 
-            # devices which have a method 'start'
-            devices = [
-                self.hsdio,
-                self.daqmx_do,
-                self.analog_input,
-                self.analog_output
-                # self.counters # TODO: implement Counters.start
-            ]
-            
-            for dev in devices:
-                if dev.isInitialized:
-                    try: 
-                        dev.stop()
-                    except HardwareError as e:
-                        self.handle_errors(e)
-            
-            # self.reset_timeout()  # TODO : Implement. we still need to discuss how we want to handle timing
 
     def stop_tasks(self):
         """
@@ -426,12 +437,7 @@ class PXI:
             # self.counters # TODO: implement Counters.stop
         ]
         
-        for dev in devices:
-            if dev.isInitialized:
-                try: 
-                    dev.stop()
-                except HardwareError as e:
-                    self.handle_errors(e)
+        self.batch_method_call(devices, 'stop')
                     
                     
     def get_data(self):
@@ -439,14 +445,15 @@ class PXI:
         Get data from the devices
         """
     
-        if not (self.stop_connections or self.exit_measurement):
+        # if not (self.stop_connections or self.exit_measurement):
         
-            try:
-                # self.counters.get_data() # TODO: implement
-                self.hamamatsu.minimal_acquire()
-                self.analog_input.get_data()
-            except HardwareError as e:
-                self.handle_errors(e)
+        devices = [
+            self.hamamatsu,
+            self.analog_input,
+            self.counters # TODO: implement
+        ]
+        
+        self.batch_method_call(devices, 'get_data')
         
 
     def is_done(self) -> bool:
@@ -475,7 +482,7 @@ class PXI:
 
             try:
                 for dev in devices:
-                    if dev.isInitialized:
+                    if dev.is_initialized:
                         if not dev.is_done():
                             done = False
                             break
@@ -558,7 +565,7 @@ class PXI:
             
         Essentially everything that Juan describes above has been accomplished, with the exception 
         (hehe) of an 'is_error' attribute. If such a parameter was set, I'm not sure what it would 
-        accomplish: the isInitialized parameter gets set to false if the initialization fails. we could 
+        accomplish: the is_initialized parameter gets set to false if the initialization fails. we could 
         that parameter to false in case of a hardware error too, and then the device will not be
         included in subsequent measurement cycles until the error is resolved (of course, the user 
         will know about the error through the detailed logging). Maybe we want to recurringly 
