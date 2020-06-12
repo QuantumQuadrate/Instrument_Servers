@@ -63,7 +63,7 @@ class HSDIO(Instrument):
         'node': type is ET.Element. tag should be "HSDIO"
         """
         
-        self.isInitialized = False
+        self.is_initialized = False
 
         super().load_xml(node)
 
@@ -84,7 +84,7 @@ class HSDIO(Instrument):
                     self.resourceNames = resources
 
                 elif child.tag == "clockRate":
-                    self.clockRate = self.str_to_float(child.text)
+                    self.clockRate = self.float(child.text)
 
                 elif child.tag == "hardwareAlignmentQuantum":
                     self.hardwareAlignmentQuantum = child.text
@@ -122,7 +122,7 @@ class HSDIO(Instrument):
                     self.logger.warning(f"Unrecognized XML tag '{child.tag}' in <{self.expectedRoot}>")
                     
             except ValueError: # maybe catch other errors too. 
-                self.logger.exceptions()
+                self.logger.exception()
                 raise XMLError(self, child)
                 
                 
@@ -137,7 +137,7 @@ class HSDIO(Instrument):
         if not self.enable:
             return
 
-        if not self.isInitialized: 
+        if not self.is_initialized: 
 
             # TODO : Figure out error handling when these fail 
             # ^ @Juan: handle errors inside abort and close. see stop,close in 
@@ -189,7 +189,7 @@ class HSDIO(Instrument):
                 session.close()
                 raise
 
-        self.isInitialized = True
+        self.is_initialized = True
 
     def update(self):
         """

@@ -53,7 +53,7 @@ class AnalogInput(Instrument):
             node.tag == "AnalogInput"
         """
         
-        self.isInitialized = False
+        self.is_initialized = False
         
         assert node.tag == self.expectedRoot, "expected node"+\
             f" <{self.expectedRoot}> but received <{node.tag}>"
@@ -150,7 +150,7 @@ class AnalogInput(Instrument):
                 msg = '\n AnalogInput task initialization failed'
                 raise HardwareError(self, task=self.task, message=msg)
 
-            self.isInitialized = True
+            self.is_initialized = True
                         
                         
     def is_done(self) -> bool:
@@ -252,7 +252,7 @@ class AnalogInput(Instrument):
         Stop the task
         """
         
-        if self.task != None:
+        if self.task is not None:
             try:
                 self.task.stop()
                 
@@ -267,7 +267,7 @@ class AnalogInput(Instrument):
         Close the task
         """
         
-        if self.task != None:
+        if self.task is not None:
             try:
                 self.task.close()
                 

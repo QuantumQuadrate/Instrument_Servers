@@ -46,7 +46,7 @@ class TTLInput(Instrument):
             node.tag == self.expectedRoot
         """
         
-        self.isInitialized = False
+        self.is_initialized = False
         
         assert (node.tag == self.expectedRoot,
                 f"Expected tag <{self.expectedRoot}>, but received <{node.tag}>")
@@ -110,7 +110,7 @@ class TTLInput(Instrument):
                 msg = '\n TTLInput hardware initialization failed'
                 raise HardwareError(self, task=self.task, message=msg)
 
-            self.isInitialized = True
+            self.is_initialized = True
             
     
     def reset_data(self):

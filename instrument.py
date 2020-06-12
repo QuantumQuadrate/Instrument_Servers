@@ -140,7 +140,7 @@ class Instrument(XMLLoader):
         self.pxi = pxi
         self.expectedRoot = expected_root
         self.enable = False
-        self.isInitialized = False
+        self.is_initialized = False
     
     @property
     def reset_connection(self) -> bool:

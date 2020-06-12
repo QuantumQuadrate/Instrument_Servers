@@ -86,7 +86,7 @@ class AnalogOutput(Instrument):
             node.tag == "AnalogOutput"
         """
         
-        self.isInitialized = False
+        self.is_initialized = False
         
         assert node.tag == self.expectedRoot, "expected node"+\
             f" <{self.expectedRoot}> but received <{node.tag}>"
@@ -203,7 +203,7 @@ class AnalogOutput(Instrument):
                     msg = '\n AnalogOutput hardware initialization failed'
                     raise HardwareError(self, task=self.task, message=msg)
 
-                self.isInitialized = True
+                self.is_initialized = True
 
     # TODO: test with hardware
     def update(self):

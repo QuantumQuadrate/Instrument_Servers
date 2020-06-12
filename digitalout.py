@@ -41,7 +41,7 @@ class DAQmxDO(Instrument):
             node.tag == self.expectedRoot
         """
         
-        self.isInitialized = False
+        self.is_initialized = False
         
         assert node.tag == self.expectedRoot, "expected node"+\
             f" <{self.expectedRoot}> but received <{node.tag}>"
@@ -155,7 +155,7 @@ class DAQmxDO(Instrument):
                     msg = '\n DAQmxDO hardware initialization failed'
                     raise HardwareError(self, task=self.task, message=msg)
                     
-                self.isInitialized = True
+                self.is_initialized = True
                 
                 
     def is_done(self) -> bool:
