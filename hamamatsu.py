@@ -218,10 +218,10 @@ class Hamamatsu(Instrument):
                     self.images_to_U16 = Instrument.str_to_bool(child.text)
 
                 else:
-                        self.logger.warning(f"Node {child.tag} is not a valid Hamamatsu attribute")
+                    self.logger.warning(f"Node {child.tag} is not a valid Hamamatsu attribute")
 
             except (KeyError, ValueError, AssertionError):
-                self.logger.exception()
+                
                 raise XMLError(self, child)
 
     def init(self):

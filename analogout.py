@@ -143,8 +143,8 @@ class AnalogOutput(Instrument):
                 else:
                     self.logger.warning(f"Unrecognized XML tag \'{child.tag}\' in <AnalogOutput>")
                     
-           except (KeyError, ValueError):
-                self.logger.exception()
+            except (KeyError, ValueError):
+                
                 raise XMLError(self, child)
 
 
@@ -164,7 +164,7 @@ class AnalogOutput(Instrument):
                         try:
                             self.task.close()
                             
-                        except DaqError as e:
+                        except DaqError:
                             # end the task nicely
                             self.stop()
                             self.close()
@@ -196,7 +196,7 @@ class AnalogOutput(Instrument):
                             Signal.START_TRIGGER,
                             self.exportTrigger.outputTerminal)
                 
-                except DaqError as e:
+                except DaqError:
                     # end the task nicely
                     self.stop()
                     self.close()
@@ -227,7 +227,7 @@ class AnalogOutput(Instrument):
                 # more than one sample per channel
                 self.task.write(self.waveforms)
                 
-            except DaqError as e:
+            except DaqError:
                 # end the task nicely
                 self.stop()
                 self.close()
@@ -251,7 +251,7 @@ class AnalogOutput(Instrument):
             # check if NI task is dones
                 done = self.task.is_task_done()
                 
-            except DaqError as e:
+            except DaqError:
                 # end the task nicely
                 self.stop()
                 self.close()
@@ -272,7 +272,7 @@ class AnalogOutput(Instrument):
             try:
                 self.task.start()
                 
-            except DaqError as e
+            except DaqError
                 # end the task nicely
                 self.stop()
                 self.close()
@@ -289,7 +289,7 @@ class AnalogOutput(Instrument):
             try:
                 self.task.stop()
                         
-            except DaqError as e:
+            except DaqError:
                 self.close()
                 msg = '\n AnalogOutput failed to stop current task'
                 raise HardwareError(self, task=self.task, message=msg)
@@ -304,6 +304,6 @@ class AnalogOutput(Instrument):
             try:
                 self.task.close()
                 
-            except DaqError as e:
+            except DaqError:
                 msg = '\n AnalogOutput failed to close current task'
                 raise HardwareError(self, task=self.task, message=msg)

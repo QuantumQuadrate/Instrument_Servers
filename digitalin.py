@@ -67,7 +67,7 @@ class TTLInput(Instrument):
                         self.logger.warning(f"Unrecognized XML tag \'{child.tag}\' in <{self.expectedRoot}>")
                             
                 except ValueError:
-                    self.logger.exception()
+                    
                     raise XMLError(self, child)
                         
     
@@ -83,7 +83,7 @@ class TTLInput(Instrument):
                 try:
                     self.task.close()
                     
-                except DaqError as e:
+                except DaqError:
                     # end the task nicely
                     self.stop()
                     self.close()
@@ -103,7 +103,7 @@ class TTLInput(Instrument):
                     name_to_assign_to_lines=u'', # this looks like a typo but came from nidaqmx docs...
                     line_grouping=LineGrouping.CHAN_FOR_ALL_LINES)
                     
-            except DaqError as e:
+            except DaqError:
                 # end the task nicely
                 self.stop()
                 self.close()
@@ -153,7 +153,7 @@ class TTLInput(Instrument):
                 # Stop the task and reset it to the state it was initially
                 self.stop()
                            
-            except DaqError as e:
+            except DaqError:
                 # end the task nicely
                 self.stop()
                 self.close()
@@ -193,7 +193,7 @@ class TTLInput(Instrument):
             
             try:
                 self.task.start()
-            except DaqError as e:
+            except DaqError:
                 # end the task nicely
                 self.stop()
                 self.close()
@@ -209,7 +209,7 @@ class TTLInput(Instrument):
         if self.enable:
             try:
                 self.task.stop()
-            except DaqError as e:
+            except DaqError:
                 msg = '\n TTLInput failed while attempting to stop current task'
                 raise HardwareError(self, task=self.task, message=msg)
                 
@@ -223,6 +223,6 @@ class TTLInput(Instrument):
             try:
                 self.task.close()
                 
-            except DaqError as e:
+            except DaqError:
                 msg = '\n TTLInput failed to close current task'
                 raise HardwareError(self, task=self.task, message=msg)

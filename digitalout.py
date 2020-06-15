@@ -11,13 +11,12 @@ SaffmanLab, University of Wisconsin - Madison
 import nidaqmx
 from nidaqmx.constants import Edge, LineGrouping, AcquisitionType
 from nidaqmx.errors import DaqError
-import xml.etree.ElementTree as ET
 import numpy as np
 import logging
 
 ## local imports
 from trigger import StartTrigger
-from waveform import DAQmxDOWaveform
+from waveform import Waveform
 from instrument import Instrument
 from pxierrors import XMLError, HardwareError
 
@@ -97,7 +96,7 @@ class DAQmxDO(Instrument):
                     self.logger.warning(f"Unrecognized XML tag \'{child.tag}\' in <{self.expectedRoot}>")
             
             except (KeyError, ValueError):
-                self.logger.exception()
+                
                 raise XMLError(self, child)
                 
                     
@@ -113,7 +112,7 @@ class DAQmxDO(Instrument):
                     try:
                         self.task.close()
                         
-                    except DaqError as e:
+                    except DaqError:
                         # end the task nicely
                         self.stop()
                         self.close()
@@ -148,7 +147,7 @@ class DAQmxDO(Instrument):
                         self.data, 
                         timeout=10.0) # default
             
-                except DaqError as e:
+                except DaqError:
                     # end the task nicely
                     self.stop()
                     self.close()
@@ -174,7 +173,7 @@ class DAQmxDO(Instrument):
             # check if NI task is dones
             try:
                 done = self.task.is_task_done()
-            except DaqError as e:
+            except DaqError:
                 # end the task nicely
                 self.stop()
                 self.close()
@@ -193,7 +192,7 @@ class DAQmxDO(Instrument):
             
             try:
                 self.task.start()
-            except DaqError as e:
+            except DaqError:
                 # end the task nicely
                 self.stop()
                 self.close()
@@ -209,7 +208,7 @@ class DAQmxDO(Instrument):
         if self.enable:
             try:
                 self.task.stop()
-            except DaqError as e:
+            except DaqError:
                 msg = '\n DAQmxDO failed while attempting to stop current task'
                 raise HardwareError(self, task=self.task, message=msg)
                 
@@ -223,6 +222,6 @@ class DAQmxDO(Instrument):
             try:
                 self.task.close()
                 
-            except DaqError as e:
+            except DaqError:
                 msg = '\n DAQmxDO failed to close current task'
                 raise HardwareError(self, task=self.task, message=msg)

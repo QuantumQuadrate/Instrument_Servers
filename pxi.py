@@ -17,13 +17,13 @@ again
 """
 
 ## modules
-import socket
 import logging
 import threading
 import xml.etree.ElementTree as ET
 from typing import Tuple
 from queue import Queue, Empty
 from time import perf_counter_ns
+from typing import List
 
 ## misc local classes
 from instrument import XMLLoader
@@ -31,8 +31,12 @@ from keylistener import KeyListener
 from pxierrors import XMLError, HardwareError, TimeoutError
 
 ## local device classes
-from hsdio import HSDIO, HSDIOError
-from hamamatsu import Hamamatsu, IMAQError
+from hsdio import HSDIO
+from hamamatsu import Hamamatsu
+from analogin import AnalogInput
+from analogout import AnalogOutput
+from digitalin import TTLInput
+from digitalout import DAQmxDO
 from tcp import TCP
 
 
@@ -217,8 +221,8 @@ class PXI:
                         pass
                         
                     elif child.tag == "DAQmxDO":
-                        self.daqmxdo.load_xml(child)
-                        self.daqmxdo.init()
+                        self.daqmx_do.load_xml(child)
+                        self.daqmx_do.init()
                         pass
 
                     elif child.tag == "timeout":
@@ -286,16 +290,15 @@ class PXI:
         self.return_data = ""
         self.return_data_queue = Queue(0)
 
-    def data_to_xml(self): # TODO: this does not do what the docstring says. 
+    def data_to_xml(self) -> str:
         """
-        Convert responses from devices to xml and append to self.return_data_str
+        Get xml-formatted data string from device measurements
 
-        This method both returns the xml data as a string, and updates the PXI
-        instance variable 'return_data_str', where xml data comes from the
-        device classes is_out methods.
+        Return the data as an xml string by calling the device class is_out
+        methods.
 
         Returns:
-            'return_data_str': (str) concatenated string of xml-formatted data
+            'return_data_str': concatenated string of xml-formatted data
         """
 
         return_data_str = ""
@@ -308,19 +311,19 @@ class PXI:
             self.analog_input
             # self.demo # not implemented, and debatable whether it needs to be
         ]
-        
+
         for dev in devices:
-            if dev.is_initialized: 
+            if dev.is_initialized:
                 return_data_str += dev.data_out()
 
         return return_data_str
 
-    def measurement(self):
+    def measurement(self) -> Queue:
         """
         Return a queue of the acquired responses queried from device hardware
 
         Returns:
-            'return_data_queue': (Queue) the responses received from the device
+            'return_data_queue': the responses received from the device
                 classes
         """
 
@@ -375,33 +378,6 @@ class PXI:
             self.ttl.check()
         except HardwareError as e:
             self.handle_errors(e)
-            
-
-    def batch_method_call(self, device_list: List[Instrument], method: str):
-        """
-        Call a method common to several device classes
-        
-        Given a list of device instances, assumed to have method 'method' as
-        well as bool parameter 'is_initialized', 'method' will be called for 
-        each instance.
-        
-        For now, it is assumed that 'method' takes no arguments, and does
-        does not return anything.
-        
-        Args:
-            device_list: list of device instances
-            method: name of the method to be called. make sure every device
-                in device list has a method with this name.
-        """
-        
-        if not (self.stop_connections or self.exit_measurement):
-            for dev in devices:
-                if dev.is_initialized:
-                    try: 
-                        getattr(dev, method)() # call the method
-                    except HardwareError as e:
-                        self.handle_errors(e)
-        
 
     # wrap batch_method_call calls in convenience functions
 
@@ -634,3 +610,28 @@ class PXI:
         self.experiment_thread.join() 
         self.stop_measurement = False
         self.launch_experiment_thread()
+
+    def batch_method_call(self, device_list: List[Instrument], method: str):
+        """
+        Call a method common to several device classes
+
+        Given a list of device instances, assumed to have method 'method' as
+        well as bool parameter 'is_initialized', 'method' will be called for
+        each instance.
+
+        For now, it is assumed that 'method' takes no arguments, and does
+        does not return anything.
+
+        Args:
+            device_list: list of device instances
+            method: name of the method to be called. make sure every device
+                in device list has a method with this name.
+        """
+
+        if not (self.stop_connections or self.exit_measurement):
+            for dev in device_list:
+                if dev.is_initialized:
+                    try:
+                        getattr(dev, method)()  # call the method
+                    except HardwareError as e:
+                        self.handle_errors(e)

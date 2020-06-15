@@ -84,7 +84,7 @@ class HSDIO(Instrument):
                     self.resourceNames = resources
 
                 elif child.tag == "clockRate":
-                    self.clockRate = self.float(child.text)
+                    self.clockRate = float(child.text)
 
                 elif child.tag == "hardwareAlignmentQuantum":
                     self.hardwareAlignmentQuantum = child.text
@@ -122,7 +122,7 @@ class HSDIO(Instrument):
                     self.logger.warning(f"Unrecognized XML tag '{child.tag}' in <{self.expectedRoot}>")
                     
             except ValueError: # maybe catch other errors too. 
-                self.logger.exception()
+                
                 raise XMLError(self, child)
                 
                 

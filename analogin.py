@@ -96,7 +96,7 @@ class AnalogInput(Instrument):
                     self.logger.warning(f"Unrecognized XML tag \'{child.tag}\' in <{self.expectedRoot}>")
         
             except (KeyError, ValueError):
-                self.logger.exception()
+                
                 raise XMLError(self, child)
                 
         
@@ -143,7 +143,7 @@ class AnalogInput(Instrument):
                         trigger_source = self.startTrigger.source,
                         trigger_edge=self.startTrigger.edge)
             
-            except DaqError as e:
+            except DaqError:
                 # end the task nicely
                 self.stop()
                 self.close()
@@ -169,7 +169,7 @@ class AnalogInput(Instrument):
                 # check if NI task is done
                 done = self.task.is_task_done()
                 
-            except DaqError as e:               
+            except DaqError:               
                 # end the task nicely
                 self.stop()
                 self.close()
@@ -194,7 +194,7 @@ class AnalogInput(Instrument):
                 # measurement type inferred from the task virtual channel
                 self.data = self.task.read()
                 
-            except DaqError as e:
+            except DaqError:
                 # end the task nicely
                 self.stop()
                 self.close()
@@ -239,7 +239,7 @@ class AnalogInput(Instrument):
             try:
                 self.task.start()
                 
-            except DaqError as e:
+            except DaqError:
                 # end the task nicely
                 self.stop()
                 self.close()
@@ -256,7 +256,7 @@ class AnalogInput(Instrument):
             try:
                 self.task.stop()
                 
-            except DaqError as e:
+            except DaqError:
                 self.close()
                 msg = '\n AnalogInput failed to stop current task'
                 raise HardwareError(self, task=self.task, message=msg)
@@ -271,6 +271,6 @@ class AnalogInput(Instrument):
             try:
                 self.task.close()
                 
-            except DaqError as e:
+            except DaqError:
                 msg = '\n AnalogInput failed to close current task'
                 raise HardwareError(self, task=self.task, message=msg)
