@@ -4,9 +4,11 @@ import struct
 import platform # for checking the os bitness
 import logging
 from typing import Tuple
+from hsdio import HSDIO
+from pxierrors import HardwareError
 
 
-class HSDIOError(Exception):
+class HSDIOError(HardwareError):
     """
     Raised for errors coming from NI HSDIO drivers
 
@@ -16,7 +18,11 @@ class HSDIOError(Exception):
     """
     def __init__(self, error_code, message):
         self.error_code = error_code
-        super().__init__(message)
+        super().__init__(
+            device=HSDIO,
+            task=HSDIOSession,
+            message=message
+        )
 
 
 class HSDIOSession:

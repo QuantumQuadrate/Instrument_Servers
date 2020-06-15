@@ -6,7 +6,7 @@ For parsing XML strings which specify triggers and waveforms to be loaded to Nat
 Instruments HSDIO hardware. 
 """
 
-from ctypes import * # open to suggestions on making this better with minimal obstruction to workflow
+from ctypes import *
 import numpy as np
 import xml.etree.ElementTree as ET
 import os
@@ -20,9 +20,10 @@ from typing import List
 from trigger import Trigger, StartTrigger
 from waveform import HSDIOWaveform
 from instrument import Instrument
+from pxierrors import XMLError
 
 
-class HSDIO(Instrument): # could inherit from an Instrument class if helpful
+class HSDIO(Instrument):
 
     if platform.machine().endswith("64"):
         programsDir32 = "Program Files (x86)"
@@ -50,8 +51,6 @@ class HSDIO(Instrument): # could inherit from an Instrument class if helpful
         self.sessions: List[HSDIOSession] = []
         self.waveformArr: List[HSDIOWaveform] = []
 
-        # whether or not we've actually populated the attributes above
-        self.isInitialized = False
         # check this to see if waveform has been written and updated without error
         self.wvf_written = False
 
@@ -63,60 +62,70 @@ class HSDIO(Instrument): # could inherit from an Instrument class if helpful
         device settings
         'node': type is ET.Element. tag should be "HSDIO"
         """
+        
+        self.is_initialized = False
 
         super().load_xml(node)
 
         for child in node:
-            self.logger.debug(child)
-            # handle each tag by name:
-            if child.tag == "enable":
-                self.enable = Instrument.str_to_bool(child.text)
+        
+            try:
 
-            elif child.tag == "description":
-                self.description = child.text
+                self.logger.debug(child)
+                # handle each tag by name:
+                if child.tag == "enable":
+                    self.enable = Instrument.str_to_bool(child.text)
 
-            elif child.tag == "resourceName":
-                resources = np.array(child.text.split(","))
-                self.resourceNames = resources
+                elif child.tag == "description":
+                    self.description = child.text
 
-            elif child.tag == "clockRate":
-                self.clockRate = float(child.text)
+                elif child.tag == "resourceName":
+                    resources = np.array(child.text.split(","))
+                    self.resourceNames = resources
 
-            elif child.tag == "hardwareAlignmentQuantum":
-                self.hardwareAlignmentQuantum = child.text
+                elif child.tag == "clockRate":
+                    self.clockRate = float(child.text)
 
-            elif child.tag == "triggers":
+                elif child.tag == "hardwareAlignmentQuantum":
+                    self.hardwareAlignmentQuantum = child.text
 
-                if type(child) == ET.Element:
-                    trigger_node = child
-                    for t_child in trigger_node:
-                        self.scriptTriggers.append(Trigger(t_child))
+                elif child.tag == "triggers":
 
-            elif child.tag == "waveforms":
-                self.logger.debug("found a waveform")
-                wvforms_node = child
-                for wvf_child in wvforms_node:
-                    if wvf_child.tag == "waveform":
-                        self.waveformArr.append(HSDIOWaveform(wvf_child))
+                    if type(child) == ET.Element:
+                        trigger_node = child
+                        for t_child in trigger_node:
+                            self.scriptTriggers.append(Trigger(t_child))
 
-            elif child.tag == "script":
-                self.pulseGenScript = child.text
+                elif child.tag == "waveforms":
+                    self.logger.debug("found a waveform")
+                    wvforms_node = child
+                    for wvf_child in wvforms_node:
+                        if wvf_child.tag == "waveform":
+                            self.waveformArr.append(HSDIOWaveform(wvf_child))
 
-            elif child.tag == "startTrigger":
-                self.startTrigger = StartTrigger(child)
+                elif child.tag == "script":
+                    self.pulseGenScript = child.text
 
-            elif child.tag == "InitialState":
-                self.initialStates = np.array(child.text.split(","))
+                elif child.tag == "startTrigger":
+                    self.startTrigger = StartTrigger(child)
 
-            elif child.tag == "IdleState":
-                self.idleStates = np.array(child.text.split(","))
+                elif child.tag == "InitialState":
+                    self.initialStates = np.array(child.text.split(","))
 
-            elif child.tag == "ActiveChannels":
-                self.activeChannels = np.array(child.text.split("\n"))
+                elif child.tag == "IdleState":
+                    self.idleStates = np.array(child.text.split(","))
 
-            else:
-                self.logger.warning(f"Unrecognized XML tag '{child.tag}' in <{self.expectedRoot}>")
+                elif child.tag == "ActiveChannels":
+                    self.activeChannels = np.array(child.text.split("\n"))
 
+                else:
+                    self.logger.warning(f"Unrecognized XML tag '{child.tag}' in <{self.expectedRoot}>")
+                    
+            except ValueError: # maybe catch other errors too. 
+                
+                raise XMLError(self, child)
+                
+                
     def init(self):
         """
         set up the triggering, initial states, script triggers, etc
@@ -128,15 +137,16 @@ class HSDIO(Instrument): # could inherit from an Instrument class if helpful
         if not self.enable:
             return
 
-        if self.isInitialized:
+        if not self.is_initialized: 
 
-            # TODO : Figure out error handling when these fail
+            # TODO : Figure out error handling when these fail 
+            # ^ @Juan: handle errors inside abort and close. see stop,close in 
+            # other device classes for inspiration. - Preston
             for session in self.sessions:
                 session.abort()
                 session.close()
 
             self.sessions = []  # reset
-            self.isInitialized = False
 
         iterables = zip(self.idleStates, self.initialStates,
                         self.activeChannels, self.resourceNames)
@@ -179,7 +189,7 @@ class HSDIO(Instrument): # could inherit from an Instrument class if helpful
                 session.close()
                 raise
 
-        self.isInitialized = True
+        self.is_initialized = True
 
     def update(self):
         """

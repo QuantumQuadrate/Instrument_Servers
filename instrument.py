@@ -12,6 +12,7 @@ that inherits from Instrument.
 For example usage, go look at implementation in hsdio.py, analogin.py, etc. 
 """
 
+## built-in modules
 import xml.etree.ElementTree as ET
 from abc import ABC, abstractmethod
 import logging
@@ -139,6 +140,7 @@ class Instrument(XMLLoader):
         self.pxi = pxi
         self.expectedRoot = expected_root
         self.enable = False
+        self.is_initialized = False
     
     @property
     def reset_connection(self) -> bool:
@@ -206,8 +208,3 @@ class Instrument(XMLLoader):
 
         if not self.enable:
             return
-                    
-            
-    
-        
-        

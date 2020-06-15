@@ -19,6 +19,7 @@ import struct
 from tcp import TCP
 from recordclass import recordclass as rc
 from instrument import Instrument
+from pxierrors import XMLError
 
 SubArray = rc('SubArray', ('left', 'top', 'width', 'height'))
 FrameGrabberAqRegion = rc('FrameGrabberAqRegion', ('left', 'right', 'top', 'bottom'))
@@ -111,109 +112,117 @@ class Hamamatsu(Instrument):
             'node': node with tag="camera"
         """
 
+        self.is_initialized = False
+        
         super().load_xml(node)
 
         for child in node:
-            # handle each tag by name:
-            if child.tag == "version":
-                # labview code checks if camera settings are from
-                # "2015.05.24", which is hardcoded. probably don't need
-                # this case?
-                # TODO : Check if this info is used anywhere in labview
-                pass
-            elif child.tag == "enable":
-                self.enable = Instrument.str_to_bool(child.text)
+        
+            try:
+                # handle each tag by name:
+                if child.tag == "version":
+                    # labview code checks if camera settings are from
+                    # "2015.05.24", which is hardcoded. probably don't need
+                    # this case?
+                    # TODO : Check if this info is used anywhere in labview
+                    pass
+                elif child.tag == "enable":
+                    self.enable = self.str_to_bool(child.text)
 
-            elif child.tag == "analogGain":
-                gain = Instrument.str_to_int(child.text)
-                as_ms = f"analogGain = {gain}\n analogGain must be between 0  and 5"
-                assert 0 < gain < 5, as_ms
-                self.analog_gain = gain
+                elif child.tag == "analogGain":
+                    gain = self.str_to_int(child.text)
+                    as_ms = f"analogGain = {gain}\n analogGain must be between 0  and 5"
+                    assert 0 < gain < 5, as_ms
+                    self.analog_gain = gain
 
-            elif child.tag == "exposureTime":
-                # can convert scientifically-formatted numbers - good
-                self.exposure_time = float(child.text)
+                elif child.tag == "exposureTime":
+                    # can convert scientifically-formatted numbers - good
+                    self.exposure_time = self.float(child.text)
 
-            elif child.tag == "EMGain":
-                gain = Instrument.str_to_int(child.text)
-                as_ms = f"EMGain is {gain}\n EMGain must be between 0 and 255"
-                assert 0 < gain < 255, as_ms
-                self.em_gain = gain
+                elif child.tag == "EMGain":
+                    gain = self.str_to_int(child.text)
+                    as_ms = f"EMGain is {gain}\n EMGain must be between 0 and 255"
+                    assert 0 < gain < 255, as_ms
+                    self.em_gain = gain
 
-            elif child.tag == "triggerPolarity":
-                self.set_by_dict("trigger_polarity", child.text, self.TRIG_POLARITY_VALUES)
+                elif child.tag == "triggerPolarity":
+                    self.set_by_dict("trigger_polarity", child.text, self.TRIG_POLARITY_VALUES)
 
-            elif child.tag == "externalTriggerMode":
-                self.set_by_dict(
-                    "external_trigger_mode",
-                    child.text,
-                    self.EXT_TRIG_SOURCE_MODE_VALUES
-                )
+                elif child.tag == "externalTriggerMode":
+                    self.set_by_dict(
+                        "external_trigger_mode",
+                        child.text,
+                        self.EXT_TRIG_SOURCE_MODE_VALUES
+                    )
+                    
+                elif child.tag == "scanSpeed":
+                    self.set_by_dict("scan_speed", child.text, self.SCAN_SPEED_VALUES)
 
-            elif child.tag == "scanSpeed":
-                self.set_by_dict("scan_speed", child.text, self.SCAN_SPEED_VALUES)
+                elif child.tag == "lowLightSensitivity":
+                    self.set_by_dict(
+                        "low_light_sensitivity",
+                        child.text,
+                        self.LL_SENSITIVITY_VALUES
+                    )
 
-            elif child.tag == "lowLightSensitivity":
-                self.set_by_dict(
-                    "low_light_sensitivity",
-                    child.text,
-                    self.LL_SENSITIVITY_VALUES
-                )
+                elif child.tag == "externalTriggerSource":
+                    self.set_by_dict(
+                        "external_trigger_source",
+                        child.text,
+                        self.EXT_TRIG_SOURCE_VALUES
+                    )
 
-            elif child.tag == "externalTriggerSource":
-                self.set_by_dict(
-                    "external_trigger_source",
-                    child.text,
-                    self.EXT_TRIG_SOURCE_VALUES
-                )
+                elif child.tag == "cooling":
+                    self.set_by_dict("cooling", child.text, self.COOLING_VALUES)
 
-            elif child.tag == "cooling":
-                self.set_by_dict("cooling", child.text, self.COOLING_VALUES)
+                elif child.tag == "fan":
+                    self.set_by_dict("fan", child.text, self.FAN_VALUES)
 
-            elif child.tag == "fan":
-                self.set_by_dict("fan", child.text, self.FAN_VALUES)
+                elif child.tag == "scanMode":
+                    self.set_by_dict("scan_mode", child.text, self.SCAN_MODE_VALUES)
 
-            elif child.tag == "scanMode":
-                self.set_by_dict("scan_mode", child.text, self.SCAN_MODE_VALUES)
+                elif child.tag == "superPixelBinning":
+                    self.super_pixel_binning = child.text
 
-            elif child.tag == "superPixelBinning":
-                self.super_pixel_binning = child.text
+                elif child.tag == "subArrayLeft":
+                    self.sub_array.left = Instrument.str_to_int(child.text)
 
-            elif child.tag == "subArrayLeft":
-                self.sub_array.left = Instrument.str_to_int(child.text)
+                elif child.tag == "subArrayTop":
+                    self.sub_array.top = Instrument.str_to_int(child.text)
 
-            elif child.tag == "subArrayTop":
-                self.sub_array.top = Instrument.str_to_int(child.text)
+                elif child.tag == "subArrayWidth":
+                    self.sub_array.width = Instrument.str_to_int(child.text)
 
-            elif child.tag == "subArrayWidth":
-                self.sub_array.width = Instrument.str_to_int(child.text)
+                elif child.tag == "subArrayHeight":
+                    self.sub_array.height = Instrument.str_to_int(child.text)
 
-            elif child.tag == "subArrayHeight":
-                self.sub_array.height = Instrument.str_to_int(child.text)
+                elif child.tag == "frameGrabberAcquisitionRegionLeft":
+                    self.fg_acquisition_region.left = Instrument.str_to_int(child.text)
 
-            elif child.tag == "frameGrabberAcquisitionRegionLeft":
-                self.fg_acquisition_region.left = Instrument.str_to_int(child.text)
+                elif child.tag == "frameGrabberAcquisitionRegionTop":
+                    self.fg_acquisition_region.top = Instrument.str_to_int(child.text)
 
-            elif child.tag == "frameGrabberAcquisitionRegionTop":
-                self.fg_acquisition_region.top = Instrument.str_to_int(child.text)
+                elif child.tag == "frameGrabberAcquisitionRegionRight":
+                    self.fg_acquisition_region.right = Instrument.str_to_int(child.text)
 
-            elif child.tag == "frameGrabberAcquisitionRegionRight":
-                self.fg_acquisition_region.right = Instrument.str_to_int(child.text)
+                elif child.tag == "frameGrabberAcquisitionRegionBottom":
+                    self.fg_acquisition_region.bottom = Instrument.str_to_int(child.text)
 
-            elif child.tag == "frameGrabberAcquisitionRegionBottom":
-                self.fg_acquisition_region.bottom = Instrument.str_to_int(child.text)
+                elif child.tag == "numImageBuffers":
+                    self.num_img_buffers = Instrument.str_to_int(child.text)
 
-            elif child.tag == "numImageBuffers":
-                self.num_img_buffers = Instrument.str_to_int(child.text)
+                elif child.tag == "shotsPerMeasurement":
+                    self.shots_per_measurement = Instrument.str_to_int(child.text)
 
-            elif child.tag == "shotsPerMeasurement":
-                self.shots_per_measurement = Instrument.str_to_int(child.text)
+                elif child.tag == "forceImagesToU16":
+                    self.images_to_U16 = Instrument.str_to_bool(child.text)
 
-            elif child.tag == "forceImagesToU16":
-                self.images_to_U16 = Instrument.str_to_bool(child.text)
+                else:
+                    self.logger.warning(f"Node {child.tag} is not a valid Hamamatsu attribute")
 
-            else:
-                self.logger.warning(f"Node {child.tag} is not a valid Hamamatsu attribute")
+            except (KeyError, ValueError, AssertionError):
+                
+                raise XMLError(self, child)
 
     def init(self):
         """
@@ -406,7 +415,7 @@ class Hamamatsu(Instrument):
                           f"acquiring? = {acquiring}\n"
                           f"last buffer acquired image number = {last_buffer_number}")
 
-    def minimal_acquire(self):
+    def get_data(self): # name change to comply with name/functionality convention used in pxi.py
         """
         Writes data from session's image buffers to local image array (self.last_measurement)
 
