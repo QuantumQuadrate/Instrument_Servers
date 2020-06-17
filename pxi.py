@@ -192,7 +192,6 @@ class PXI:
                         pass
 
                     elif child.tag == "HSDIO":
-                        # set up the HSDIO
                         self.hsdio.load_xml(child)
                         self.hsdio.init()
                         self.hsdio.update()
@@ -200,12 +199,10 @@ class PXI:
                     elif child.tag == "TTL":
                         self.ttl.load_xml(child)
                         self.ttl.init()
-                        pass
 
                     elif child.tag == "DAQmxDO":
                         self.daqmx_do.load_xml(child)
                         self.daqmx_do.init()
-                        pass
 
                     elif child.tag == "timeout":
                         try:
@@ -214,7 +211,7 @@ class PXI:
                         except ValueError as e:
                             msg = f"{e} \n {child.text} is not valid" + \
                                   f"text for node {child.tag}"
-                            raise XMLError(self, msg)
+                            raise XMLError(self, child, message=msg)
 
                     elif child.tag == "cycleContinuously":
                         cycle = False
@@ -295,7 +292,10 @@ class PXI:
 
         for dev in devices:
             if dev.is_initialized:
-                return_data += dev.data_out()
+                try:
+                    return_data += dev.data_out()
+                except HardwareError as e:
+                    self.handle_errors(e)
 
         self.return_data = return_data
         return return_data
@@ -323,7 +323,11 @@ class PXI:
             t0 = perf_counter_ns()  # integer ns. reference point is undefined.
             while not (_is_done or _is_error or self.stop_connections
                        or self.exit_measurement):
-                _is_done = self.is_done()
+                try:
+                    _is_done = self.is_done()
+
+                except HardwareError as e:
+                    self.handle_errors(e)
 
                 # sleep until this iteration has taken at least 1 ms
                 while True:
@@ -332,12 +336,17 @@ class PXI:
                         t0 = perf_counter_ns()
                         break
 
-            self.get_data()
-            self.system_checks()
-            self.system_checks()
-            self.stop_tasks()
-            return_data = self.data_to_xml()
-            return return_data
+            try:
+                self.get_data()
+                self.system_checks()
+                self.system_checks()
+                self.stop_tasks()
+                return_data = self.data_to_xml()
+                return return_data
+
+            except Exception as e: # TODO: make less general
+                self.handle_errors(e)
+                return ""
 
     def reset_data(self):
         """
@@ -378,7 +387,7 @@ class PXI:
         ]
 
         self.batch_method_call(devices, 'start')
-        # self.reset_timeout()  # TODO : Implement. we still need to discuss how we want to handle timing
+        # self.reset_timeout()  # TODO : Implement or discard
 
     def stop_tasks(self):
         """
@@ -405,7 +414,7 @@ class PXI:
         devices = [
             self.hamamatsu,
             self.analog_input,
-            # self.counters  # TODO: implement
+            # self.counters  # TODO: implement Counters.get_data
         ]
 
         self.batch_method_call(devices, 'get_data')
@@ -467,8 +476,6 @@ class PXI:
             'key': the returned key from msvcrt.getwch(), e.g. 'h'
         """
 
-        # self.logger.info(f"{key} was pressed")
-
         if key == 'h':
             self.logger.info(self.help_str)
 
@@ -478,8 +485,8 @@ class PXI:
 
         elif key == 'q':
             self.logger.info("Connection stopped by user. Closing server.")
-            # self.keylisten_thread.end()
             self.stop_connections = True
+            self.keylisten_thread.end()
 
         else:
             self.logger.info("Not a valid keypress. Type \'h\' for help.")
@@ -499,6 +506,7 @@ class PXI:
         """
         pass
 
+    # this can be improved as needed
     def handle_errors(self, error: Exception, traceback_str: str = ""):
         """
         Handle errors caught in the PXI instance
@@ -550,7 +558,7 @@ class PXI:
             self.cycle_message(error.device)
             self.reset_exp_thread()
 
-        # If not a type of error we anticipated, raise it
+        # If not a type of error we anticipated, raise it.
         else:
             raise error
 
