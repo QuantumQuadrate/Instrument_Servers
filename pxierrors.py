@@ -103,7 +103,7 @@ class HardwareError(PXIError):
     
     def __init__(self, device: XMLLoader, task=None, message: str=None):
         """
-        Constructor for HardwareError. 
+        Constructor for HardwareError.
         
         Args:
             device: class or instance of a type that inherits from 
@@ -128,24 +128,3 @@ class HardwareError(PXIError):
         Reference to an instance of the task class where the error occured
         """
         return self._task
-
-    
-class TimeoutError(PXIError):
-    """
-    """
-    
-    pass
-    
-    
-## stuff for testing :
-
-if __name__ == '__main__':
-    
-    do = DAQmxDO(None) # some device instance 
-    try: 
-        node = ET.Element('wumbo')
-        do.load_xml(node)
-    except Exception as e:
-        xml_err = XMLError(do, node)
-        print(xml_err.message)
-        raise xml_err

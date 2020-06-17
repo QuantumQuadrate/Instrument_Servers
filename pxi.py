@@ -414,9 +414,8 @@ class PXI:
         """
         Get data from the devices
         """
-    
-        # if not (self.stop_connections or self.exit_measurement):
-        
+
+        # devices which have a method 'get_data'
         devices = [
             self.hamamatsu,
             self.analog_input,
@@ -472,7 +471,7 @@ class PXI:
         # TODO: Implement
         pass
 
-    def on_key_press(self, key):
+    def on_key_press(self, key: str):
         """
         Determines what happens for key presses in the command prompt.
 
@@ -515,32 +514,34 @@ class PXI:
         """
         pass
 
-    def handle_errors(self, error, traceback_str=None):
+    def handle_errors(self, error: Exception, traceback_str: str = None):
         """
-        General Error handling philosophy for errors from instruments:
-            Instrument should log any error with a useful message detailing the source of the error
-                at the lowest level
-            If error should halt instrument activity, error should be raised to pxi class
-                Use logger.error(msg,exc_info=True) to log error with traceback
-            If error should not halt instrument activity, use logger.warning(msg,exc_info=t/f)
-                (t/f = with/without traceback)
-            When error is raised to pxi class, this function should be called
-            This function should send a message to the terminal output as well as to cspy, warning
-                the user that an error has occurred and that the PXI settings should be updated
-            The acquisition of data should stop, data sent back should be empty or useless
-            Devices which output signals (e.g Analog out, hsdio) should continue to cycle if they
-                can
-            Self.is_error should be set to True, regular operation can only resume once it is set
-                to false when PXI settings have been updated
-            
-        Essentially everything that Juan describes above has been accomplished, with the exception 
-        (hehe) of an 'is_error' attribute. If such a parameter was set, I'm not sure what it would 
-        accomplish: the is_initialized parameter gets set to false if the initialization fails. we could 
-        that parameter to false in case of a hardware error too, and then the device will not be
-        included in subsequent measurement cycles until the error is resolved (of course, the user 
-        will know about the error through the detailed logging). Maybe we want to recurringly 
-        log an error message until said error has been fixed? that seems annoying. 
+        Handle errors caught in the PXI instance
 
+        Error handling philosophy:
+            I. The class where the error originated should log a useful
+                message detailing the source of the error
+            II. If error should halt instrument activity, error should be raised
+                to pxi class. Use logger.error(msg,exc_info=True) to log error
+                with traceback.
+            III. If error should not halt instrument activity, use
+                logger.warning(msg,exc_info=t/f) (t/f = with/without traceback)
+            IV. When error is raised to pxi class, this function should be
+                called. A message will be logged to the terminal output as well
+                as sent to CsPy, warning the user that an error has occurred
+                and that the PXI settings should be updated.
+            V. The current measurement cycle should be aborted, and restarted
+                if self.cycle_continuously == True. Class where error occurred
+                should be excluded from the measurement cycle until it has been
+                reinitialized. I.e., devices which read/write signals (e.g.
+                TTLInput, HSDIO, etc) should continue to cycle if they can
+            VI. The errors raised in the device classes can should be classified
+                coarsely, as many errors should result in the same handling
+                behavior in this function (e.g. all error types pertaining to an XML
+                initialization failure should result in a message urging the user to
+                check the XML in CsPy and reinitialize the device). Possible types
+                used here are HardwareError and XMLError, defined in pxierrors.py
+            
         Args:
             error : The error that was raised. Maybe it's useful to keep it around
             traceback_str : string useful for traceback
@@ -572,18 +573,17 @@ class PXI:
          
         if isinstance(error, XMLError):
             self.logger.error(error.message + "\n Fix the pertinent XML in CsPy, then try again.")
-            self.cycle_message(error.device)
             self.reset_exp_thread()
  
         elif isinstance(error, HardwareError):
             self.logger.error(error.message)
-            self.cycle_message(error.device)
             self.reset_exp_thread()
             
-        elif isinstance(error, TimeoutError):
-            # TODO: log and handle timeout error
-            pass 
-            
+        else:
+            self.logger.error(error.message)
+
+        self.cycle_message(error.device)
+
     def cycle_message(self, dev: XMLLoader):
         """
         Log a message about the status of the server cycling. 
