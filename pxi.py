@@ -63,8 +63,8 @@ class PXI:
         # instantiate the device objects
         self.hsdio = HSDIO(self)
         self.tcp = TCP(self, address)
-        self.analog_input = AnalogOutput(self)
-        self.analog_output = AnalogInput(self)
+        self.analog_input = AnalogInput(self)
+        self.analog_output = AnalogOutput(self)
         self.ttl = TTLInput(self)
         self.daqmx_do = DAQmxDO(self)
         self.hamamatsu = Hamamatsu(self)
@@ -240,8 +240,8 @@ class PXI:
                     elif child.tag == "AnalogOutput":
                         # set up the analog_output
                         self.analog_output.load_xml(child)
-                        self.analog_output.init() # setup in labview
-                        self.analog_output.update() # TODO check why this doesn't exist
+                        self.analog_output.init()
+                        self.analog_output.update()
                         pass
 
                     elif child.tag == "AnalogInput":
