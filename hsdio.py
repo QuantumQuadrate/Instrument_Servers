@@ -276,7 +276,10 @@ class HSDIO(Instrument):
         """
         if self.enable:
             for session in self.sessions:
-                session.abort()
+                try:
+                    session.abort()
+                except HSDIOError:
+                    raise
 
     def log_settings(self, wf_arr, wf_names):  # TODO : @Juan Implement
         pass

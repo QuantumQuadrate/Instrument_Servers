@@ -395,6 +395,7 @@ class Hamamatsu(Instrument):
         except IMAQError as e:
             ms = f"{e}\n Error beginning asynchronous acquisition"
             self.session.close()
+            self.is_initialized = False
             raise IMAQError(e.error_code, ms)
 
         try:
@@ -438,6 +439,7 @@ class Hamamatsu(Instrument):
             er_c, session_acquiring, last_buf_ind, last_buf_num = self.session.status()
         except IMAQError as e:
             ms = f"{e}\nError Reading out session status during measurement"
+            self.is_initialized = False
             raise IMAQError(e.error_code, ms)
 
         bf_dif = last_buf_num - self.last_frame_acquired
@@ -470,6 +472,7 @@ class Hamamatsu(Instrument):
                 er_c, bf_ind, img = self.session.extract_buffer(frame_ind)
             except IMAQError as e:
                 ms = f"{e}\nError acquiring buffer number {frame_ind} measurement abandoned"
+                self.is_initialized = False
                 raise IMAQError(e.error_code, ms)
             self.last_measurement[i, :, :] = img
 
@@ -495,6 +498,7 @@ class Hamamatsu(Instrument):
                     f"{e}\nError reading camera temperature",
                     exc_info=True)
                 self.camera_temp = np.inf
+                self.is_initialized = False
                 return
 
             m = re.match(r"TMP (\d+)\.(\d+)", msg_out)
@@ -535,6 +539,7 @@ class Hamamatsu(Instrument):
 
         except Exception as e:
             self.logger.exception(f"Error formatting data from {self.__class__.__name__}")
+            self.is_initialized = False
             raise e
 
         return hm_str
