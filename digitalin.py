@@ -35,8 +35,7 @@ class TTLInput(Instrument):
         self.data_string = ""
         self.task = None
         self.lines = ""
-        
-        
+
     def load_xml(self, node: ET.Element):
         """
         Initialize the instrument class attributes from XML received from CsPy
@@ -71,7 +70,6 @@ class TTLInput(Instrument):
                             
                 except ValueError:
                     raise XMLError(self, child)
-                        
     
     def init(self):
         """
@@ -113,7 +111,6 @@ class TTLInput(Instrument):
                 raise HardwareError(self, task=self.task, message=msg)
 
             self.is_initialized = True
-            
     
     def reset_data(self):
         """
@@ -125,7 +122,6 @@ class TTLInput(Instrument):
         # don't think it's initializing an array of that size-- just stating the default capacity
         # of that data type, because all of the elements are greyed out
         self.data = np.array([]) 
-                
 
     # TODO: see what kind of data we actually get when this runs
     def check(self):
@@ -144,7 +140,7 @@ class TTLInput(Instrument):
                 # 1 second timeout
                 data = self.task.read(timeout=1)
                 
-                #for debugging:
+                # for debugging:
                 self.logger.debug('TTL Data out: ', data)
                 
                 # get data out and append it to the extant data array
@@ -161,7 +157,6 @@ class TTLInput(Instrument):
                 self.close()
                 msg = '\n TTLInput data check failed'
                 raise HardwareError(self, task=self.task, message=msg)
-                
             
     def data_out(self) -> str:
         """
@@ -185,7 +180,6 @@ class TTLInput(Instrument):
                 
             return self.data_string
             
-            
     def start(self):
         """
         Start the task
@@ -202,7 +196,6 @@ class TTLInput(Instrument):
                 msg = '\n TTLInput failed to start task'
                 raise HardwareError(self, task=self.task, message=msg)
             
-            
     def stop(self):
         """
         Stop the task
@@ -214,7 +207,6 @@ class TTLInput(Instrument):
             except DaqError:
                 msg = '\n TTLInput failed while attempting to stop current task'
                 raise HardwareError(self, task=self.task, message=msg)
-                
                 
     def close(self):
         """
