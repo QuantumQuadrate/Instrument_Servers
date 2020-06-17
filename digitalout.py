@@ -45,59 +45,63 @@ class DAQmxDO(Instrument):
         assert node.tag == self.expectedRoot, "expected node"+\
             f" <{self.expectedRoot}> but received <{node.tag}>"
 
-        for child in node: 
-        
-            try:
-            
-                if child.tag == "enable":
-                    self.enable = Instrument.str_to_bool(child.text)
-            
-                elif child.tag == "resourceName":
-                    self.physicalChannels = child.text
-                
-                elif child.tag == "clockRate":
-                    self.clockRate = float(child.text)
-                    
-                elif child.tag == "startTrigger":
+        if not (self.exit_measurement or self.stop_connections):
 
-                    # This is modifying the definitions of the outer for loop child and node. This
-                    # seems dangerous.
-                    node = child
-                    for child in node:
-                    
-                        if node.text == "waitForStartTrigger":
-                            self.startTrigger.wait_for_start_trigger = Instrument.str_to_bool(child.text)
-                        elif child.text == "source":
-                            self.startTrigger.source = child.text
-                        elif child.text == "edge":
-                            try:
-                                # CODO: could make dictionary keys in StartTrigger 
-                                # lowercase and then just .lower() the capitalized keys
-                                # passed in elsewhere 
-                                text = child.text[0].upper() + child.text[1:]
-                                self.startTrigger.edge = StartTrigger.nidaqmx_edges[text]
-                            except KeyError as e:
-                                raise KeyError(f"Not a valid {child.tag} value {child.text} \n {e}")
-                        else:
-                            self.logger.warning(f"Unrecognized XML tag \'{node.tag}\' in <{child.tag}>")
-                
-                elif child.tag == "waveform":
-                    self.waveform = Waveform()
-                    self.waveform.init_from_xml(child)
-                    self.samplesPerChannel = self.waveform.length # the number of transitions
-                    
-                    # reverse each state array 
-                    self.numChannels = len(self.waveform.states[0])
-                    self.data = np.empty((self.samplesPerChannel, self.numChannels))
-                    for i, state in enumerate(self.waveform.states):
-                        self.data[i] = np.flip(state)
-                            
-                else:
-                    self.logger.warning(f"Unrecognized XML tag \'{child.tag}\' in <{self.expectedRoot}>")
-            
-            except (KeyError, ValueError):
-                
-                raise XMLError(self, child)
+            for child in node:
+
+                if self.exit_measurement or self.stop_connections:
+                    break
+
+                try:
+
+                    if child.tag == "enable":
+                        self.enable = Instrument.str_to_bool(child.text)
+
+                    elif child.tag == "resourceName":
+                        self.physicalChannels = child.text
+
+                    elif child.tag == "clockRate":
+                        self.clockRate = float(child.text)
+
+                    elif child.tag == "startTrigger":
+
+                        # This is modifying the definitions of the outer for loop child and node. This
+                        # seems dangerous.
+                        node = child
+                        for child in node:
+
+                            if node.text == "waitForStartTrigger":
+                                self.startTrigger.wait_for_start_trigger = Instrument.str_to_bool(child.text)
+                            elif child.text == "source":
+                                self.startTrigger.source = child.text
+                            elif child.text == "edge":
+                                try:
+                                    # CODO: could make dictionary keys in StartTrigger
+                                    # lowercase and then just .lower() the capitalized keys
+                                    # passed in elsewhere
+                                    text = child.text[0].upper() + child.text[1:]
+                                    self.startTrigger.edge = StartTrigger.nidaqmx_edges[text]
+                                except KeyError as e:
+                                    raise KeyError(f"Not a valid {child.tag} value {child.text} \n {e}")
+                            else:
+                                self.logger.warning(f"Unrecognized XML tag \'{node.tag}\' in <{child.tag}>")
+
+                    elif child.tag == "waveform":
+                        self.waveform = Waveform()
+                        self.waveform.init_from_xml(child)
+                        self.samplesPerChannel = self.waveform.length # the number of transitions
+
+                        # reverse each state array
+                        self.numChannels = len(self.waveform.states[0])
+                        self.data = np.empty((self.samplesPerChannel, self.numChannels))
+                        for i, state in enumerate(self.waveform.states):
+                            self.data[i] = np.flip(state)
+
+                    else:
+                        self.logger.warning(f"Unrecognized XML tag \'{child.tag}\' in <{self.expectedRoot}>")
+
+                except (KeyError, ValueError):
+                    raise XMLError(self, child)
                 
                     
     def init(self):
@@ -168,7 +172,7 @@ class DAQmxDO(Instrument):
         """
         
         done = True
-        if not (self.stop_connections or self.reset_connection) and self.enable:
+        if not (self.stop_connections or self.exit_measurement) and self.enable:
         
             # check if NI task is dones
             try:
@@ -188,7 +192,7 @@ class DAQmxDO(Instrument):
         Start the task
         """
         
-        if not (self.stop_connections or self.reset_connection) and self.enable:
+        if not (self.stop_connections or self.exit_measurement) and self.enable:
             
             try:
                 self.task.start()

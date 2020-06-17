@@ -51,9 +51,12 @@ class TTLInput(Instrument):
         assert (node.tag == self.expectedRoot,
                 f"Expected tag <{self.expectedRoot}>, but received <{node.tag}>")
         
-        if not (self.stop_connections or self.reset_connection):
+        if not (self.exit_measurement or self.stop_connections):
 
-            for child in node: 
+            for child in node:
+
+                if self.exit_measurement or self.stop_connections:
+                    break
             
                 try:
                     
@@ -67,7 +70,6 @@ class TTLInput(Instrument):
                         self.logger.warning(f"Unrecognized XML tag \'{child.tag}\' in <{self.expectedRoot}>")
                             
                 except ValueError:
-                    
                     raise XMLError(self, child)
                         
     
@@ -76,7 +78,7 @@ class TTLInput(Instrument):
         Initialize the device hardware with the attributes set in load_xml
         """
     
-        if not (self.stop_connections or self.reset_connection) and self.enable:
+        if not (self.stop_connections or self.exit_measurement) and self.enable:
                         
             # Clear old task
             if self.task is not None:
@@ -133,7 +135,7 @@ class TTLInput(Instrument):
         TODO: need to implement error checking here
         """
         
-        if not (self.stop_connections or self.reset_connection) and self.enable:
+        if not (self.stop_connections or self.exit_measurement) and self.enable:
             
             self.start()
             
@@ -169,7 +171,7 @@ class TTLInput(Instrument):
             the instance's data string, formatted for reception by CsPy
         """
         
-        if not (self.stop_connections or self.reset_connection) and self.enable:
+        if not (self.stop_connections or self.exit_measurement) and self.enable:
         
             # flatten the data and convert to a str 
             data_shape = self.data.shape # default is (1, 2)... where is data actually received?
@@ -189,7 +191,7 @@ class TTLInput(Instrument):
         Start the task
         """
         
-        if not (self.stop_connections or self.reset_connection) and self.enable:
+        if not (self.stop_connections or self.exit_measurement) and self.enable:
             
             try:
                 self.task.start()

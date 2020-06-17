@@ -134,7 +134,7 @@ class Instrument(XMLLoader):
             'pxi': reference to the parent PXI instance
             'expectedRoot': the xml tag corresponding to your instrument. This 
                 should be in the xml sent by CsPy to talk to setup this device.
-            'node': xml node if available, if passed self.load_xml is called in __init__
+            'node': xml node if available. if passed, self.load_xml is called in __init__
         """
         super().__init__(node)
         self.pxi = pxi
@@ -157,6 +157,14 @@ class Instrument(XMLLoader):
     @stop_connections.setter
     def stop_connections(self, value):
         self.pxi.stop_connections = value
+
+    @property
+    def exit_measurement(self) -> bool:
+        return self.pxi.exit_measurement
+
+    @exit_measurement.setter
+    def exit_measurement(self, value):
+        self.pxi.exit_measurement = value
    
     @abstractmethod
     def load_xml(self, node: ET.Element):
@@ -168,34 +176,11 @@ class Instrument(XMLLoader):
             node.tag == self.expectedRoot
         """
 
-        if self.stop_connections or self.reset_connection:
+        if not (self.exit_measurement or self.stop_connections):
             return
 
         as_ms = f"node to open camera is tagged {node.tag}. Must be tagged {self.expectedRoot}"
         assert node.tag == self.expectedRoot, as_ms
-
-        '''
-        Not sure any of this (except the self.enable setting) should be here -Juan
-
-        if not (self.stop_connections or self.reset_connection):
-        
-            assert node.tag == self.expectedRoot, f"Expected xml tag {self.expectedRoot}"
-
-            for child in node: 
-
-                if type(child) == ET.Element:
-                
-                    if child.tag == "enable":
-                        self.enable = self.str_to_bool(child.text)
-                
-                    # elif child.tag == "someOtherProperty":
-                        # self.thatProperty = child.text
-                    
-                    else:
-                        # TODO handle unexpected tag case
-                        # self.logger.warning(f"Unrecognized XML tag \'{child.tag}\' in <{self.expectedRoot}>")
-                        pass
-        '''
 
     @abstractmethod
     def init(self):

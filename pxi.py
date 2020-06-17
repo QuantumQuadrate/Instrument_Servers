@@ -51,9 +51,8 @@ class PXI:
         self.logger = logging.getLogger(str(self.__class__))
         self._stop_connections = False
         self._reset_connection = False
-        self._stop_measurement = False
+        self._exit_measurement = False
         self.cycle_continuously = True
-        self.exit_measurement = False
         self.return_data = ""
         self.return_data_queue = ""
         self.measurement_timeout = 0
@@ -89,12 +88,12 @@ class PXI:
         self._reset_connection = value
         
     @property
-    def stop_measurement(self) -> bool:
-        return self._stop_measurement
+    def exit_measurement(self) -> bool:
+        return self._exit_measurement
         
-    @stop_measurement.setter
-    def stop_measurement(self, value):
-        self._stop_measurement = value
+    @exit_measurement.setter
+    def exit_measurement(self, value):
+        self._exit_measurement = value
 
     def queue_command(self, command):
         self.command_queue.put(command)
@@ -129,7 +128,7 @@ class PXI:
         hierarchy of methods in self.parse_xml and self.measurement.
         """
 
-        while not self.stop_connections or self.stop_measurement:
+        while not self.stop_connections or self.exit_measurement:
             try:
                 # dequeue xml; non-blocking
                 xml_str = self.command_queue.get(block=False, timeout=0)
@@ -601,9 +600,9 @@ class PXI:
         """
         Restart experiment thread after current measurement ends
         """
-        self.stop_measurement = True
+        self.exit_measurement = True
         self.experiment_thread.join() 
-        self.stop_measurement = False
+        self.exit_measurement = False
         self.launch_experiment_thread()
 
     def batch_method_call(self, device_list: List[Instrument], method: str):

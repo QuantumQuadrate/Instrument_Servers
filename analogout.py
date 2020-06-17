@@ -91,61 +91,65 @@ class AnalogOutput(Instrument):
         assert node.tag == self.expectedRoot, "expected node"+\
             f" <{self.expectedRoot}> but received <{node.tag}>"
 
-        for child in node: 
-            
-            try:
+        if not (self.exit_measurement or self.stop_connections):
 
-                if child.tag == "enable":
-                    self.enable = Instrument.str_to_bool(child.text)
+            for child in node:
 
-                elif child.tag == "physicalChannels":
-                    self.physicalChannels = child.text
+                if self.exit_measurement or self.stop_connections:
+                    break
 
-                elif child.tag == "minimum":
-                    self.minValue = float(child.text)
+                try:
 
-                elif child.tag == "maximum":
-                    self.maxValue = float(child.text)
+                    if child.tag == "enable":
+                        self.enable = Instrument.str_to_bool(child.text)
 
-                elif child.tag == "clockRate":
-                    self.sampleRate = float(child.text) # samples per second in LabVIEW
+                    elif child.tag == "physicalChannels":
+                        self.physicalChannels = child.text
 
-                elif child.tag == "waveform":
-                    self.waveforms = self.wave_from_str(child.text)
+                    elif child.tag == "minimum":
+                        self.minValue = float(child.text)
 
-                elif child.tag == "waitForStartTrigger":
-                    self.startTrigger.wait_for_start_trigger = Instrument.str_to_bool(child.text)
+                    elif child.tag == "maximum":
+                        self.maxValue = float(child.text)
 
-                elif child.tag == "exportStartTrigger":
-                    self.exportTrigger.exportStartTrigger = Instrument.str_to_bool(child.text)
+                    elif child.tag == "clockRate":
+                        self.sampleRate = float(child.text) # samples per second in LabVIEW
 
-                elif child.tag == "triggerSource":
-                    self.startTrigger.source = child.text
+                    elif child.tag == "waveform":
+                        self.waveforms = self.wave_from_str(child.text)
 
-                elif child.tag == "exportStartTriggerDestination":
-                    self.exportTrigger.outputTerminal = child.text
+                    elif child.tag == "waitForStartTrigger":
+                        self.startTrigger.wait_for_start_trigger = Instrument.str_to_bool(child.text)
 
-                elif child.tag == "triggerEdge":
-                    try:
-                        self.startTrigger.edge = StartTrigger.nidaqmx_edges[child.text]
-                    except KeyError as e:
-                        raise KeyError(f"Not a valid {child.tag} value {child.text} \n {e}")
+                    elif child.tag == "exportStartTrigger":
+                        self.exportTrigger.exportStartTrigger = Instrument.str_to_bool(child.text)
 
-                elif child.tag == "useExternalClock":
-                    self.externalClock.useExternalClock = Instrument.str_to_bool(child.text)
+                    elif child.tag == "triggerSource":
+                        self.startTrigger.source = child.text
 
-                elif child.tag == "externalClockSource":
-                    self.externalClock.source = child.text
+                    elif child.tag == "exportStartTriggerDestination":
+                        self.exportTrigger.outputTerminal = child.text
 
-                elif child.tag == "maxExternalClockRate":
-                    self.externalClock.maxClockRate = float(child.text)
+                    elif child.tag == "triggerEdge":
+                        try:
+                            self.startTrigger.edge = StartTrigger.nidaqmx_edges[child.text]
+                        except KeyError as e:
+                            raise KeyError(f"Not a valid {child.tag} value {child.text} \n {e}")
 
-                else:
-                    self.logger.warning(f"Unrecognized XML tag \'{child.tag}\' in <AnalogOutput>")
-                    
-            except (KeyError, ValueError):
-                
-                raise XMLError(self, child)
+                    elif child.tag == "useExternalClock":
+                        self.externalClock.useExternalClock = Instrument.str_to_bool(child.text)
+
+                    elif child.tag == "externalClockSource":
+                        self.externalClock.source = child.text
+
+                    elif child.tag == "maxExternalClockRate":
+                        self.externalClock.maxClockRate = float(child.text)
+
+                    else:
+                        self.logger.warning(f"Unrecognized XML tag \'{child.tag}\' in <AnalogOutput>")
+
+                except (KeyError, ValueError):
+                    raise XMLError(self, child)
 
 
     # TODO: test with hardware
@@ -212,7 +216,7 @@ class AnalogOutput(Instrument):
         """
         
         # TODO: check if stop or reset
-        if not (self.stop_connections or self.reset_connection) and self.enable:
+        if not (self.stop_connections or self.exit_measurement) and self.enable:
                         
             channels, samples = self.waveforms.shape
             
@@ -245,7 +249,7 @@ class AnalogOutput(Instrument):
         """
         
         done = True
-        if not (self.stop_connections or self.reset_connection) and self.enable:
+        if not (self.stop_connections or self.exit_measurement) and self.enable:
         
             try:
             # check if NI task is dones
@@ -267,7 +271,7 @@ class AnalogOutput(Instrument):
         Start the task
         """
         
-        if not (self.stop_connections or self.reset_connection) and self.enable:
+        if not (self.stop_connections or self.exit_measurement) and self.enable:
         
             try:
                 self.task.start()
