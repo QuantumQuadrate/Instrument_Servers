@@ -26,7 +26,7 @@ from time import perf_counter_ns
 from typing import List
 
 ## misc local classes
-from instrument import XMLLoader
+from instrument import XMLLoader, Instrument
 from keylistener import KeyListener
 from pxierrors import XMLError, HardwareError, TimeoutError
 
@@ -55,17 +55,10 @@ class PXI:
         self.cycle_continuously = True
         self.exit_measurement = False
         self.return_data = ""
-        self.queued_return_data = ""
+        self.return_data_queue = ""
         self.measurement_timeout = 0
-
         self.keylisten_thread = None
-
-        # queues. 0 indicates no maximum queue length enforced.
-        self.command_queue = Queue(0)
-        self.return_data_queue = Queue(0)
-
-        self.return_data_str = ""  # this seems to exist primarily for debugging
-
+        self.command_queue = Queue(0)  # 0 indicates no maximum queue length enforced.
         self.element_tags = []  # for debugging
 
         # instantiate the device objects
@@ -124,7 +117,7 @@ class PXI:
 
     def command_loop(self):
         """
-        Update devices with xml from CsPy and, get and return data from devices
+        Update devices with xml from CsPy, and get and return data from devices
 
         Pop a command from self.command_queue on each iteration, parse the xml
         in that command, and update the instruments accordingly. When the queue
@@ -144,12 +137,11 @@ class PXI:
 
             except Empty:
                 self.exit_measurement = False
-                self.return_data_str = ""  # reset the list
+                self.return_data = ""  # clear the return data
 
                 if self.cycle_continuously:
-                    # This method returns the data as well as updates
-                    # 'return_data_str'
-                    return_data_str = self.measurement()
+                    # This method returns the data
+                    self.return_data_queue = self.measurement()
 
     def launch_keylisten_thread(self):
         """
@@ -179,7 +171,7 @@ class PXI:
         # get the xml root
         root = ET.fromstring(xml_str)
         if root.tag != "LabView":
-            self.logger.info("Not a valid msg for the pxi")
+            self.logger.warning("Not a valid msg for the pxi")
 
         else:
             # loop non-recursively over children in root
@@ -190,11 +182,12 @@ class PXI:
                 try:
                 
                     if child.tag == "measure":
-                        if self.return_data_queue.empty():
-                            # if no data ready, take one measurement
+                        # if no data available, take one measurement. Otherwise,
+                        # use the most recent data.
+                        if self.return_data_queue == "":
                             self.measurement()
                         else:
-                            # TODO: do something here?
+                            self.return_data = self.return_data_queue
                             pass
 
                     elif child.tag == "pause":
@@ -249,7 +242,7 @@ class PXI:
                         # set up the analog_output
                         self.analog_output.load_xml(child)
                         self.analog_output.init() # setup in labview
-                        self.analog_output.update()
+                        self.analog_output.update() # TODO check why this doesn't exist
                         pass
 
                     elif child.tag == "AnalogInput":
@@ -288,7 +281,7 @@ class PXI:
 
         # clear the return data
         self.return_data = ""
-        self.return_data_queue = Queue(0)
+        self.return_data_queue = ""
 
     def data_to_xml(self) -> str:
         """
@@ -298,10 +291,10 @@ class PXI:
         methods.
 
         Returns:
-            'return_data_str': concatenated string of xml-formatted data
+            'return_data': concatenated string of xml-formatted data
         """
 
-        return_data_str = ""
+        return_data = ""
 
         # the devices which have a method named 'data_out' which returns a str
         devices = [
@@ -314,17 +307,18 @@ class PXI:
 
         for dev in devices:
             if dev.is_initialized:
-                return_data_str += dev.data_out()
+                return_data += dev.data_out()
 
-        return return_data_str
+        self.return_data = return_data
+        return return_data
 
-    def measurement(self) -> Queue:
+    def measurement(self) -> str:
         """
         Return a queue of the acquired responses queried from device hardware
 
         Returns:
-            'return_data_queue': the responses received from the device
-                classes
+            'return_data': string of concatenated responses received from the
+                device classes
         """
 
         if not (self.stop_connections or self.exit_measurement):
@@ -351,6 +345,7 @@ class PXI:
                         break
 
             self.get_data()
+            self.system_checks()
             self.system_checks()
             self.stop_tasks()
             return_data = self.data_to_xml()
