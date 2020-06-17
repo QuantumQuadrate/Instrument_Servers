@@ -531,7 +531,7 @@ class PXI:
                 as sent to CsPy, warning the user that an error has occurred
                 and that the PXI settings should be updated.
             V. The current measurement cycle should be aborted, and restarted
-                if self.cycle_continuously == True. Class where error occurred
+                if self.cycle_continuously == True. Device where error occurred
                 should be excluded from the measurement cycle until it has been
                 reinitialized. I.e., devices which read/write signals (e.g.
                 TTLInput, HSDIO, etc) should continue to cycle if they can
@@ -539,9 +539,10 @@ class PXI:
                 coarsely, as many errors should result in the same handling
                 behavior in this function (e.g. all error types pertaining to an XML
                 initialization failure should result in a message urging the user to
-                check the XML in CsPy and reinitialize the device). Possible types
-                used here are HardwareError and XMLError, defined in pxierrors.py
-            
+                check the XML in CsPy and reinitialize the device). Specific
+                error types handled here are HardwareError and XMLError, defined
+                in pxierrors.py
+
         Args:
             error : The error that was raised. Maybe it's useful to keep it around
             traceback_str : string useful for traceback
