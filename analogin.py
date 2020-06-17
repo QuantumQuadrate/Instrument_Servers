@@ -42,9 +42,8 @@ class AnalogInput(Instrument):
         self.maxValue = 10.0
         self.startTrigger = StartTrigger()
         self.task = None
-        
-    
-    def load_xml(self, node):
+
+    def load_xml(self, node: ET.Element):
         """
         Initialize AnalogInput instance attributes with xml from CsPy
 
@@ -55,7 +54,7 @@ class AnalogInput(Instrument):
         
         self.is_initialized = False
         
-        assert node.tag == self.expectedRoot, "expected node"+\
+        assert node.tag == self.expectedRoot, "expected node" + \
             f" <{self.expectedRoot}> but received <{node.tag}>"
 
         if not (self.exit_measurement or self.stop_connections):
@@ -70,10 +69,10 @@ class AnalogInput(Instrument):
                         self.enable = Instrument.str_to_bool(child.text)
 
                     elif child.tag == "sample_rate":
-                        self.sampleRate = float(child.text) # [Hz]
+                        self.sampleRate = float(child.text)  # [Hz]
 
                     elif child.tag == "samples_per_measurement":
-                        self.samplesPerMeasurement = Instrument.int_from_str(child.text)
+                        self.samplesPerMeasurement = Instrument.str_to_int(child.text)
 
                     elif child.tag == "source":
                         self.source = child.text
@@ -103,7 +102,6 @@ class AnalogInput(Instrument):
                 except (KeyError, ValueError):
                     raise XMLError(self, child)
                 
-        
     def init(self):
     
         if not (self.stop_connections or self.reset_connection) and self.enable:
@@ -129,9 +127,9 @@ class AnalogInput(Instrument):
             try:
                 self.task = nidaqmx.Task() # might be task.Task()
                 self.task.ai_channels.add_ai_voltage_chan(
-                    self.physicalChannels,
-                    min_val = self.minValue,
-                    max_val = self.maxValue,
+                    physical_channel=self.source,
+                    min_val=self.minValue,
+                    max_val=self.maxValue,
                     terminal_config=inputTerminalConfig)
                 
                 # Setup timing. Use the onboard clock
@@ -139,12 +137,12 @@ class AnalogInput(Instrument):
                     rate=self.sampleRate, 
                     active_edge=Edge.RISING, # default
                     sample_mode=AcquisitionType.FINITE, # default
-                    samps_per_chan=samplesPerMeasurement) 
+                    samps_per_chan=self.samplesPerMeasurement)
                 
                 # Setup start trigger if configured to wait for one
                 if self.startTrigger.wait_for_start_trigger:
-                    self.start_trigger.cfg_dig_edge_start_trig(
-                        trigger_source = self.startTrigger.source,
+                    self.task.start_trigger.cfg_dig_edge_start_trig(
+                        trigger_source=self.startTrigger.source,
                         trigger_edge=self.startTrigger.edge)
             
             except DaqError:
@@ -155,7 +153,6 @@ class AnalogInput(Instrument):
                 raise HardwareError(self, task=self.task, message=msg)
 
             self.is_initialized = True
-                        
                         
     def is_done(self) -> bool:
         """
@@ -182,7 +179,6 @@ class AnalogInput(Instrument):
 
         return done
             
-            
     def get_data(self):
         """
         Call nidaqmx.Task.read function to fill self.data. 
@@ -204,7 +200,6 @@ class AnalogInput(Instrument):
                 self.close()
                 msg = '\n AnalogInput failed to read data from hardware'
                 raise HardwareError(self, task=self.task, message=msg)
-            
             
     # TODO: compare output to what the LabVIEW method returns
     def data_out(self) -> str:
@@ -233,7 +228,6 @@ class AnalogInput(Instrument):
                 
             return self.data_string
             
-            
     def start(self):
         """
         Start the task
@@ -250,7 +244,6 @@ class AnalogInput(Instrument):
                 msg = '\n AnalogInput failed to start task'
                 raise HardwareError(self, task=self.task, message=msg)
 
-
     def stop(self):
         """
         Stop the task
@@ -265,7 +258,6 @@ class AnalogInput(Instrument):
                 msg = '\n AnalogInput failed to stop current task'
                 raise HardwareError(self, task=self.task, message=msg)
 
-                
     def close(self):
         """
         Close the task
