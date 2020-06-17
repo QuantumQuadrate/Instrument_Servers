@@ -175,6 +175,7 @@ class AnalogInput(Instrument):
                 self.stop()
                 self.close()
                 msg = '\n AnalogInput check for task completion failed'
+                self.is_initialized = False
                 raise HardwareError(self, task=self.task, message=msg)
 
         return done
@@ -199,6 +200,7 @@ class AnalogInput(Instrument):
                 self.stop()
                 self.close()
                 msg = '\n AnalogInput failed to read data from hardware'
+                self.is_initialized = False
                 raise HardwareError(self, task=self.task, message=msg)
             
     # TODO: compare output to what the LabVIEW method returns
@@ -211,21 +213,26 @@ class AnalogInput(Instrument):
         """
         
         if not (self.stop_connections or self.exit_measurement) and self.enable:
-        
-            # flatten the data and convert to a str 
-            data_shape = self.data.shape
-            flat_data = np.reshape(self.data, np.prod(data_shape))
-            
-            shape_str = ",".join([str(x) for x in data_shape])
-            
-            # flatten data to string of bytes. supposed to mimic LabVIEW's Flatten to String VI, 
-            # which is inappropriately named. according to the inconsistent docs it either outputs
-            # UTF-8 JSON or binary. this returns bytes and may therefore be wrong. 
-            data_bytes = struct.pack('!L', "".join([str(x) for x in flat_data]))
-                        
-            self.data_string = TCP.format_data('AI/dimensions', shape_str) + \
-                TCP.format_data('AI/data', data_bytes)
-                
+
+            try:
+                # flatten the data and convert to a str
+                data_shape = self.data.shape
+                flat_data = np.reshape(self.data, np.prod(data_shape))
+
+                shape_str = ",".join([str(x) for x in data_shape])
+
+                # flatten data to string of bytes. supposed to mimic LabVIEW's Flatten to String VI,
+                # which is inappropriately named. according to the inconsistent docs it either outputs
+                # UTF-8 JSON or binary. this returns bytes and may therefore be wrong.
+                data_bytes = struct.pack('!L', "".join([str(x) for x in flat_data]))
+
+                self.data_string = TCP.format_data('AI/dimensions', shape_str) + \
+                    TCP.format_data('AI/data', data_bytes)
+
+            except Exception as e:
+                self.logger.exception(f"Error formatting data from {self.__class__.__name__}")
+                raise e
+
             return self.data_string
             
     def start(self):
@@ -242,6 +249,7 @@ class AnalogInput(Instrument):
                 self.stop()
                 self.close()
                 msg = '\n AnalogInput failed to start task'
+                self.is_initialized = False
                 raise HardwareError(self, task=self.task, message=msg)
 
     def stop(self):
@@ -256,6 +264,7 @@ class AnalogInput(Instrument):
             except DaqError:
                 self.close()
                 msg = '\n AnalogInput failed to stop current task'
+                self.is_initialized = False
                 raise HardwareError(self, task=self.task, message=msg)
 
     def close(self):
@@ -269,4 +278,5 @@ class AnalogInput(Instrument):
                 
             except DaqError:
                 msg = '\n AnalogInput failed to close current task'
+                self.is_initialized = False
                 raise HardwareError(self, task=self.task, message=msg)

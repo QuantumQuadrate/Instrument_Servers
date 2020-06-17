@@ -8,7 +8,6 @@ For parsing XML strings which specify the settings for the Hamamatsu C9100-13
 camera and initialization of the hardware of said camera. 
 """
 
-
 from ctypes import *
 import numpy as np
 import xml.etree.ElementTree as ET
@@ -515,23 +514,28 @@ class Hamamatsu(Instrument):
         if not self.enable:
             return ""
 
-        hm = "Hamamatsu"
-        hm_str = ""
-        sz = self.last_measurement.shape
-        hm_str += TCP.format_data(f"{hm}/numShots", f"{sz[0]}")
-        hm_str += TCP.format_data(f"{hm}/rows", f"{sz[1]}")
-        hm_str += TCP.format_data(f"{hm}/columns", f"{sz[2]}")
+        try:
+            hm = "Hamamatsu"
+            hm_str = ""
+            sz = self.last_measurement.shape
+            hm_str += TCP.format_data(f"{hm}/numShots", f"{sz[0]}")
+            hm_str += TCP.format_data(f"{hm}/rows", f"{sz[1]}")
+            hm_str += TCP.format_data(f"{hm}/columns", f"{sz[2]}")
 
-        for shot in range(sz[0]):
-            if self.measurement_success:
-                flat_ar = np.reshape(self.last_measurement[shot, :, :], sz[1] * sz[2])
-            else:
-                # A failed measurement returns useless data of all 0
-                flat_ar = np.zeroes(sz[1]*sz[2])
-            tmp_str = u16_ar_to_str(flat_ar)
-            hm_str += TCP.format_data(f"{hm}/shots/{shot}", tmp_str)
+            for shot in range(sz[0]):
+                if self.measurement_success:
+                    flat_ar = np.reshape(self.last_measurement[shot, :, :], sz[1] * sz[2])
+                else:
+                    # A failed measurement returns useless data of all 0
+                    flat_ar = np.zeroes(sz[1]*sz[2])
+                tmp_str = u16_ar_to_str(flat_ar)
+                hm_str += TCP.format_data(f"{hm}/shots/{shot}", tmp_str)
 
-        hm_str += TCP.format_data(f"{hm}/temperature", "{:.3f}".format(self.camera_temp))
+            hm_str += TCP.format_data(f"{hm}/temperature", "{:.3f}".format(self.camera_temp))
+
+        except Exception as e:
+            self.logger.exception(f"Error formatting data from {self.__class__.__name__}")
+            raise e
 
         return hm_str
 
@@ -543,7 +547,7 @@ def u16_ar_to_str(ar: np.ndarray) -> str:  # Should the type hint on the return 
     Args:
         ar : input array. should be 1D ndarray
     Returns:
-        string that's parsable by cspy xml reciever
+        string that's parsable by cspy xml receiver
     """
 
     return struct.pack(f"!{len(ar)}H", *ar)

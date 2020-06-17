@@ -128,8 +128,7 @@ class HSDIO(Instrument):
 
                 except ValueError: # maybe catch other errors too.
                     raise XMLError(self, child)
-                
-                
+
     def init(self):
         """
         set up the triggering, initial states, script triggers, etc
@@ -233,6 +232,7 @@ class HSDIO(Instrument):
                         )
                 except HSDIOError as e:
                     m = f"{e}\nError writing waveform. Waveform has not been updated",
+                    self.is_initialized = False
                     raise HSDIOError(e.error_code, m)
         self.wvf_written = True
 
@@ -267,6 +267,7 @@ class HSDIO(Instrument):
                 except HSDIOError:
                     session.abort()
                     session.close()
+                    self.is_initialized = False
                     raise
 
     def stop(self):

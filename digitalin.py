@@ -156,6 +156,7 @@ class TTLInput(Instrument):
                 self.stop()
                 self.close()
                 msg = '\n TTLInput data check failed'
+                self.is_initialized = False
                 raise HardwareError(self, task=self.task, message=msg)
             
     def data_out(self) -> str:
@@ -167,17 +168,21 @@ class TTLInput(Instrument):
         """
         
         if not (self.stop_connections or self.exit_measurement) and self.enable:
-        
-            # flatten the data and convert to a str 
-            data_shape = self.data.shape # default is (1, 2)... where is data actually received?
-            flat_data = np.reshape(self.data, np.prod(data_shape))
-            
-            shape_str = ",".join([str(x) for x in data_shape])
-            data_bytes = struct.pack('!L', "".join([str(x) for x in flat_data]))
-                        
-            self.data_string = TCP.format_data('TTL/dimensions', shape_str) + \
-                TCP.format_data('TTL/data', data_bytes)
-                
+
+            try:
+                # flatten the data and convert to a str
+                data_shape = self.data.shape # default is (1, 2)... where is data actually received?
+                flat_data = np.reshape(self.data, np.prod(data_shape))
+
+                shape_str = ",".join([str(x) for x in data_shape])
+                data_bytes = struct.pack('!L', "".join([str(x) for x in flat_data]))
+
+                self.data_string = TCP.format_data('TTL/dimensions', shape_str) + \
+                    TCP.format_data('TTL/data', data_bytes)
+            except Exception as e:
+                self.logger.exception(f"Error formatting data from {self.__class__.__name__}")
+                raise e
+
             return self.data_string
             
     def start(self):

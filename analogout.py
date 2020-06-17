@@ -172,8 +172,8 @@ class AnalogOutput(Instrument):
                     self.task = nidaqmx.Task() # might be task.Task()
                     self.task.ao_channels.add_ao_voltage_chan(
                         self.physicalChannels,
-                        min_val = self.minValue,
-                        max_val = self.maxValue)
+                        min_val=self.minValue,
+                        max_val=self.maxValue)
                     
                     if self.externalClock.useExternalClock:
                         self.task.timing.cfg_samp_clk_timing(
@@ -228,6 +228,7 @@ class AnalogOutput(Instrument):
                 self.stop()
                 self.close()
                 msg = '\n AnalogOutput hardware update failed'
+                self.is_initialized = False
                 raise HardwareError(self, task=self.task, message=msg)
 
     def is_done(self) -> bool:
@@ -251,6 +252,7 @@ class AnalogOutput(Instrument):
                 self.stop()
                 self.close()
                 msg = '\n AnalogOutput check for task completion failed'
+                self.is_initialized = False
                 raise HardwareError(self, task=self.task, message=msg)
 
         return done
@@ -270,6 +272,7 @@ class AnalogOutput(Instrument):
                 self.stop()
                 self.close()
                 msg = '\n AnalogOutput failed to start task'
+                self.is_initialized = False
                 raise HardwareError(self, task=self.task, message=msg)
 
     def stop(self):
@@ -284,6 +287,7 @@ class AnalogOutput(Instrument):
             except DaqError:
                 self.close()
                 msg = '\n AnalogOutput failed to stop current task'
+                self.is_initialized = False
                 raise HardwareError(self, task=self.task, message=msg)
 
     def close(self):
@@ -297,4 +301,5 @@ class AnalogOutput(Instrument):
                 
             except DaqError:
                 msg = '\n AnalogOutput failed to close current task'
+                self.is_initialized = False
                 raise HardwareError(self, task=self.task, message=msg)
