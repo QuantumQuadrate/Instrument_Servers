@@ -6,10 +6,6 @@ SaffmanLab, University of Wisconsin - Madison
 # TODO: could use nidaqmx task register_done_event, which can pass out and allow
 # error handling if a task ends unexpectedly due to an error
 
-# TODO: there exist DaqResourceWarning warnings that i neither handle nor log, 
-# as it seems that the class merely points to a built-in Python ResourceWarning, 
-# which is itself abstract. - Preston
-
 ## modules 
 import nidaqmx
 from nidaqmx.constants import Edge, AcquisitionType, Signal
@@ -45,8 +41,8 @@ class AnalogOutput(Instrument):
         self.startTrigger = StartTrigger()
         self.task = None
 
-
-    def wave_from_str(self, wave_str, delim=' '):
+    @staticmethod
+    def wave_from_str(wave_str: str, delim: str = ' ') -> np.ndarray:
         """
         Efficiently build return waveform as a numpy ndarray from a string
 
@@ -76,8 +72,7 @@ class AnalogOutput(Instrument):
 
         return wave_arr
 
-
-    def load_xml(self, node):
+    def load_xml(self, node: ET.Element):
         """
         Initialize AnalogOutput instance attributes with xml from CsPy
 
@@ -151,7 +146,6 @@ class AnalogOutput(Instrument):
                 except (KeyError, ValueError):
                     raise XMLError(self, child)
 
-
     # TODO: test with hardware
     def init(self):
         """
@@ -163,17 +157,16 @@ class AnalogOutput(Instrument):
             if self.enable:
 
                 # Clear old task
-                try:
-                    if self.task is not None:
-                        try:
-                            self.task.close()
-                            
-                        except DaqError:
-                            # end the task nicely
-                            self.stop()
-                            self.close()
-                            msg = '\n AnalogOutput failed to close current task'
-                            raise HardwareError(self, task=self.task, message=msg)
+                if self.task is not None:
+                    try:
+                        self.task.close()
+
+                    except DaqError:
+                        # end the task nicely
+                        self.stop()
+                        self.close()
+                        msg = '\n AnalogOutput failed to close current task'
+                        raise HardwareError(self, task=self.task, message=msg)
                         
                 try:
                     self.task = nidaqmx.Task() # might be task.Task()
@@ -195,7 +188,7 @@ class AnalogOutput(Instrument):
                             trigger_source=self.startTrigger.source,
                             trigger_edge=self.startTrigger.edge) # default
                                         
-                    if self.exportStartTrigger:
+                    if self.exportTrigger.exportStartTrigger:
                         self.task.export_signals.export_signal(
                             Signal.START_TRIGGER,
                             self.exportTrigger.outputTerminal)
@@ -215,7 +208,6 @@ class AnalogOutput(Instrument):
         Update the Analog Output hardware
         """
         
-        # TODO: check if stop or reset
         if not (self.stop_connections or self.exit_measurement) and self.enable:
                         
             channels, samples = self.waveforms.shape
@@ -238,7 +230,6 @@ class AnalogOutput(Instrument):
                 msg = '\n AnalogOutput hardware update failed'
                 raise HardwareError(self, task=self.task, message=msg)
 
-                
     def is_done(self) -> bool:
         """
         Check if the tasks being run are completed
@@ -252,7 +243,7 @@ class AnalogOutput(Instrument):
         if not (self.stop_connections or self.exit_measurement) and self.enable:
         
             try:
-            # check if NI task is dones
+                # check if NI task is done
                 done = self.task.is_task_done()
                 
             except DaqError:
@@ -262,9 +253,7 @@ class AnalogOutput(Instrument):
                 msg = '\n AnalogOutput check for task completion failed'
                 raise HardwareError(self, task=self.task, message=msg)
 
-            
         return done
-        
 
     def start(self):
         """
@@ -276,13 +265,12 @@ class AnalogOutput(Instrument):
             try:
                 self.task.start()
                 
-            except DaqError
+            except DaqError:
                 # end the task nicely
                 self.stop()
                 self.close()
                 msg = '\n AnalogOutput failed to start task'
                 raise HardwareError(self, task=self.task, message=msg)
-
 
     def stop(self):
         """
@@ -298,7 +286,6 @@ class AnalogOutput(Instrument):
                 msg = '\n AnalogOutput failed to stop current task'
                 raise HardwareError(self, task=self.task, message=msg)
 
-                
     def close(self):
         """
         Close the task
