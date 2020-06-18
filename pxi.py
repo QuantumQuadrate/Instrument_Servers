@@ -23,11 +23,11 @@ from pxierrors import XMLError, HardwareError, PXIError
 
 ## local device classes
 from hsdio import HSDIO
-from hamamatsu import Hamamatsu
-from analogin import AnalogInput
-from analogout import AnalogOutput
-from digitalin import TTLInput
-from digitalout import DAQmxDO
+# from hamamatsu import Hamamatsu
+# from analogin import AnalogInput
+# from analogout import AnalogOutput
+# from digitalin import TTLInput
+# from digitalout import DAQmxDO
 from tcp import TCP
 
 
@@ -37,12 +37,12 @@ class PXI:
                 " - \'r\' to reset the connection to CsPy \n" +
                 " - \'q\' to stop the connection and close this server.")
 
-    def __init__(self, address: Tuple[str, int], enabled_devs: List[XMLLoader]):
+    def __init__(self, address: Tuple[str, int]):
         self.logger = logging.getLogger(str(self.__class__))
         self._stop_connections = False
         self._reset_connection = False
         self._exit_measurement = False
-        self.cycle_continuously = True
+        self.cycle_continuously = False
         self.return_data = ""
         self.return_data_queue = ""
         self.measurement_timeout = 0
@@ -53,7 +53,7 @@ class PXI:
 
         # instantiate the device objects
         self.hsdio = HSDIO(self)
-        # self.tcp = TCP(self, address)
+        self.tcp = TCP(self, address)
         # self.analog_input = AnalogInput(self)
         # self.analog_output = AnalogOutput(self)
         # self.ttl = TTLInput(self)
@@ -615,9 +615,9 @@ class PXI:
         """
         Nicely shut down this server
         """
-
-        self.batch_method_call(self.devices, 'stop')
+        
         self.tcp.stop_connections = True
         self.exit_measurement = True
-        self.experiment_thread.join()
+        self.batch_method_call(self.devices, 'stop')
+        # self.experiment_thread.join()
         # experiment_thread is the only user thread; other threads are daemon.

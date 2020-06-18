@@ -48,10 +48,10 @@ class TCP:
         while not self.stop_connections:
             self.reset_connection = False
 
-            # TODO: entering q in cmd line should terminate this process
             self.logger.info("attempting to accept connection request.")
             self.current_connection, client_address = self.listening_socket.accept()
             self.logger.info(f"Started connection with {client_address}")
+            self.send_message(b"PXI Server accepted the connection")
             while not (self.pxi.reset_connection or self.stop_connections):
                 try:
                     self.receive_message()
@@ -59,6 +59,8 @@ class TCP:
                     pass
             self.logger.info(f"Closing connection with {client_address}")
             self.current_connection.close()
+            
+        self.listening_socket.close()
 
     def receive_message(self):
         """
@@ -109,7 +111,7 @@ class TCP:
         """
         if not self.stop_connections and msg_str:
             try:
-                self.current_connection.send(f"{b'MESG'}{TCP.format_message(msg_str)}")
+                self.current_connection.send(bytes(f"{b'MESG'}{TCP.format_message(msg_str)}", 'utf-8'))
             except Exception:
                 self.logger.exception("Issue sending message back to CsPy.")
                 self.reset_connection = True

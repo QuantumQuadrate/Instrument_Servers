@@ -8,14 +8,20 @@ Wraps the native NI_IMAQ functions defined in the niimaq.dll file and track the 
 interface data.
 """
 
+## built-in or third-party imports
 from ctypes import *
 import logging
 import os
 from ctypes import c_uint32
 from typing import Tuple, Callable, TypeVar
 import numpy as np
-from hamamatsu import SubArray, FrameGrabberAqRegion, Hamamatsu
-from pxierrors import HardwareError, NIIMAQError
+from recordclass import recordclass as rc
+
+## local class imports
+from pxierrors import IMAQError
+
+SubArray = rc('SubArray', ('left', 'top', 'width', 'height'))
+FrameGrabberAqRegion = rc('FrameGrabberAqRegion', ('left', 'right', 'top', 'bottom'))
 
 # Sub array acquisition RecordClasses for TypeHint convenience =================================
 ROI = TypeVar("ROI", SubArray, FrameGrabberAqRegion)
