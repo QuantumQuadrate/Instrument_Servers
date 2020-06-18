@@ -141,6 +141,7 @@ class Instrument(XMLLoader):
         self.expectedRoot = expected_root
         self.enable = False
         self.is_initialized = False
+        self.pxi.devices.append(self)
     
     @property
     def reset_connection(self) -> bool:

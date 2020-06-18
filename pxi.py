@@ -37,7 +37,7 @@ class PXI:
                 " - \'r\' to reset the connection to CsPy \n" +
                 " - \'q\' to stop the connection and close this server.")
 
-    def __init__(self, address: Tuple[str, int]):
+    def __init__(self, address: Tuple[str, int], enabled_devs: List[XMLLoader]):
         self.logger = logging.getLogger(str(self.__class__))
         self._stop_connections = False
         self._reset_connection = False
@@ -49,6 +49,7 @@ class PXI:
         self.keylisten_thread = None
         self.command_queue = Queue(0)  # 0 indicates no maximum queue length enforced.
         self.element_tags = []  # for debugging
+        self.devices = []
 
         # instantiate the device objects
         self.hsdio = HSDIO(self)
@@ -605,5 +606,19 @@ class PXI:
                 if dev.is_initialized:
                     try:
                         getattr(dev, method)()  # call the method
-                    except HardwareError as e:
-                        self.handle_errors(e)
+                    except (HardwareError, AttributeError) as e:
+                        if isinstance(e, AttributeError):
+                            self.logger.warning(f'{dev} does not have method \'{method}\'')
+                        else:
+                            self.handle_errors(e)
+
+    def stop(self):
+        """
+        Nicely shut down this server
+        """
+
+        self.batch_method_call(self.devices, 'stop')
+        self.tcp.stop_connections = True
+        self.exit_measurement = True
+        self.experiment_thread.join()
+        # experiment_thread is the only user thread; other threads are daemon.
