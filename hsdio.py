@@ -13,14 +13,14 @@ import os
 import struct
 import platform  # for checking the os bit
 import logging
-from ni_hsdio import HSDIOSession, HSDIOError
+from ni_hsdio import HSDIOSession
 from typing import List
 
 ## local class imports
 from trigger import Trigger, StartTrigger
 from waveform import HSDIOWaveform
 from instrument import Instrument
-from pxierrors import XMLError
+from pxierrors import XMLError, HSDIOError, HardwareError
 
 
 class HSDIO(Instrument):
@@ -187,10 +187,14 @@ class HSDIO(Instrument):
                         self.startTrigger.source,
                         self.startTrigger.edge
                     )
-            except (AssertionError, HSDIOError):
+            except (AssertionError, HSDIOError) as e:
                 session.abort()
                 session.close()
-                raise
+
+                if isinstance(e, HSDIOError):
+                    raise HardwareError(self, session, message=e.message)
+                else:
+                    raise e
 
         self.is_initialized = True
 
@@ -233,7 +237,8 @@ class HSDIO(Instrument):
                 except HSDIOError as e:
                     m = f"{e}\nError writing waveform. Waveform has not been updated",
                     self.is_initialized = False
-                    raise HSDIOError(e.error_code, m)
+                    raise HardwareError(self, session, message=e.message)
+
         self.wvf_written = True
 
     def is_done(self) -> bool:
@@ -249,10 +254,13 @@ class HSDIO(Instrument):
         if not (self.stop_connections or self.reset_connection) and self.enable:
 
             for session in self.sessions:
-                error_code, _is_done = session.is_done()
-                if not _is_done:
-                    done = False
-                    break
+                try:
+                    error_code, _is_done = session.is_done()
+                    if not _is_done:
+                        done = False
+                        break
+                except HSDIOError as e:
+                    raise HardwareError(self, session, message=e.message)
 
         return done
 
@@ -264,11 +272,11 @@ class HSDIO(Instrument):
             for session in self.sessions:
                 try:
                     session.initiate()
-                except HSDIOError:
+                except HSDIOError as e:
                     session.abort()
                     session.close()
                     self.is_initialized = False
-                    raise
+                    raise HardwareError(self, session, message=e.message)
 
     def stop(self):
         """
@@ -278,8 +286,8 @@ class HSDIO(Instrument):
             for session in self.sessions:
                 try:
                     session.abort()
-                except HSDIOError:
-                    raise
+                except HSDIOError as e:
+                    raise HardwareError(self, session, e.message)
 
     def log_settings(self, wf_arr, wf_names):  # TODO : @Juan Implement
         pass

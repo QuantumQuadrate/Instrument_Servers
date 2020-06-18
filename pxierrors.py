@@ -12,8 +12,8 @@ import xml.etree.ElementTree as ET
 
 ## local class imports
 from instrument import XMLLoader
-from digitalout import *
-
+from hsdio import HSDIO
+from ni_hsdio import HSDIOSession
 
 class PXIError(Exception):
     """
@@ -128,3 +128,16 @@ class HardwareError(PXIError):
         Reference to an instance of the task class where the error occured
         """
         return self._task
+
+
+class HSDIOError(Exception):
+    """
+    Raised for errors coming from NI HSDIO drivers
+    Attributes:
+        error_code : Integer code representing the error state
+        message : message corresponding to the error_code with some traceback info
+    """
+    def __init__(self, error_code, message):
+        self.error_code = error_code
+        self.message = message
+        super().__init__(message)
