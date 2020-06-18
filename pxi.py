@@ -53,14 +53,14 @@ class PXI:
 
         # instantiate the device objects
         self.hsdio = HSDIO(self)
-        self.tcp = TCP(self, address)
-        self.analog_input = AnalogInput(self)
-        self.analog_output = AnalogOutput(self)
-        self.ttl = TTLInput(self)
-        self.daqmx_do = DAQmxDO(self)
-        self.hamamatsu = Hamamatsu(self)
+        # self.tcp = TCP(self, address)
+        # self.analog_input = AnalogInput(self)
+        # self.analog_output = AnalogOutput(self)
+        # self.ttl = TTLInput(self)
+        # self.daqmx_do = DAQmxDO(self)
+        # self.hamamatsu = Hamamatsu(self)
         # TODO: implement these classes
-        self.counters = None  # Counters()
+        # self.counters = None  # Counters()
 
     @property
     def stop_connections(self) -> bool:
@@ -197,13 +197,13 @@ class PXI:
                         self.hsdio.init()
                         self.hsdio.update()
 
-                    elif child.tag == "TTL":
-                        self.ttl.load_xml(child)
-                        self.ttl.init()
-
-                    elif child.tag == "DAQmxDO":
-                        self.daqmx_do.load_xml(child)
-                        self.daqmx_do.init()
+                    # elif child.tag == "TTL":
+                    #     self.ttl.load_xml(child)
+                    #     self.ttl.init()
+                    #
+                    # elif child.tag == "DAQmxDO":
+                    #     self.daqmx_do.load_xml(child)
+                    #     self.daqmx_do.init()
 
                     elif child.tag == "timeout":
                         try:
@@ -220,35 +220,35 @@ class PXI:
                             cycle = True
                         self.cycle_continuously = cycle
 
-                    elif child.tag == "camera":
-                        # set up the Hamamatsu camera
-                        self.hamamatsu.load_xml(child)  # Raises ValueError
-                        self.hamamatsu.init()  # Raises IMAQErrors
-
-                    elif child.tag == "AnalogOutput":
-                        # set up the analog_output
-                        self.analog_output.load_xml(child)
-                        self.analog_output.init()
-                        self.analog_output.update()
-                        pass
-
-                    elif child.tag == "AnalogInput":
-                        # set up the analog_input
-                        self.analog_input.load_xml(child)
-                        self.analog_input.init()
-                        pass
-
-                    elif child.tag == "Counters":
-                        # TODO: implement counters class
-                        # set up the counters
-                        # self.counters.load_xml(child)
-                        # self.counters.init()
-                        pass
-
-                    # might implement, or might move RF generator functionality to
-                    # CsPy based on code used by Hybrid.
-                    elif child.tag == "RF_generators":
-                        pass
+                    # elif child.tag == "camera":
+                    #     # set up the Hamamatsu camera
+                    #     self.hamamatsu.load_xml(child)  # Raises ValueError
+                    #     self.hamamatsu.init()  # Raises IMAQErrors
+                    #
+                    # elif child.tag == "AnalogOutput":
+                    #     # set up the analog_output
+                    #     self.analog_output.load_xml(child)
+                    #     self.analog_output.init()
+                    #     self.analog_output.update()
+                    #     pass
+                    #
+                    # elif child.tag == "AnalogInput":
+                    #     # set up the analog_input
+                    #     self.analog_input.load_xml(child)
+                    #     self.analog_input.init()
+                    #     pass
+                    #
+                    # elif child.tag == "Counters":
+                    #     # TODO: implement counters class
+                    #     # set up the counters
+                    #     # self.counters.load_xml(child)
+                    #     # self.counters.init()
+                    #     pass
+                    #
+                    # # might implement, or might move RF generator functionality to
+                    # # CsPy based on code used by Hybrid.
+                    # elif child.tag == "RF_generators":
+                    #     pass
 
                     else:
                         self.logger.warning(f"Node {child.tag} received is not a valid" +
@@ -283,20 +283,20 @@ class PXI:
         return_data = ""
 
         # the devices which have a method named 'data_out' which returns a str
-        devices = [
-            self.hamamatsu,
-            # self.counters, #TODO: implement
-            self.ttl,
-            self.analog_input
-            # self.demo # not implemented, and debatable whether it needs to be
-        ]
-
-        for dev in devices:
-            if dev.is_initialized:
-                try:
-                    return_data += dev.data_out()
-                except HardwareError as e:
-                    self.handle_errors(e)
+        # devices = [
+        #     self.hamamatsu,
+        #     # self.counters, #TODO: implement
+        #     self.ttl,
+        #     self.analog_input
+        #     # self.demo # not implemented, and debatable whether it needs to be
+        # ]
+        #
+        # for dev in devices:
+        #     if dev.is_initialized:
+        #         try:
+        #             return_data += dev.data_out()
+        #         except HardwareError as e:
+        #             self.handle_errors(e)
 
         self.return_data = return_data
         return return_data
@@ -355,10 +355,10 @@ class PXI:
 
         For now, only applies to TTL
         """
-        try:
-            self.ttl.reset_data()
-        except HardwareError as e:
-            self.handle_errors(e)
+        # try:
+        #     self.ttl.reset_data()
+        # except HardwareError as e:
+        #     self.handle_errors(e)
 
     def system_checks(self):
         """
@@ -366,10 +366,10 @@ class PXI:
 
         For now, only applies to TTL
         """
-        try:
-            self.ttl.check()
-        except HardwareError as e:
-            self.handle_errors(e)
+        # try:
+        #     self.ttl.check()
+        # except HardwareError as e:
+        #     self.handle_errors(e)
 
     # wrap batch_method_call calls in convenience functions
 
@@ -380,10 +380,10 @@ class PXI:
 
         # devices which have a method 'start'
         devices = [
-            self.hsdio,
-            self.daqmx_do,
-            self.analog_input,
-            self.analog_output
+            self.hsdio
+            # self.daqmx_do,
+            # self.analog_input,
+            # self.analog_output
             # self.counters # TODO: implement Counters.start
         ]
 
@@ -397,10 +397,10 @@ class PXI:
 
         # devices which have a method 'stop'
         devices = [
-            self.hsdio,
-            self.daqmx_do,
-            self.analog_input,
-            self.analog_output
+            self.hsdio
+            # self.daqmx_do,
+            # self.analog_input,
+            # self.analog_output
             # self.counters # TODO: implement Counters.stop
         ]
 
@@ -413,8 +413,8 @@ class PXI:
 
         # devices which have a method 'get_data'
         devices = [
-            self.hamamatsu,
-            self.analog_input,
+            # self.hamamatsu,
+            # self.analog_input,
             # self.counters  # TODO: implement Counters.get_data
         ]
 
@@ -438,10 +438,10 @@ class PXI:
 
             # devices which have a method named 'is_done' that returns a bool
             devices = [
-                self.hsdio,
-                self.analog_output,
-                self.analog_input,
-                self.daqmx_do
+                self.hsdio
+                # self.analog_output,
+                # self.analog_input,
+                # self.daqmx_do
             ]
 
             try:
@@ -486,8 +486,7 @@ class PXI:
 
         elif key == 'q':
             self.logger.info("Connection stopped by user. Closing server.")
-            self.stop_connections = True
-            self.keylisten_thread.end()
+            self.stop()
 
         else:
             self.logger.info("Not a valid keypress. Type \'h\' for help.")
