@@ -7,13 +7,10 @@ useful categories where specific handling action pertains to each type.
 """
 
 ## built-in modules
-from abc import ABC, abstractmethod
 import xml.etree.ElementTree as ET
 
 ## local class imports
 from instrument import XMLLoader
-from hsdio import HSDIO
-from ni_hsdio import HSDIOSession
 
 class PXIError(Exception):
     """
