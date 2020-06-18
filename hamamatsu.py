@@ -11,14 +11,14 @@ camera and initialization of the hardware of said camera.
 from ctypes import *
 import numpy as np
 import xml.etree.ElementTree as ET
-from ni_imaq import NIIMAQSession, IMAQError
+from ni_imaq import NIIMAQSession
 import re
 import logging
 import struct
 from tcp import TCP
 from recordclass import recordclass as rc
 from instrument import Instrument
-from pxierrors import XMLError
+from pxierrors import XMLError, IMAQError, HardwareError
 
 SubArray = rc('SubArray', ('left', 'top', 'width', 'height'))
 FrameGrabberAqRegion = rc('FrameGrabberAqRegion', ('left', 'right', 'top', 'bottom'))
@@ -254,8 +254,8 @@ class Hamamatsu(Instrument):
             except IMAQError as e1:
                 # This error code indicates session/interface never opened
                 if e1.error_code != self.IMG_ERR_BINT:
-                    raise
-            raise
+                    raise HardwareError(self, self.session, e1.message)
+            raise HardwareError(self, self.session, e.message)
 
         # call the Hamamatsu serial function to set the Hamamatsu settings
         try:
@@ -350,21 +350,21 @@ class Hamamatsu(Instrument):
         except IMAQError as e:
             ms = f"{e}\nError writing camera settings. Many camera settings likely not set."
             self.session.close()
-            raise IMAQError(e.error_code, ms)
+            raise HardwareError(self, self.session, ms)
 
         try:
             self.session.set_roi(self.fg_acquisition_region)
         except IMAQError as e:
             ms = f" {e}\nError: ROI not set correctly"
             self.session.close()
-            raise IMAQError(e.error_code, ms)
+            raise HardwareError(self, self.session, ms)
 
         try:
             self.session.setup_buffers(num_buffers=self.num_img_buffers)
         except IMAQError as e:
             ms = f"{e}\nBuffer list not initialized correctly"
             self.session.close()
-            raise IMAQError(e.error_code, ms)
+            raise HardwareError(self, self.session, ms)
 
         # session attributes set in set_roi
         self.last_measurement = np.zeros(
@@ -396,7 +396,7 @@ class Hamamatsu(Instrument):
             ms = f"{e}\n Error beginning asynchronous acquisition"
             self.session.close()
             self.is_initialized = False
-            raise IMAQError(e.error_code, ms)
+            raise HardwareError(self, self.session, ms)
 
         try:
             err_c, trig_mode = self.session.hamamatsu_serial("?AMD")
@@ -440,7 +440,7 @@ class Hamamatsu(Instrument):
         except IMAQError as e:
             ms = f"{e}\nError Reading out session status during measurement"
             self.is_initialized = False
-            raise IMAQError(e.error_code, ms)
+            raise HardwareError(self, self.session, ms)
 
         bf_dif = last_buf_num - self.last_frame_acquired
         not_enough_buffers = bf_dif > self.num_img_buffers
@@ -473,7 +473,7 @@ class Hamamatsu(Instrument):
             except IMAQError as e:
                 ms = f"{e}\nError acquiring buffer number {frame_ind} measurement abandoned"
                 self.is_initialized = False
-                raise IMAQError(e.error_code, ms)
+                raise HardwareError(self, self.session, ms)
             self.last_measurement[i, :, :] = img
 
         self.measurement_success = True
