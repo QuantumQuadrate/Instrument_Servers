@@ -13,7 +13,6 @@ import numpy as np
 import xml.etree.ElementTree as ET
 from ni_imaq import NIIMAQSession
 import re
-import logging
 import struct
 from tcp import TCP
 from recordclass import recordclass as rc
