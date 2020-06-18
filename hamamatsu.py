@@ -11,16 +11,13 @@ camera and initialization of the hardware of said camera.
 from ctypes import *
 import numpy as np
 import xml.etree.ElementTree as ET
-from ni_imaq import NIIMAQSession
+from ni_imaq import NIIMAQSession, SubArray, FrameGrabberAqRegion
 import re
 import struct
 from tcp import TCP
 from recordclass import recordclass as rc
 from instrument import Instrument
 from pxierrors import XMLError, IMAQError, HardwareError
-
-SubArray = rc('SubArray', ('left', 'top', 'width', 'height'))
-FrameGrabberAqRegion = rc('FrameGrabberAqRegion', ('left', 'right', 'top', 'bottom'))
 
 
 class Hamamatsu(Instrument):

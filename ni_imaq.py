@@ -14,8 +14,10 @@ import os
 from ctypes import c_uint32
 from typing import Tuple, Callable, TypeVar
 import numpy as np
-from hamamatsu import SubArray, FrameGrabberAqRegion
 from pxierrors import IMAQError
+
+SubArray = rc('SubArray', ('left', 'top', 'width', 'height'))
+FrameGrabberAqRegion = rc('FrameGrabberAqRegion', ('left', 'right', 'top', 'bottom'))
 
 # Sub array acquisition RecordClasses for TypeHint convenience =================================
 ROI = TypeVar("ROI", SubArray, FrameGrabberAqRegion)
