@@ -332,6 +332,10 @@ class HSDIOWaveform(Waveform):
         """
         cl_str = str(self.__class__.__name__)
         state_len = self.states.shape[0]
+        
+        self.logger.info("states.shape = " + str(self.states.shape))
+        self.logger.info("states: " + str(self.states))
+
         as_ms = f"{cl_str}.states.shape[0] = {state_len}; it's not divisible by 32! Expected " \
                 f"channels per card to be 32."
         assert state_len % 32 == 0, as_ms

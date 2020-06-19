@@ -106,7 +106,7 @@ class HSDIO(Instrument):
                         wvforms_node = child
                         for wvf_child in wvforms_node:
                             if wvf_child.tag == "waveform":
-                                self.waveformArr.append(HSDIOWaveform(wvf_child))
+                                self.waveformArr.append(HSDIOWaveform(node=wvf_child))
 
                     elif child.tag == "script":
                         self.pulseGenScript = child.text
