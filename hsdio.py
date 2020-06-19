@@ -13,14 +13,14 @@ import os
 import struct
 import platform  # for checking the os bit
 import logging
-from ni_hsdio import HSDIOSession, HSDIOError
+from ni_hsdio import HSDIOSession
 from typing import List
 
 ## local class imports
 from trigger import Trigger, StartTrigger
 from waveform import HSDIOWaveform
 from instrument import Instrument
-from pxierrors import XMLError
+from pxierrors import XMLError, HSDIOError, HardwareError
 
 
 class HSDIO(Instrument):
@@ -67,65 +67,68 @@ class HSDIO(Instrument):
 
         super().load_xml(node)
 
-        for child in node:
+        if not (self.exit_measurement or self.stop_connections):
+
+            for child in node:
+
+                if self.exit_measurement or self.stop_connections:
+                    break
         
-            try:
+                try:
 
-                self.logger.debug(child)
-                # handle each tag by name:
-                if child.tag == "enable":
-                    self.enable = Instrument.str_to_bool(child.text)
+                    self.logger.debug(child)
+                    # handle each tag by name:
+                    if child.tag == "enable":
+                        self.enable = Instrument.str_to_bool(child.text)
 
-                elif child.tag == "description":
-                    self.description = child.text
+                    elif child.tag == "description":
+                        self.description = child.text
 
-                elif child.tag == "resourceName":
-                    resources = np.array(child.text.split(","))
-                    self.resourceNames = resources
+                    elif child.tag == "resourceName":
+                        resources = np.array(child.text.split(","))
+                        self.resourceNames = resources
 
-                elif child.tag == "clockRate":
-                    self.clockRate = float(child.text)
+                    elif child.tag == "clockRate":
+                        self.clockRate = float(child.text)
 
-                elif child.tag == "hardwareAlignmentQuantum":
-                    self.hardwareAlignmentQuantum = child.text
+                    elif child.tag == "hardwareAlignmentQuantum":
+                        self.hardwareAlignmentQuantum = child.text
 
-                elif child.tag == "triggers":
+                    elif child.tag == "triggers":
 
-                    if type(child) == ET.Element:
-                        trigger_node = child
-                        for t_child in trigger_node:
-                            self.scriptTriggers.append(Trigger(t_child))
+                        if type(child) == ET.Element:
+                            trigger_node = child
+                            for t_child in trigger_node:
+                                self.scriptTriggers.append(Trigger(t_child))
 
-                elif child.tag == "waveforms":
-                    self.logger.debug("found a waveform")
-                    wvforms_node = child
-                    for wvf_child in wvforms_node:
-                        if wvf_child.tag == "waveform":
-                            self.waveformArr.append(HSDIOWaveform(wvf_child))
+                    elif child.tag == "waveforms":
+                        self.logger.debug("found a waveform")
+                        wvforms_node = child
+                        for wvf_child in wvforms_node:
+                            if wvf_child.tag == "waveform":
+                                self.waveformArr.append(HSDIOWaveform(wvf_child))
 
-                elif child.tag == "script":
-                    self.pulseGenScript = child.text
+                    elif child.tag == "script":
+                        self.pulseGenScript = child.text
 
-                elif child.tag == "startTrigger":
-                    self.startTrigger = StartTrigger(child)
+                    elif child.tag == "startTrigger":
+                        self.startTrigger = StartTrigger(child)
 
-                elif child.tag == "InitialState":
-                    self.initialStates = np.array(child.text.split(","))
+                    elif child.tag == "InitialState":
+                        self.initialStates = np.array(child.text.split(","))
 
-                elif child.tag == "IdleState":
-                    self.idleStates = np.array(child.text.split(","))
+                    elif child.tag == "IdleState":
+                        self.idleStates = np.array(child.text.split(","))
 
-                elif child.tag == "ActiveChannels":
-                    self.activeChannels = np.array(child.text.split("\n"))
+                    elif child.tag == "ActiveChannels":
+                        self.activeChannels = np.array(child.text.split("\n"))
 
-                else:
-                    self.logger.warning(f"Unrecognized XML tag '{child.tag}' in <{self.expectedRoot}>")
-                    
-            except ValueError: # maybe catch other errors too. 
-                
-                raise XMLError(self, child)
-                
-                
+                    else:
+                        self.logger.warning(f"Unrecognized XML tag '{child.tag}' in <{self.expectedRoot}>")
+
+                except ValueError: # maybe catch other errors too.
+                    raise XMLError(self, child)
+
     def init(self):
         """
         set up the triggering, initial states, script triggers, etc
@@ -184,10 +187,14 @@ class HSDIO(Instrument):
                         self.startTrigger.source,
                         self.startTrigger.edge
                     )
-            except (AssertionError, HSDIOError):
+            except (AssertionError, HSDIOError) as e:
                 session.abort()
                 session.close()
-                raise
+
+                if isinstance(e, HSDIOError):
+                    raise HardwareError(self, session, message=e.message)
+                else:
+                    raise e
 
         self.is_initialized = True
 
@@ -229,7 +236,9 @@ class HSDIO(Instrument):
                         )
                 except HSDIOError as e:
                     m = f"{e}\nError writing waveform. Waveform has not been updated",
-                    raise HSDIOError(e.error_code, m)
+                    self.is_initialized = False
+                    raise HardwareError(self, session, message=e.message)
+
         self.wvf_written = True
 
     def is_done(self) -> bool:
@@ -245,10 +254,13 @@ class HSDIO(Instrument):
         if not (self.stop_connections or self.reset_connection) and self.enable:
 
             for session in self.sessions:
-                error_code, _is_done = session.is_done()
-                if not _is_done:
-                    done = False
-                    break
+                try:
+                    error_code, _is_done = session.is_done()
+                    if not _is_done:
+                        done = False
+                        break
+                except HSDIOError as e:
+                    raise HardwareError(self, session, message=e.message)
 
         return done
 
@@ -260,10 +272,11 @@ class HSDIO(Instrument):
             for session in self.sessions:
                 try:
                     session.initiate()
-                except HSDIOError:
+                except HSDIOError as e:
                     session.abort()
                     session.close()
-                    raise
+                    self.is_initialized = False
+                    raise HardwareError(self, session, message=e.message)
 
     def stop(self):
         """
@@ -271,7 +284,10 @@ class HSDIO(Instrument):
         """
         if self.enable:
             for session in self.sessions:
-                session.abort()
+                try:
+                    session.abort()
+                except HSDIOError as e:
+                    raise HardwareError(self, session, e.message)
 
     def log_settings(self, wf_arr, wf_names):  # TODO : @Juan Implement
         pass
