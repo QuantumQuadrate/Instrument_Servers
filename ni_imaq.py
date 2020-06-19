@@ -17,6 +17,7 @@ from typing import Tuple, Callable, TypeVar
 import numpy as np
 from recordclass import recordclass as rc
 
+
 ## local class imports
 from pxierrors import IMAQError
 
@@ -25,7 +26,6 @@ FrameGrabberAqRegion = rc('FrameGrabberAqRegion', ('left', 'right', 'top', 'bott
 
 # Sub array acquisition RecordClasses for TypeHint convenience =================================
 ROI = TypeVar("ROI", SubArray, FrameGrabberAqRegion)
-
 
 class NIIMAQSession:
 

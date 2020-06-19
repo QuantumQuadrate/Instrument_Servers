@@ -59,7 +59,7 @@ class TCP:
                     pass
             self.logger.info(f"Closing connection with {client_address}")
             self.current_connection.close()
-            
+
         self.listening_socket.close()
 
     def receive_message(self):
@@ -81,7 +81,15 @@ class TCP:
             length = int.from_bytes(length_bytes, byteorder='big')
             self.logger.info(f"I think the message is {length} bytes long.")
             self.current_connection.settimeout(20)
-            message = self.current_connection.recv(length)
+
+            bytes_remaining = length
+            message = ''
+
+            while bytes_remaining > 0:
+                snippet = self.current_connection.recv(bytes_remaining)
+                bytes_remaining -=  len(snippet)
+                message += TCP.bytes_to_str(snippet)
+
             if len(message) == length:
                 self.logger.info("message received with expected length.")
                 self.pxi.queue_command(message)
@@ -111,7 +119,7 @@ class TCP:
         """
         if not self.stop_connections and msg_str:
             try:
-                self.current_connection.send(bytes(f"{b'MESG'}{TCP.format_message(msg_str)}", 'utf-8'))
+                self.current_connection.send(f"MESG{TCP.format_message(msg_str)}".encode())
             except Exception:
                 self.logger.exception("Issue sending message back to CsPy.")
                 self.reset_connection = True
@@ -127,7 +135,7 @@ class TCP:
         Returns:
             formatted message string
         """
-        return f"{struct.pack('!L', len(message))}{message}"
+        return f"{TCP.bytes_to_str(struct.pack('!L', len(message)))}{message}"
 
     @staticmethod
     def format_data(name, data) -> str:
@@ -141,3 +149,7 @@ class TCP:
             formatted string that CsPy can parse
         """
         return f"{TCP.format_message(name)}{TCP.format_message(data)}"
+
+    @staticmethod
+    def bytes_to_str(data) -> str:
+        return ''.join(map(chr, data))
