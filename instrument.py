@@ -107,6 +107,8 @@ class XMLLoader(ABC):
                 is "Default", whose value is the key for the default value
                 in the dictionary. Note that the keys should be lowercase.
         """
+        # check that the dict keys are lowercase
+        assert set([v.lower() for v in values.keys()]) == set(values.keys())
         try:
             default = values["default"]
         except KeyError as e:
