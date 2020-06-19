@@ -98,7 +98,7 @@ class StartTrigger(XMLLoader):
             try:
             
                 if child.tag == "waitForStartTrigger":
-                    self.wait_for_start_trigger = Instrument.str_to_bool(child.tag)
+                    self.wait_for_start_trigger = Instrument.str_to_bool(child.text)
 
                 elif child.tag == "source":
                     self.source = child.text  # PFI 0
