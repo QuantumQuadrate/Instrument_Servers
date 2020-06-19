@@ -7,15 +7,6 @@ updating the relevant PXI device classes with the parsed xml, and returning
 responses from hardware to CsPy. 
 """
 
-"""
-general TODOs and ideas:
-- reset_connection never gets used here, as far as I can tell. maybe TCP references it?
-- there should be a way to re-start the measurement loop after an error is hit.
-the best way might be to close the thread running it and call launch_experiment_thread
-again 
-- could decorate methods like is_done with a timeout method
-"""
-
 ## modules
 import logging
 import threading
@@ -26,9 +17,9 @@ from time import perf_counter_ns
 from typing import List
 
 ## misc local classes
-from instrument import XMLLoader
+from instrument import XMLLoader, Instrument
 from keylistener import KeyListener
-from pxierrors import XMLError, HardwareError, TimeoutError
+from pxierrors import XMLError, HardwareError, PXIError
 
 ## local device classes
 from hsdio import HSDIO
@@ -41,7 +32,6 @@ from tcp import TCP
 
 
 class PXI:
-    
     help_str = ("At any time, type... \n" +
                 " - \'h\' to see this message again \n" +
                 " - \'r\' to reset the connection to CsPy \n" +
@@ -51,28 +41,20 @@ class PXI:
         self.logger = logging.getLogger(str(self.__class__))
         self._stop_connections = False
         self._reset_connection = False
-        self._stop_measurement = False
+        self._exit_measurement = False
         self.cycle_continuously = True
-        self.exit_measurement = False
         self.return_data = ""
-        self.queued_return_data = ""
+        self.return_data_queue = ""
         self.measurement_timeout = 0
-
         self.keylisten_thread = None
-
-        # queues. 0 indicates no maximum queue length enforced.
-        self.command_queue = Queue(0)
-        self.return_data_queue = Queue(0)
-
-        self.return_data_str = ""  # this seems to exist primarily for debugging
-
+        self.command_queue = Queue(0)  # 0 indicates no maximum queue length enforced.
         self.element_tags = []  # for debugging
 
         # instantiate the device objects
         self.hsdio = HSDIO(self)
         self.tcp = TCP(self, address)
-        self.analog_input = AnalogOutput(self)
-        self.analog_output = AnalogInput(self)
+        self.analog_input = AnalogInput(self)
+        self.analog_output = AnalogOutput(self)
         self.ttl = TTLInput(self)
         self.daqmx_do = DAQmxDO(self)
         self.hamamatsu = Hamamatsu(self)
@@ -94,14 +76,14 @@ class PXI:
     @reset_connection.setter
     def reset_connection(self, value):
         self._reset_connection = value
-        
+
     @property
-    def stop_measurement(self) -> bool:
-        return self._stop_measurement
-        
-    @stop_measurement.setter
-    def stop_measurement(self, value):
-        self._stop_measurement = value
+    def exit_measurement(self) -> bool:
+        return self._exit_measurement
+
+    @exit_measurement.setter
+    def exit_measurement(self, value):
+        self._exit_measurement = value
 
     def queue_command(self, command):
         self.command_queue.put(command)
@@ -124,7 +106,7 @@ class PXI:
 
     def command_loop(self):
         """
-        Update devices with xml from CsPy and, get and return data from devices
+        Update devices with xml from CsPy, and get and return data from devices
 
         Pop a command from self.command_queue on each iteration, parse the xml
         in that command, and update the instruments accordingly. When the queue
@@ -136,7 +118,7 @@ class PXI:
         hierarchy of methods in self.parse_xml and self.measurement.
         """
 
-        while not self.stop_connections or self.stop_measurement:
+        while not (self.stop_connections or self.exit_measurement):
             try:
                 # dequeue xml; non-blocking
                 xml_str = self.command_queue.get(block=False, timeout=0)
@@ -144,23 +126,22 @@ class PXI:
 
             except Empty:
                 self.exit_measurement = False
-                self.return_data_str = ""  # reset the list
+                self.return_data = ""  # clear the return data
 
                 if self.cycle_continuously:
-                    # This method returns the data as well as updates
-                    # 'return_data_str'
-                    return_data_str = self.measurement()
+                    # This method returns the data
+                    self.return_data_queue = self.measurement()
 
     def launch_keylisten_thread(self):
         """
-        Launch a KeyListener thread to get key pressses in the command line
+        Launch a KeyListener thread to get key presses in the command line
         """
         self.keylisten_thread = KeyListener(self.on_key_press)
         self.keylisten_thread.setDaemon(True)
         self.logger.info("starting keylistener")
         self.keylisten_thread.start()
 
-    def parse_xml(self, xml_str):
+    def parse_xml(self, xml_str: str):
         """
         Initialize the device instances and other settings from queued xml
         
@@ -172,29 +153,30 @@ class PXI:
         Args:
             'xml_str': (str) xml received from CsPy in the receive_message method
         """
-        
+
         self.exit_measurement = False
         self.element_tags = []  # clear the list of received tags
 
         # get the xml root
         root = ET.fromstring(xml_str)
         if root.tag != "LabView":
-            self.logger.info("Not a valid msg for the pxi")
+            self.logger.warning("Not a valid msg for the pxi")
 
         else:
             # loop non-recursively over children in root
             for child in root:
-            
+
                 self.element_tags.append(child)
 
                 try:
-                
+
                     if child.tag == "measure":
-                        if self.return_data_queue.empty():
-                            # if no data ready, take one measurement
+                        # if no data available, take one measurement. Otherwise,
+                        # use the most recent data.
+                        if self.return_data_queue == "":
                             self.measurement()
                         else:
-                            # TODO: do something here?
+                            self.return_data = self.return_data_queue
                             pass
 
                     elif child.tag == "pause":
@@ -210,29 +192,26 @@ class PXI:
                         pass
 
                     elif child.tag == "HSDIO":
-                        # set up the HSDIO
                         self.hsdio.load_xml(child)
                         self.hsdio.init()
                         self.hsdio.update()
-                        
+
                     elif child.tag == "TTL":
                         self.ttl.load_xml(child)
                         self.ttl.init()
-                        pass
-                        
+
                     elif child.tag == "DAQmxDO":
                         self.daqmx_do.load_xml(child)
                         self.daqmx_do.init()
-                        pass
 
                     elif child.tag == "timeout":
                         try:
                             # get timeout in [ms]
-                            self.measurement_timeout = 1000*float(child.text)
+                            self.measurement_timeout = 1000 * float(child.text)
                         except ValueError as e:
-                            msg = f"{e} \n {child.text} is not valid" +\
-                                              f"text for node {child.tag}"
-                            raise XMLError(self, msg)
+                            msg = f"{e} \n {child.text} is not valid" + \
+                                  f"text for node {child.tag}"
+                            raise XMLError(self, child, message=msg)
 
                     elif child.tag == "cycleContinuously":
                         cycle = False
@@ -248,7 +227,7 @@ class PXI:
                     elif child.tag == "AnalogOutput":
                         # set up the analog_output
                         self.analog_output.load_xml(child)
-                        self.analog_output.init() # setup in labview
+                        self.analog_output.init()
                         self.analog_output.update()
                         pass
 
@@ -271,9 +250,9 @@ class PXI:
                         pass
 
                     else:
-                        self.logger.warning(f"Node {child.tag} received is not a valid"+
-                                       f"child tag under root <{root.tag}>")
-                                       
+                        self.logger.warning(f"Node {child.tag} received is not a valid" +
+                                            f"child tag under root <{root.tag}>")
+
                 # I do not catch AssertionErrors. The one at the top of load_xml in every 
                 # device class can only occur if the device is passed the wrong xml node, 
                 # which can never occur in pxi.parse_xml, as we check the tag before 
@@ -281,14 +260,13 @@ class PXI:
                 # road does something more careless. 
                 except (XMLError, HardwareError) as e:
                     self.handle_errors(e)
-                
 
         # send a message back to CsPy
         self.tcp.send_message(self.return_data)
 
         # clear the return data
         self.return_data = ""
-        self.return_data_queue = Queue(0)
+        self.return_data_queue = ""
 
     def data_to_xml(self) -> str:
         """
@@ -298,15 +276,15 @@ class PXI:
         methods.
 
         Returns:
-            'return_data_str': concatenated string of xml-formatted data
+            'return_data': concatenated string of xml-formatted data
         """
 
-        return_data_str = ""
+        return_data = ""
 
         # the devices which have a method named 'data_out' which returns a str
         devices = [
-            self.hamamatsu, 
-            self.counters,
+            self.hamamatsu,
+            # self.counters, #TODO: implement
             self.ttl,
             self.analog_input
             # self.demo # not implemented, and debatable whether it needs to be
@@ -314,17 +292,21 @@ class PXI:
 
         for dev in devices:
             if dev.is_initialized:
-                return_data_str += dev.data_out()
+                try:
+                    return_data += dev.data_out()
+                except HardwareError as e:
+                    self.handle_errors(e)
 
-        return return_data_str
+        self.return_data = return_data
+        return return_data
 
-    def measurement(self) -> Queue:
+    def measurement(self) -> str:
         """
         Return a queue of the acquired responses queried from device hardware
 
         Returns:
-            'return_data_queue': the responses received from the device
-                classes
+            'return_data': string of concatenated responses received from the
+                device classes
         """
 
         if not (self.stop_connections or self.exit_measurement):
@@ -334,27 +316,37 @@ class PXI:
 
             _is_done = False
             _is_error = False
-           
+
             ## timed loop to frequently check if tasks are done
-            tau = 10 # loop period in [ms]
-            scl = 1e-6 # scale factor to convert ns to ms
-            t0 = perf_counter_ns() # integer ns. reference point is undefined.             
+            tau = 10  # loop period in [ms]
+            scl = 1e-6  # scale factor to convert ns to ms
+            t0 = perf_counter_ns()  # integer ns. reference point is undefined.
             while not (_is_done or _is_error or self.stop_connections
                        or self.exit_measurement):
-                _is_done = self.is_done()              
-                
+                try:
+                    _is_done = self.is_done()
+
+                except HardwareError as e:
+                    self.handle_errors(e)
+
                 # sleep until this iteration has taken at least 1 ms
                 while True:
                     dt = perf_counter_ns() - t0
-                    if dt*scl > tau: # compare time in ms
+                    if dt * scl > tau:  # compare time in ms
                         t0 = perf_counter_ns()
                         break
 
-            self.get_data()
-            self.system_checks()
-            self.stop_tasks()
-            return_data = self.data_to_xml()
-            return return_data
+            try:
+                self.get_data()
+                self.system_checks()
+                self.system_checks()
+                self.stop_tasks()
+                return_data = self.data_to_xml()
+                return return_data
+
+            except Exception as e: # TODO: make less general
+                self.handle_errors(e)
+                return ""
 
     def reset_data(self):
         """
@@ -366,7 +358,6 @@ class PXI:
             self.ttl.reset_data()
         except HardwareError as e:
             self.handle_errors(e)
-            
 
     def system_checks(self):
         """
@@ -394,43 +385,39 @@ class PXI:
             self.analog_output
             # self.counters # TODO: implement Counters.start
         ]
-            
-        self.batch_method_call(devices, 'start')
-        # self.reset_timeout()  # TODO : Implement. we still need to discuss how we want to handle timing
 
+        self.batch_method_call(devices, 'start')
+        # self.reset_timeout()  # TODO : Implement or discard
 
     def stop_tasks(self):
         """
         Stop measurement and output tasks for relevant devices
         """
-        
+
         # devices which have a method 'stop'
         devices = [
-            self.hsdio, 
+            self.hsdio,
             self.daqmx_do,
             self.analog_input,
             self.analog_output
             # self.counters # TODO: implement Counters.stop
         ]
-        
+
         self.batch_method_call(devices, 'stop')
-                    
-                    
+
     def get_data(self):
         """
         Get data from the devices
         """
-    
-        # if not (self.stop_connections or self.exit_measurement):
-        
+
+        # devices which have a method 'get_data'
         devices = [
             self.hamamatsu,
             self.analog_input,
-            self.counters # TODO: implement
+            # self.counters  # TODO: implement Counters.get_data
         ]
-        
+
         self.batch_method_call(devices, 'get_data')
-        
 
     def is_done(self) -> bool:
         """
@@ -447,7 +434,7 @@ class PXI:
 
         done = True
         if not (self.stop_connections or self.exit_measurement):
-            
+
             # devices which have a method named 'is_done' that returns a bool
             devices = [
                 self.hsdio,
@@ -478,7 +465,7 @@ class PXI:
         # TODO: Implement
         pass
 
-    def on_key_press(self, key):
+    def on_key_press(self, key: str):
         """
         Determines what happens for key presses in the command prompt.
 
@@ -489,8 +476,6 @@ class PXI:
             'key': the returned key from msvcrt.getwch(), e.g. 'h'
         """
 
-        # self.logger.info(f"{key} was pressed")
-
         if key == 'h':
             self.logger.info(self.help_str)
 
@@ -500,8 +485,8 @@ class PXI:
 
         elif key == 'q':
             self.logger.info("Connection stopped by user. Closing server.")
-            # self.keylisten_thread.end()
             self.stop_connections = True
+            self.keylisten_thread.end()
 
         else:
             self.logger.info("Not a valid keypress. Type \'h\' for help.")
@@ -521,75 +506,62 @@ class PXI:
         """
         pass
 
-    def handle_errors(self, error, traceback_str=None):
+    # this can be improved as needed
+    def handle_errors(self, error: Exception, traceback_str: str = ""):
         """
-        General Error handling philosophy for errors from instruments:
-            Instrument should log any error with a useful message detailing the source of the error
-                at the lowest level
-            If error should halt instrument activity, error should be raised to pxi class
-                Use logger.error(msg,exc_info=True) to log error with traceback
-            If error should not halt instrument activity, use logger.warning(msg,exc_info=t/f)
-                (t/f = with/without traceback)
-            When error is raised to pxi class, this function should be called
-            This function should send a message to the terminal output as well as to cspy, warning
-                the user that an error has occurred and that the PXI settings should be updated
-            The acquisition of data should stop, data sent back should be empty or useless
-            Devices which output signals (e.g Analog out, hsdio) should continue to cycle if they
-                can
-            Self.is_error should be set to True, regular operation can only resume once it is set
-                to false when PXI settings have been updated
-            
-        Essentially everything that Juan describes above has been accomplished, with the exception 
-        (hehe) of an 'is_error' attribute. If such a parameter was set, I'm not sure what it would 
-        accomplish: the is_initialized parameter gets set to false if the initialization fails. we could 
-        that parameter to false in case of a hardware error too, and then the device will not be
-        included in subsequent measurement cycles until the error is resolved (of course, the user 
-        will know about the error through the detailed logging). Maybe we want to recurringly 
-        log an error message until said error has been fixed? that seems annoying. 
+        Handle errors caught in the PXI instance
+
+        Error handling philosophy:
+            I. The class where the error originated should log a useful
+                message detailing the source of the error
+            II. If error should halt instrument activity, error should be raised
+                to pxi class. Use logger.error(msg,exc_info=True) to log error
+                with traceback.
+            III. If error should not halt instrument activity, use
+                logger.warning(msg,exc_info=t/f) (t/f = with/without traceback)
+            IV. When error is raised to pxi class, this function should be
+                called. A message will be logged to the terminal output as well
+                as sent to CsPy, warning the user that an error has occurred
+                and that the PXI settings should be updated.
+            V. The current measurement cycle should be aborted, and restarted
+                if self.cycle_continuously == True. Device where error occurred
+                should be excluded from the measurement cycle until it has been
+                reinitialized. I.e., devices which read/write signals (e.g.
+                TTLInput, HSDIO, etc) should continue to cycle if they can
+            VI. The errors raised in the device classes can should be classified
+                coarsely, as many errors should result in the same handling
+                behavior in this function (e.g. all error types pertaining to an XML
+                initialization failure should result in a message urging the user to
+                check the XML in CsPy and reinitialize the device). Specific
+                error types handled here are HardwareError and XMLError, defined
+                in pxierrors.py
 
         Args:
             error : The error that was raised. Maybe it's useful to keep it around
             traceback_str : string useful for traceback
         """
-        
+
         # NOTE:
         # This code is not a janitor, your mother/father, etc. If your device soiled itself, it is your
         # responsibility to clean up the problem where it occurred. The code that follows is only
         # intended to change the state the of the server and/or log a report of what happened,
-        # in response to whatever mess was made. 
-            
-           
-        """
-        handle errors according to type. in principle, all errors should be 
-        classifiable by these types, or maybe an additional type or two is
-        needed. 
-        
-        In each case, 
-        1) log the error message. should include action to be taken
-        2) log a message giving the state of the server now (e.g. we'll cycle but w/o the dev. that failed)
-        3) anything else that needs to be done
-        4) call the function that cycles the exp. 
-        """
-        
-        # maybe there are some cases when we would want to overwrite or add to
-        # the detailed message already acquired where the exception arose?
-        if traceback_str != None:
-            error.message = traceback_str # i'm open to suggestions here
-         
+        # in response to whatever mess was made.
+
         if isinstance(error, XMLError):
-            self.logger.error(error.message + "\n Fix the pertinent XML in CsPy, then try again.")
+            self.logger.error(traceback_str + "\n" + error.message + "\n" +
+                              "Fix the pertinent XML in CsPy, then try again.")
             self.cycle_message(error.device)
             self.reset_exp_thread()
- 
+
         elif isinstance(error, HardwareError):
-            self.logger.error(error.message)
+            self.logger.error(traceback_str + "\n" + error.message)
             self.cycle_message(error.device)
             self.reset_exp_thread()
-            
-        elif isinstance(error, TimeoutError):
-            # TODO: log and handle timeout error
-            pass 
-            
+
+        # If not a type of error we anticipated, raise it.
+        else:
+            raise error
+
     def cycle_message(self, dev: XMLLoader):
         """
         Log a message about the status of the server cycling. 
@@ -601,14 +573,14 @@ class PXI:
             self.logger.warning(f"The server will now cycle, but without {dev}")
         else:
             self.logger.info(f"The server is not taking data. Cycle continuously to resume, but without {dev}")
-           
+
     def reset_exp_thread(self):
         """
         Restart experiment thread after current measurement ends
         """
-        self.stop_measurement = True
-        self.experiment_thread.join() 
-        self.stop_measurement = False
+        self.exit_measurement = True
+        self.experiment_thread.join()
+        self.exit_measurement = False
         self.launch_experiment_thread()
 
     def batch_method_call(self, device_list: List[Instrument], method: str):

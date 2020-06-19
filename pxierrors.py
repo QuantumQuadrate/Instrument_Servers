@@ -7,20 +7,17 @@ useful categories where specific handling action pertains to each type.
 """
 
 ## built-in modules
-from abc import ABC, abstractmethod
 import xml.etree.ElementTree as ET
 
 ## local class imports
 from instrument import XMLLoader
-from digitalout import *
-
 
 class PXIError(Exception):
     """
     Base class for categorizing device class-level exceptions
     """
 
-    def __init__(self, message: str, device: XMLLoader):
+    def __init__(self, message: str, device: XMLLoader = None, error_code: int = 0):
         """
         Constructor for XMLError. 
         
@@ -31,20 +28,28 @@ class PXIError(Exception):
         self._message = message
         super().__init__(self.message)
         self._device = device
+        self._error_code = error_code
         
     @property
     def device(self) -> XMLLoader:
         """
-        Reference to an instance of the device class where the error occured
+        Reference to an instance of the device class where the error occurred
         """
         return self._device
         
     @property
     def message(self) -> str:
         """
-        Return additional info about the error that occured
+        Return additional info about the error that occurred
         """
         return self._message
+
+    @property
+    def error_code(self) -> int:
+        """
+        Return a code corresponding to the error that occurred
+        """
+        return self._error_code
    
    
 class XMLError(PXIError):
@@ -100,10 +105,10 @@ class HardwareError(PXIError):
         - anything to do with an HSDIOSession
         - setting up triggers for hardware
     """
-    
+
     def __init__(self, device: XMLLoader, task=None, message: str=None):
         """
-        Constructor for HardwareError. 
+        Constructor for HardwareError.
         
         Args:
             device: class or instance of a type that inherits from 
@@ -129,23 +134,27 @@ class HardwareError(PXIError):
         """
         return self._task
 
-    
-class TimeoutError(PXIError):
-    """
-    """
-    
-    pass
-    
-    
-## stuff for testing :
 
-if __name__ == '__main__':
-    
-    do = DAQmxDO(None) # some device instance 
-    try: 
-        node = ET.Element('wumbo')
-        do.load_xml(node)
-    except Exception as e:
-        xml_err = XMLError(do, node)
-        print(xml_err.message)
-        raise xml_err
+# when these error types are handled in their respective device classes,
+# Hardware errors should be raised
+
+class HSDIOError(PXIError):
+    """
+    Raised for errors coming from NI HSDIO drivers
+    Attributes:
+        error_code : Integer code representing the error state
+        message : message corresponding to the error_code with some traceback info
+    """
+    def __init__(self, error_code, message):
+        super().__init__(message, error_code=error_code)
+
+
+class IMAQError(PXIError):
+    """
+    Raised for errors coming from NI IMAQ drivers
+    Attributes:
+        error_code : Integer code representing the error state
+        message : message corresponding to the error_code with some traceback info
+    """
+    def __init__(self, error_code, message):
+        super().__init__(message, error_code=error_code)

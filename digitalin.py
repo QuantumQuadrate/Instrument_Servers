@@ -35,8 +35,7 @@ class TTLInput(Instrument):
         self.data_string = ""
         self.task = None
         self.lines = ""
-        
-        
+
     def load_xml(self, node: ET.Element):
         """
         Initialize the instrument class attributes from XML received from CsPy
@@ -51,9 +50,12 @@ class TTLInput(Instrument):
         assert (node.tag == self.expectedRoot,
                 f"Expected tag <{self.expectedRoot}>, but received <{node.tag}>")
         
-        if not (self.stop_connections or self.reset_connection):
+        if not (self.exit_measurement or self.stop_connections):
 
-            for child in node: 
+            for child in node:
+
+                if self.exit_measurement or self.stop_connections:
+                    break
             
                 try:
                     
@@ -67,16 +69,14 @@ class TTLInput(Instrument):
                         self.logger.warning(f"Unrecognized XML tag \'{child.tag}\' in <{self.expectedRoot}>")
                             
                 except ValueError:
-                    
                     raise XMLError(self, child)
-                        
     
     def init(self):
         """
         Initialize the device hardware with the attributes set in load_xml
         """
     
-        if not (self.stop_connections or self.reset_connection) and self.enable:
+        if not (self.stop_connections or self.exit_measurement) and self.enable:
                         
             # Clear old task
             if self.task is not None:
@@ -111,7 +111,6 @@ class TTLInput(Instrument):
                 raise HardwareError(self, task=self.task, message=msg)
 
             self.is_initialized = True
-            
     
     def reset_data(self):
         """
@@ -123,7 +122,6 @@ class TTLInput(Instrument):
         # don't think it's initializing an array of that size-- just stating the default capacity
         # of that data type, because all of the elements are greyed out
         self.data = np.array([]) 
-                
 
     # TODO: see what kind of data we actually get when this runs
     def check(self):
@@ -133,7 +131,7 @@ class TTLInput(Instrument):
         TODO: need to implement error checking here
         """
         
-        if not (self.stop_connections or self.reset_connection) and self.enable:
+        if not (self.stop_connections or self.exit_measurement) and self.enable:
             
             self.start()
             
@@ -142,7 +140,7 @@ class TTLInput(Instrument):
                 # 1 second timeout
                 data = self.task.read(timeout=1)
                 
-                #for debugging:
+                # for debugging:
                 self.logger.debug('TTL Data out: ', data)
                 
                 # get data out and append it to the extant data array
@@ -158,8 +156,8 @@ class TTLInput(Instrument):
                 self.stop()
                 self.close()
                 msg = '\n TTLInput data check failed'
+                self.is_initialized = False
                 raise HardwareError(self, task=self.task, message=msg)
-                
             
     def data_out(self) -> str:
         """
@@ -169,27 +167,30 @@ class TTLInput(Instrument):
             the instance's data string, formatted for reception by CsPy
         """
         
-        if not (self.stop_connections or self.reset_connection) and self.enable:
-        
-            # flatten the data and convert to a str 
-            data_shape = self.data.shape # default is (1, 2)... where is data actually received?
-            flat_data = np.reshape(self.data, np.prod(data_shape))
-            
-            shape_str = ",".join([str(x) for x in data_shape])
-            data_bytes = struct.pack('!L', "".join([str(x) for x in flat_data]))
-                        
-            self.data_string = TCP.format_data('TTL/dimensions', shape_str) + \
-                TCP.format_data('TTL/data', data_bytes)
-                
+        if not (self.stop_connections or self.exit_measurement) and self.enable:
+
+            try:
+                # flatten the data and convert to a str
+                data_shape = self.data.shape # default is (1, 2)... where is data actually received?
+                flat_data = np.reshape(self.data, np.prod(data_shape))
+
+                shape_str = ",".join([str(x) for x in data_shape])
+                data_bytes = struct.pack('!L', "".join([str(x) for x in flat_data]))
+
+                self.data_string = TCP.format_data('TTL/dimensions', shape_str) + \
+                    TCP.format_data('TTL/data', data_bytes)
+            except Exception as e:
+                self.logger.exception(f"Error formatting data from {self.__class__.__name__}")
+                raise e
+
             return self.data_string
-            
             
     def start(self):
         """
         Start the task
         """
         
-        if not (self.stop_connections or self.reset_connection) and self.enable:
+        if not (self.stop_connections or self.exit_measurement) and self.enable:
             
             try:
                 self.task.start()
@@ -199,7 +200,6 @@ class TTLInput(Instrument):
                 self.close()
                 msg = '\n TTLInput failed to start task'
                 raise HardwareError(self, task=self.task, message=msg)
-            
             
     def stop(self):
         """
@@ -212,7 +212,6 @@ class TTLInput(Instrument):
             except DaqError:
                 msg = '\n TTLInput failed while attempting to stop current task'
                 raise HardwareError(self, task=self.task, message=msg)
-                
                 
     def close(self):
         """
