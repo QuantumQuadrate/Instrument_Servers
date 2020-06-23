@@ -146,7 +146,11 @@ class HSDIOWaveform(Waveform):
         super().__init__(name, transitions, states, data_format)
         self.logger = logging.getLogger(str(self.__class__))
         if self.states is not None and node is None:
-            self.check_state_len()
+            try:
+                self.check_state_len()
+            except AssertionError as e:
+                raise e
+                
         if node is not None:
             self.init_from_xml(node)
 
@@ -326,16 +330,13 @@ class HSDIOWaveform(Waveform):
 
     def check_state_len(self):
         """
-        checks that the states array
-        Returns:
-
+        Assert that number of states is an integer multiple of 32
+        
+        raises AssertionError if the check fails 
         """
         cl_str = str(self.__class__.__name__)
-        state_len = self.states.shape[0]
+        state_len = self.states.shape[1] # previously checked shape[0], I believe in err
         
-        self.logger.info("states.shape = " + str(self.states.shape))
-        self.logger.info("states: " + str(self.states))
-
         as_ms = f"{cl_str}.states.shape[0] = {state_len}; it's not divisible by 32! Expected " \
                 f"channels per card to be 32."
         assert state_len % 32 == 0, as_ms
