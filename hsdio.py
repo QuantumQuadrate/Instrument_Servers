@@ -286,20 +286,32 @@ class HSDIO(Instrument):
 
     def stop(self):
         """
-        Abort and close the session
+        Abort the session
         """
         
         if self.enable:
             for session in self.sessions:
                 try:
                     session.abort()
+                    self.logger.info("Aborted an HSDIO session")
+                except HSDIOError:
+                    self.logger.warning("Issue aborting HSDIOSession, which may not actually exist")
+                    pass
+
+    def close(self):
+        """
+        Close the session
+        """
+        
+        if self.enable:
+            for session in self.sessions:
+                try:
                     session.close()
                     self.logger.info("Closed an HSDIO session")
-                except HSDIOError as e:
-                    raise HardwareError(self, session, e.message)
-            self.logger.info("HSDIO sessions aborted and closed")
-
-
+                except HSDIOError:
+                    self.logger.warning("Issue closing HSDIOSession, which may not actually exist")
+                    pass
+                    
     def log_settings(self, wf_arr, wf_names):  # TODO : @Juan Implement
         pass
         # the labview code has HSDIO.settings specifically for reading out the

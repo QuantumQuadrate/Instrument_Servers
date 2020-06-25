@@ -412,6 +412,23 @@ class PXI:
         ]
 
         self.batch_method_call(devices, 'stop')
+        
+    def close_tasks(self):
+        """
+        Close references to tasks for relevant devices
+        """
+
+        # devices which have a method 'stop'
+        devices = [
+            self.hsdio
+            # self.daqmx_do,
+            # self.analog_input,
+            # self.analog_output
+            # self.counters # TODO: implement Counters.stop
+        ]
+
+        self.batch_method_call(devices, 'close')
+        
 
     def get_data(self):
         """
@@ -498,22 +515,6 @@ class PXI:
         else:
             self.logger.info("Not a valid keypress. Type \'h\' for help.")
 
-    # This decorator could be a nice way of handling timeouts across this class
-    # without the need to put time.time calls explicitly in loops in various
-    # methods, although that could be done. This would return a wrapper that
-    # would probably have to do something like run the decorated function in
-    # a different thread than the timer so it could stop that thread when the
-    # time runs out; maybe there's a nicer way to do this. open to suggestions.
-    @classmethod
-    def master_timeout(func):
-        """
-        Check if function call in PXI class takes longer than a maximum time
-
-        To be used as a decorator for functions in this class to
-        """
-        pass
-
-    # this can be improved as needed
     def handle_errors(self, error: Exception, traceback_str: str = ""):
         """
         Handle errors caught in the PXI instance
@@ -555,20 +556,20 @@ class PXI:
         # in response to whatever mess was made.
 
         
-        self.logger.warning("PXIError encountered. stopping all the things.")
-        self.stop()
+        self.logger.warning("PXIError encountered. Closing the problematic tasks.")
         
-        # if isinstance(error, XMLError):
-            # self.logger.error(traceback_str + "\n" + error.message + "\n" +
-                              # "Fix the pertinent XML in CsPy, then try again.")
-            # self.cycle_message(error.device)
+        if isinstance(error, XMLError):
+            self.logger.error(traceback_str + "\n" + error.message + "\n" +
+                              "Fix the pertinent XML in CsPy, then try again.")
+            self.cycle_message(error.device)
             # self.reset_exp_thread()
 
-        # elif isinstance(error, HardwareError):
-            # self.logger.error(traceback_str + "\n" + error.message)
-            # self.cycle_message(error.device)
-            # self.stop_tasks()
-            # self.reset_exp_thread()
+        elif isinstance(error, HardwareError):
+            self.logger.error(traceback_str + "\n" + error.message)
+            self.cycle_message(error.device)
+            self.stop_tasks() # stop all current measurement tasks
+            error.device.close() # close the reference to the problematic device
+            # self.reset_exp_thread() # this stalls the program currently
 
         # If not a type of error we anticipated, raise it.
         # else:
@@ -590,10 +591,11 @@ class PXI:
         """
         Restart experiment thread after current measurement ends
         """
+        self.logger.info("Waiting for the experiment thread to end...")
         self.exit_measurement = True
         while self.experiment_thread.is_alive():
             pass
-        self.logger.info("current experiment thread ended. restarting...")
+        self.logger.info("Current experiment thread ended. Restarting...")
         self.exit_measurement = False
         self.launch_experiment_thread()
 
@@ -629,7 +631,8 @@ class PXI:
         Nicely shut down this server
         """
         self.logger.info(f"The following devices will be stopped: {self.devices}")
-        self.batch_method_call(self.devices, 'stop')
+        self.stop_tasks()
+        self.close_tasks()
         self.exit_measurement = True
         self.tcp.stop_connections = True
 

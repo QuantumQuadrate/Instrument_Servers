@@ -283,12 +283,10 @@ class AnalogOutput(Instrument):
         if self.enable:
             try:
                 self.task.stop()
-                        
-            except DaqError:
-                self.close()
+            except DaqError as e:
                 msg = '\n AnalogOutput failed to stop current task'
-                self.is_initialized = False
-                raise HardwareError(self, task=self.task, message=msg)
+                self.logger.warning(msg)
+                self.logger.exception(e)
 
     def close(self):
         """
@@ -298,8 +296,7 @@ class AnalogOutput(Instrument):
         if self.task is not None:
             try:
                 self.task.close()
-                
-            except DaqError:
+            except DaqError as e:
                 msg = '\n AnalogOutput failed to close current task'
-                self.is_initialized = False
-                raise HardwareError(self, task=self.task, message=msg)
+                self.logger.warning(msg)
+                self.logger.exception(e)
