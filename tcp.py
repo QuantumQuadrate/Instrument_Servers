@@ -117,12 +117,16 @@ class TCP:
         Args:
             msg_str: The body of the message to send to CsPy
         """
-        if not self.stop_connections and msg_str:
+        
+        if not self.stop_connections: # and msg_str:
             try:
                 self.current_connection.send(f"MESG{TCP.format_message(msg_str)}".encode())
             except Exception:
                 self.logger.exception("Issue sending message back to CsPy.")
                 self.reset_connection = True
+        else:
+            self.logger.warning("tried to send a message but the connection is stopped :'(")
+
 
     @staticmethod
     def format_message(message: str) -> str:

@@ -130,6 +130,7 @@ class PXI:
                 self.return_data = ""  # clear the return data
 
                 if self.cycle_continuously:
+                    self.logger.info("Entering cycle continously...")
                     # This method returns the data
                     self.return_data_queue = self.measurement()
 
@@ -199,6 +200,7 @@ class PXI:
                         self.logger.info("HSDIO hardware initialized")
                         self.hsdio.update()
                         self.logger.info("HSDIO hardware updated")
+                        self.logger.info(f"HSDIO.enable = {self.hsdio.enable}")
 
 
                     # elif child.tag == "TTL":
@@ -220,7 +222,7 @@ class PXI:
 
                     elif child.tag == "cycleContinuously":
                         cycle = False
-                        if child.text.lower() == "True":
+                        if child.text.lower() == "true":
                             cycle = True
                         self.cycle_continuously = cycle
 
@@ -334,7 +336,7 @@ class PXI:
                 except HardwareError as e:
                     self.handle_errors(e)
 
-                # sleep until this iteration has taken at least 1 ms
+                # sleep until the outer loop iteration has taken at least 1 ms
                 while True:
                     dt = perf_counter_ns() - t0
                     if dt * scl > tau:  # compare time in ms
@@ -350,6 +352,7 @@ class PXI:
                 return return_data
 
             except Exception as e: # TODO: make less general
+                self.logger.warning("We hit an error, so no data is returned.")
                 self.handle_errors(e)
                 return ""
 
@@ -551,20 +554,25 @@ class PXI:
         # intended to change the state the of the server and/or log a report of what happened,
         # in response to whatever mess was made.
 
-        if isinstance(error, XMLError):
-            self.logger.error(traceback_str + "\n" + error.message + "\n" +
-                              "Fix the pertinent XML in CsPy, then try again.")
-            self.cycle_message(error.device)
-            self.reset_exp_thread()
+        
+        self.logger.warning("PXIError encountered. stopping all the things.")
+        self.stop()
+        
+        # if isinstance(error, XMLError):
+            # self.logger.error(traceback_str + "\n" + error.message + "\n" +
+                              # "Fix the pertinent XML in CsPy, then try again.")
+            # self.cycle_message(error.device)
+            # self.reset_exp_thread()
 
-        elif isinstance(error, HardwareError):
-            self.logger.error(traceback_str + "\n" + error.message)
-            self.cycle_message(error.device)
-            self.reset_exp_thread()
+        # elif isinstance(error, HardwareError):
+            # self.logger.error(traceback_str + "\n" + error.message)
+            # self.cycle_message(error.device)
+            # self.stop_tasks()
+            # self.reset_exp_thread()
 
         # If not a type of error we anticipated, raise it.
-        else:
-            raise error
+        # else:
+            # raise error
 
     def cycle_message(self, dev: XMLLoader):
         """
@@ -583,7 +591,9 @@ class PXI:
         Restart experiment thread after current measurement ends
         """
         self.exit_measurement = True
-        self.experiment_thread.join()
+        while self.experiment_thread.is_alive():
+            pass
+        self.logger.info("current experiment thread ended. restarting...")
         self.exit_measurement = False
         self.launch_experiment_thread()
 
@@ -604,24 +614,24 @@ class PXI:
                 in device list has a method with this name.
         """
 
-        if not (self.stop_connections or self.exit_measurement):
-            for dev in device_list:
-                if dev.is_initialized:
-                    try:
-                        getattr(dev, method)()  # call the method
-                    except (HardwareError, AttributeError) as e:
-                        if isinstance(e, AttributeError):
-                            self.logger.warning(f'{dev} does not have method \'{method}\'')
-                        else:
-                            self.handle_errors(e)
+        for dev in device_list:
+            # if dev.is_initialized:
+            try:
+                getattr(dev, method)()  # call the method
+            except (HardwareError, AttributeError) as e:
+                if isinstance(e, AttributeError):
+                    self.logger.warning(f'{dev} does not have method \'{method}\'')
+                else:
+                    self.handle_errors(e)
 
     def stop(self):
         """
         Nicely shut down this server
         """
-        
-        self.tcp.stop_connections = True
-        self.exit_measurement = True
+        self.logger.info(f"The following devices will be stopped: {self.devices}")
         self.batch_method_call(self.devices, 'stop')
+        self.exit_measurement = True
+        self.tcp.stop_connections = True
+
         # self.experiment_thread.join()
         # experiment_thread is the only user thread; other threads are daemon.

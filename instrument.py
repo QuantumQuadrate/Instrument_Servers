@@ -142,6 +142,7 @@ class Instrument(XMLLoader):
         """
         super().__init__(node)
         self.pxi = pxi
+        self.pxi.devices.append(self) # Tell PXI it created this instance
         self.expectedRoot = expected_root
         self.enable = False
         self.is_initialized = False

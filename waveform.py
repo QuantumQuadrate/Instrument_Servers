@@ -232,7 +232,6 @@ class HSDIOWaveform(Waveform):
         Returns:
             self.format (str): data encoding format
             self.data (np.array(c_uint8 or c_uint32)): uncompressed waveform data array
-
         """
 
         allowed_formats = ["WDT", "uInt32"]
