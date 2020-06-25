@@ -142,11 +142,13 @@ class HSDIO(Instrument):
 
         if not self.is_initialized: 
 
-            # TODO : Figure out error handling when these fail 
-            # ^ @Juan: handle errors inside abort and close. see stop,close in 
-            # other device classes for inspiration. - Preston
             for session in self.sessions:
-                self.stop()
+                try:
+                    self.stop()
+                    self.close()
+                except: 
+                    self.logger.warning("tried to cloes HSDIOSession which probably didn't exist")
+                    pass
 
             self.sessions = []  # reset
 
@@ -295,7 +297,7 @@ class HSDIO(Instrument):
                     session.abort()
                     self.logger.info("Aborted an HSDIO session")
                 except HSDIOError:
-                    self.logger.warning("Issue aborting HSDIOSession, which may not actually exist")
+                    # self.logger.warning("Issue aborting HSDIOSession, which may not actually exist")
                     pass
 
     def close(self):
@@ -309,7 +311,7 @@ class HSDIO(Instrument):
                     session.close()
                     self.logger.info("Closed an HSDIO session")
                 except HSDIOError:
-                    self.logger.warning("Issue closing HSDIOSession, which may not actually exist")
+                    # self.logger.warning("Issue closing HSDIOSession, which may not actually exist")
                     pass
                     
     def log_settings(self, wf_arr, wf_names):  # TODO : @Juan Implement
