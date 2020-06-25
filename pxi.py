@@ -562,14 +562,14 @@ class PXI:
             self.logger.error(traceback_str + "\n" + error.message + "\n" +
                               "Fix the pertinent XML in CsPy, then try again.")
             self.cycle_message(error.device)
-            # self.reset_exp_thread()
+            self.reset_exp_thread()
 
         elif isinstance(error, HardwareError):
             self.logger.error(traceback_str + "\n" + error.message)
             self.cycle_message(error.device)
             self.stop_tasks() # stop all current measurement tasks
             error.device.close() # close the reference to the problematic device
-            # self.reset_exp_thread() # this stalls the program currently
+            self.reset_exp_thread() # this stalls the program currently
 
         # If not a type of error we anticipated, raise it.
         # else:
@@ -591,13 +591,17 @@ class PXI:
         """
         Restart experiment thread after current measurement ends
         """
-        self.logger.info("Waiting for the experiment thread to end...")
-        self.exit_measurement = True
-        while self.experiment_thread.is_alive():
-            pass
-        self.logger.info("Current experiment thread ended. Restarting...")
+        # self.logger.info("Waiting for the experiment thread to end...")
+        # self.exit_measurement = True
+        # while self.experiment_thread.is_alive():
+            # pass
+        # self.experiment_thread.join()
+        self.logger.info("Restarting current experiment thread...")
         self.exit_measurement = False
-        self.launch_experiment_thread()
+        
+        # overwrite the existing thread ref. might be a better way to do this.
+        self.launch_experiment_thread() 
+        self.logger.info("Experiment thread relaunched")
 
     def batch_method_call(self, device_list: List[Instrument], method: str):
         """
