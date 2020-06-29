@@ -106,7 +106,7 @@ class HSDIO(Instrument):
                         wvforms_node = child
                         for wvf_child in wvforms_node:
                             if wvf_child.tag == "waveform":
-                                self.waveformArr.append(HSDIOWaveform(wvf_child))
+                                self.waveformArr.append(HSDIOWaveform(node=wvf_child))
 
                     elif child.tag == "script":
                         self.pulseGenScript = child.text
@@ -142,12 +142,13 @@ class HSDIO(Instrument):
 
         if not self.is_initialized: 
 
-            # TODO : Figure out error handling when these fail 
-            # ^ @Juan: handle errors inside abort and close. see stop,close in 
-            # other device classes for inspiration. - Preston
             for session in self.sessions:
-                session.abort()
-                session.close()
+                try:
+                    self.stop()
+                    self.close()
+                except: 
+                    self.logger.warning("tried to cloes HSDIOSession which probably didn't exist")
+                    pass
 
             self.sessions = []  # reset
 
@@ -158,6 +159,7 @@ class HSDIO(Instrument):
             session = self.sessions[-1]
 
             try:
+                self.logger.info(f"resource: {resource} \n chan_list: {chan_list} \n idle_state: {idle_state} \n init_state: {init_state}")
                 session.init_generation_sess()
                 # TODO : deal with error case where session is not initiated
                 session.assign_dynamic_channels(chan_list)
@@ -188,14 +190,14 @@ class HSDIO(Instrument):
                         self.startTrigger.edge
                     )
             except (AssertionError, HSDIOError) as e:
-                session.abort()
-                session.close()
+                self.stop()
 
                 if isinstance(e, HSDIOError):
                     raise HardwareError(self, session, message=e.message)
                 else:
                     raise e
-
+                    
+        self.logger.info(f"{len(self.sessions)} HSDIO card(s) initiated")
         self.is_initialized = True
 
     def update(self):
@@ -210,6 +212,8 @@ class HSDIO(Instrument):
 
         if not self.enable:
             return
+            
+        self.logger.info("Updating HSDIO...")
 
         for wf in self.waveformArr:
 
@@ -217,11 +221,15 @@ class HSDIO(Instrument):
             # for each HSDIO card (e.g., Rb experiment has two cards)
             for session, wave in zip(self.sessions, wv_arr):
 
-                fmt, data = wave.decompress()
+                format, data = wave.decompress()
+                self.logger.info(f"format of waveform is {format}")
                 try:
                     if format == "WDT":
                         # grouping = HSDIOSession.NIHSDIO_VAL_GROUP_BY_CHANNEL
                         grouping = HSDIOSession.NIHSDIO_VAL_GROUP_BY_SAMPLE
+                        
+                        self.logger.info(f"Waveform write: \n name={wave.name} \n samples_per_chan={max(wave.transitions)}")
+                        
                         session.write_waveform_wdt(
                             wave.name,
                             max(wave.transitions),
@@ -240,6 +248,7 @@ class HSDIO(Instrument):
                     raise HardwareError(self, session, message=e.message)
 
         self.wvf_written = True
+        self.logger.info(f"Waveforms written")
 
     def is_done(self) -> bool:
         """
@@ -273,8 +282,7 @@ class HSDIO(Instrument):
                 try:
                     session.initiate()
                 except HSDIOError as e:
-                    session.abort()
-                    session.close()
+                    self.stop()
                     self.is_initialized = False
                     raise HardwareError(self, session, message=e.message)
 
@@ -282,13 +290,30 @@ class HSDIO(Instrument):
         """
         Abort the session
         """
+        
         if self.enable:
             for session in self.sessions:
                 try:
                     session.abort()
-                except HSDIOError as e:
-                    raise HardwareError(self, session, e.message)
+                    self.logger.info("Aborted an HSDIO session")
+                except HSDIOError:
+                    # self.logger.warning("Issue aborting HSDIOSession, which may not actually exist")
+                    pass
 
+    def close(self):
+        """
+        Close the session
+        """
+        
+        if self.enable:
+            for session in self.sessions:
+                try:
+                    session.close()
+                    self.logger.info("Closed an HSDIO session")
+                except HSDIOError:
+                    # self.logger.warning("Issue closing HSDIOSession, which may not actually exist")
+                    pass
+                    
     def log_settings(self, wf_arr, wf_names):  # TODO : @Juan Implement
         pass
         # the labview code has HSDIO.settings specifically for reading out the

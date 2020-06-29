@@ -23,11 +23,11 @@ from pxierrors import XMLError, HardwareError, PXIError
 
 ## local device classes
 from hsdio import HSDIO
-from hamamatsu import Hamamatsu
-from analogin import AnalogInput
-from analogout import AnalogOutput
-from digitalin import TTLInput
-from digitalout import DAQmxDO
+# from hamamatsu import Hamamatsu
+# from analogin import AnalogInput
+# from analogout import AnalogOutput
+# from digitalin import TTLInput
+# from digitalout import DAQmxDO
 from tcp import TCP
 
 
@@ -42,24 +42,25 @@ class PXI:
         self._stop_connections = False
         self._reset_connection = False
         self._exit_measurement = False
-        self.cycle_continuously = True
+        self.cycle_continuously = False
         self.return_data = ""
         self.return_data_queue = ""
         self.measurement_timeout = 0
         self.keylisten_thread = None
         self.command_queue = Queue(0)  # 0 indicates no maximum queue length enforced.
         self.element_tags = []  # for debugging
+        self.devices = []
 
         # instantiate the device objects
         self.hsdio = HSDIO(self)
         self.tcp = TCP(self, address)
-        self.analog_input = AnalogInput(self)
-        self.analog_output = AnalogOutput(self)
-        self.ttl = TTLInput(self)
-        self.daqmx_do = DAQmxDO(self)
-        self.hamamatsu = Hamamatsu(self)
+        # self.analog_input = AnalogInput(self)
+        # self.analog_output = AnalogOutput(self)
+        # self.ttl = TTLInput(self)
+        # self.daqmx_do = DAQmxDO(self)
+        # self.hamamatsu = Hamamatsu(self)
         # TODO: implement these classes
-        self.counters = None  # Counters()
+        # self.counters = None  # Counters()
 
     @property
     def stop_connections(self) -> bool:
@@ -129,6 +130,7 @@ class PXI:
                 self.return_data = ""  # clear the return data
 
                 if self.cycle_continuously:
+                    self.logger.info("Entering cycle continously...")
                     # This method returns the data
                     self.return_data_queue = self.measurement()
 
@@ -193,16 +195,21 @@ class PXI:
 
                     elif child.tag == "HSDIO":
                         self.hsdio.load_xml(child)
+                        self.logger.info("HSDIO XML loaded")
                         self.hsdio.init()
+                        self.logger.info("HSDIO hardware initialized")
                         self.hsdio.update()
+                        self.logger.info("HSDIO hardware updated")
+                        self.logger.info(f"HSDIO.enable = {self.hsdio.enable}")
 
-                    elif child.tag == "TTL":
-                        self.ttl.load_xml(child)
-                        self.ttl.init()
 
-                    elif child.tag == "DAQmxDO":
-                        self.daqmx_do.load_xml(child)
-                        self.daqmx_do.init()
+                    # elif child.tag == "TTL":
+                    #     self.ttl.load_xml(child)
+                    #     self.ttl.init()
+                    #
+                    # elif child.tag == "DAQmxDO":
+                    #     self.daqmx_do.load_xml(child)
+                    #     self.daqmx_do.init()
 
                     elif child.tag == "timeout":
                         try:
@@ -215,39 +222,39 @@ class PXI:
 
                     elif child.tag == "cycleContinuously":
                         cycle = False
-                        if child.text.lower() == "True":
+                        if child.text.lower() == "true":
                             cycle = True
                         self.cycle_continuously = cycle
 
-                    elif child.tag == "camera":
-                        # set up the Hamamatsu camera
-                        self.hamamatsu.load_xml(child)  # Raises ValueError
-                        self.hamamatsu.init()  # Raises IMAQErrors
-
-                    elif child.tag == "AnalogOutput":
-                        # set up the analog_output
-                        self.analog_output.load_xml(child)
-                        self.analog_output.init()
-                        self.analog_output.update()
-                        pass
-
-                    elif child.tag == "AnalogInput":
-                        # set up the analog_input
-                        self.analog_input.load_xml(child)
-                        self.analog_input.init()
-                        pass
-
-                    elif child.tag == "Counters":
-                        # TODO: implement counters class
-                        # set up the counters
-                        # self.counters.load_xml(child)
-                        # self.counters.init()
-                        pass
-
-                    # might implement, or might move RF generator functionality to
-                    # CsPy based on code used by Hybrid.
-                    elif child.tag == "RF_generators":
-                        pass
+                    # elif child.tag == "camera":
+                    #     # set up the Hamamatsu camera
+                    #     self.hamamatsu.load_xml(child)  # Raises ValueError
+                    #     self.hamamatsu.init()  # Raises IMAQErrors
+                    #
+                    # elif child.tag == "AnalogOutput":
+                    #     # set up the analog_output
+                    #     self.analog_output.load_xml(child)
+                    #     self.analog_output.init()
+                    #     self.analog_output.update()
+                    #     pass
+                    #
+                    # elif child.tag == "AnalogInput":
+                    #     # set up the analog_input
+                    #     self.analog_input.load_xml(child)
+                    #     self.analog_input.init()
+                    #     pass
+                    #
+                    # elif child.tag == "Counters":
+                    #     # TODO: implement counters class
+                    #     # set up the counters
+                    #     # self.counters.load_xml(child)
+                    #     # self.counters.init()
+                    #     pass
+                    #
+                    # # might implement, or might move RF generator functionality to
+                    # # CsPy based on code used by Hybrid.
+                    # elif child.tag == "RF_generators":
+                    #     pass
 
                     else:
                         self.logger.warning(f"Node {child.tag} received is not a valid" +
@@ -282,20 +289,20 @@ class PXI:
         return_data = ""
 
         # the devices which have a method named 'data_out' which returns a str
-        devices = [
-            self.hamamatsu,
-            # self.counters, #TODO: implement
-            self.ttl,
-            self.analog_input
-            # self.demo # not implemented, and debatable whether it needs to be
-        ]
-
-        for dev in devices:
-            if dev.is_initialized:
-                try:
-                    return_data += dev.data_out()
-                except HardwareError as e:
-                    self.handle_errors(e)
+        # devices = [
+        #     self.hamamatsu,
+        #     # self.counters, #TODO: implement
+        #     self.ttl,
+        #     self.analog_input
+        #     # self.demo # not implemented, and debatable whether it needs to be
+        # ]
+        #
+        # for dev in devices:
+        #     if dev.is_initialized:
+        #         try:
+        #             return_data += dev.data_out()
+        #         except HardwareError as e:
+        #             self.handle_errors(e)
 
         self.return_data = return_data
         return return_data
@@ -329,7 +336,7 @@ class PXI:
                 except HardwareError as e:
                     self.handle_errors(e)
 
-                # sleep until this iteration has taken at least 1 ms
+                # sleep until the outer loop iteration has taken at least 1 ms
                 while True:
                     dt = perf_counter_ns() - t0
                     if dt * scl > tau:  # compare time in ms
@@ -345,6 +352,7 @@ class PXI:
                 return return_data
 
             except Exception as e: # TODO: make less general
+                self.logger.warning("We hit an error, so no data is returned.")
                 self.handle_errors(e)
                 return ""
 
@@ -354,10 +362,10 @@ class PXI:
 
         For now, only applies to TTL
         """
-        try:
-            self.ttl.reset_data()
-        except HardwareError as e:
-            self.handle_errors(e)
+        # try:
+        #     self.ttl.reset_data()
+        # except HardwareError as e:
+        #     self.handle_errors(e)
 
     def system_checks(self):
         """
@@ -365,10 +373,10 @@ class PXI:
 
         For now, only applies to TTL
         """
-        try:
-            self.ttl.check()
-        except HardwareError as e:
-            self.handle_errors(e)
+        # try:
+        #     self.ttl.check()
+        # except HardwareError as e:
+        #     self.handle_errors(e)
 
     # wrap batch_method_call calls in convenience functions
 
@@ -379,10 +387,10 @@ class PXI:
 
         # devices which have a method 'start'
         devices = [
-            self.hsdio,
-            self.daqmx_do,
-            self.analog_input,
-            self.analog_output
+            self.hsdio
+            # self.daqmx_do,
+            # self.analog_input,
+            # self.analog_output
             # self.counters # TODO: implement Counters.start
         ]
 
@@ -396,14 +404,31 @@ class PXI:
 
         # devices which have a method 'stop'
         devices = [
-            self.hsdio,
-            self.daqmx_do,
-            self.analog_input,
-            self.analog_output
+            self.hsdio
+            # self.daqmx_do,
+            # self.analog_input,
+            # self.analog_output
             # self.counters # TODO: implement Counters.stop
         ]
 
         self.batch_method_call(devices, 'stop')
+        
+    def close_tasks(self):
+        """
+        Close references to tasks for relevant devices
+        """
+
+        # devices which have a method 'stop'
+        devices = [
+            self.hsdio
+            # self.daqmx_do,
+            # self.analog_input,
+            # self.analog_output
+            # self.counters # TODO: implement Counters.stop
+        ]
+
+        self.batch_method_call(devices, 'close')
+        
 
     def get_data(self):
         """
@@ -412,8 +437,8 @@ class PXI:
 
         # devices which have a method 'get_data'
         devices = [
-            self.hamamatsu,
-            self.analog_input,
+            # self.hamamatsu,
+            # self.analog_input,
             # self.counters  # TODO: implement Counters.get_data
         ]
 
@@ -437,10 +462,10 @@ class PXI:
 
             # devices which have a method named 'is_done' that returns a bool
             devices = [
-                self.hsdio,
-                self.analog_output,
-                self.analog_input,
-                self.daqmx_do
+                self.hsdio
+                # self.analog_output,
+                # self.analog_input,
+                # self.daqmx_do
             ]
 
             try:
@@ -485,28 +510,11 @@ class PXI:
 
         elif key == 'q':
             self.logger.info("Connection stopped by user. Closing server.")
-            self.stop_connections = True
-            self.keylisten_thread.end()
+            self.stop()
 
         else:
             self.logger.info("Not a valid keypress. Type \'h\' for help.")
 
-    # This decorator could be a nice way of handling timeouts across this class
-    # without the need to put time.time calls explicitly in loops in various
-    # methods, although that could be done. This would return a wrapper that
-    # would probably have to do something like run the decorated function in
-    # a different thread than the timer so it could stop that thread when the
-    # time runs out; maybe there's a nicer way to do this. open to suggestions.
-    @classmethod
-    def master_timeout(func):
-        """
-        Check if function call in PXI class takes longer than a maximum time
-
-        To be used as a decorator for functions in this class to
-        """
-        pass
-
-    # this can be improved as needed
     def handle_errors(self, error: Exception, traceback_str: str = ""):
         """
         Handle errors caught in the PXI instance
@@ -547,6 +555,9 @@ class PXI:
         # intended to change the state the of the server and/or log a report of what happened,
         # in response to whatever mess was made.
 
+        
+        self.logger.warning("PXIError encountered. Closing the problematic tasks.")
+        
         if isinstance(error, XMLError):
             self.logger.error(traceback_str + "\n" + error.message + "\n" +
                               "Fix the pertinent XML in CsPy, then try again.")
@@ -556,11 +567,13 @@ class PXI:
         elif isinstance(error, HardwareError):
             self.logger.error(traceback_str + "\n" + error.message)
             self.cycle_message(error.device)
-            self.reset_exp_thread()
+            self.stop_tasks() # stop all current measurement tasks
+            error.device.close() # close the reference to the problematic device
+            self.reset_exp_thread() # this stalls the program currently
 
         # If not a type of error we anticipated, raise it.
-        else:
-            raise error
+        # else:
+            # raise error
 
     def cycle_message(self, dev: XMLLoader):
         """
@@ -578,10 +591,17 @@ class PXI:
         """
         Restart experiment thread after current measurement ends
         """
-        self.exit_measurement = True
-        self.experiment_thread.join()
+        # self.logger.info("Waiting for the experiment thread to end...")
+        # self.exit_measurement = True
+        # while self.experiment_thread.is_alive():
+            # pass
+        # self.experiment_thread.join()
+        self.logger.info("Restarting current experiment thread...")
         self.exit_measurement = False
-        self.launch_experiment_thread()
+        
+        # overwrite the existing thread ref. might be a better way to do this.
+        self.launch_experiment_thread() 
+        self.logger.info("Experiment thread relaunched")
 
     def batch_method_call(self, device_list: List[Instrument], method: str):
         """
@@ -600,10 +620,25 @@ class PXI:
                 in device list has a method with this name.
         """
 
-        if not (self.stop_connections or self.exit_measurement):
-            for dev in device_list:
-                if dev.is_initialized:
-                    try:
-                        getattr(dev, method)()  # call the method
-                    except HardwareError as e:
-                        self.handle_errors(e)
+        for dev in device_list:
+            # if dev.is_initialized:
+            try:
+                getattr(dev, method)()  # call the method
+            except (HardwareError, AttributeError) as e:
+                if isinstance(e, AttributeError):
+                    self.logger.warning(f'{dev} does not have method \'{method}\'')
+                else:
+                    self.handle_errors(e)
+
+    def stop(self):
+        """
+        Nicely shut down this server
+        """
+        self.logger.info(f"The following devices will be stopped: {self.devices}")
+        self.stop_tasks()
+        self.close_tasks()
+        self.exit_measurement = True
+        self.tcp.stop_connections = True
+
+        # self.experiment_thread.join()
+        # experiment_thread is the only user thread; other threads are daemon.

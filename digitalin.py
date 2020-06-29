@@ -209,9 +209,10 @@ class TTLInput(Instrument):
         if self.enable:
             try:
                 self.task.stop()
-            except DaqError:
+            except DaqError as e:
                 msg = '\n TTLInput failed while attempting to stop current task'
-                raise HardwareError(self, task=self.task, message=msg)
+                self.logger.warning(msg)
+                self.logger.exception(e)
                 
     def close(self):
         """
@@ -221,7 +222,7 @@ class TTLInput(Instrument):
         if self.task is not None:
             try:
                 self.task.close()
-                
-            except DaqError:
+            except DaqError as e:
                 msg = '\n TTLInput failed to close current task'
-                raise HardwareError(self, task=self.task, message=msg)
+                self.logger.warning(msg)
+                self.logger.exception(e)

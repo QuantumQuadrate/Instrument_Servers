@@ -32,23 +32,23 @@ class Hamamatsu(Instrument):
     # dictionaries of allowed values for class attributes. note that the key
     # 'Default' has a value which is the key for the default value to be used
     # in the dictionary
-    SCAN_MODE_VALUES = {"Super Pixel": "SMD S", "Sub-array": "SMD A",
-                        "Normal": "SMD N", "Default": "Normal"}
-    FAN_VALUES = {"On": "FAN O", "Off": "FAN F", "Default": "Off"}
-    COOLING_VALUES = {"On": "CSW O", "Off": "CSW F", "Default": "Off"}
-    EXT_TRIG_SOURCE_VALUES = {"CameraLink Interface": "ESC I",
-                              "Multi-Timing I/O Pin": "ESC M",
-                              "BNC on Power Supply": "ESC B",
-                              "Default": "BNC on Power Supply"}
-    EXT_TRIG_SOURCE_MODE_VALUES = {"Edge": "EMD E",
-                                   "Synchronous Readout": "EMD S",
-                                   "Level": "EMD L", "Default": "EMD L"}
+    SCAN_MODE_VALUES = {"super pixel": "SMD S", "sub-array": "SMD A",
+                        "normal": "SMD N", "default": "normal"}
+    FAN_VALUES = {"on": "FAN O", "off": "FAN F", "default": "off"}
+    COOLING_VALUES = {"on": "CSW O", "off": "CSW F", "default": "off"}
+    EXT_TRIG_SOURCE_VALUES = {"cameralink interface": "ESC I",
+                              "multi-timing i/o pin": "ESC M",
+                              "bnc on power supply": "ESC B",
+                              "default": "bnc on power supply"}
+    EXT_TRIG_SOURCE_MODE_VALUES = {"edge": "EMD E",
+                                   "synchronous readout": "EMD S",
+                                   "level": "EMD L", "default": "level"}
     LL_SENSITIVITY_VALUES = {"5x": "LLS1", "13x": "LLS2", "21x": "LLS3",
-                             "Off": "LLS 0", "Default": "Off"}
-    SCAN_SPEED_VALUES = {"Slow": "SSP S", "Middle": "SSP M", "High": "SSP H",
-                         "Default": "High"}
-    TRIG_POLARITY_VALUES = {"Negative": "ATP N", "Positive": "ATP P",
-                            "Default": "Positive"}
+                             "off": "LLS 0", "default": "off"}
+    SCAN_SPEED_VALUES = {"slow": "SSP S", "middle": "SSP M", "high": "SSP H",
+                         "default": "high"}
+    TRIG_POLARITY_VALUES = {"negative": "ATP N", "positive": "ATP P",
+                            "default": "positive"}
 
     # Error Codes ----------------------------------------------------------------------------------
     IMG_ERR_BINT = -1074397163  # Invalid interface or session
@@ -68,16 +68,16 @@ class Hamamatsu(Instrument):
         self.exposure_time = 0  # can be scientific format
         self.em_gain = 0  # 0-255
         self.trigger_polarity = self.TRIG_POLARITY_VALUES[
-            self.TRIG_POLARITY_VALUES["Default"]
+            self.TRIG_POLARITY_VALUES["default"]
         ]  # positive by default
         self.external_trigger_mode = self.EXT_TRIG_SOURCE_MODE_VALUES[
-            self.EXT_TRIG_SOURCE_MODE_VALUES["Default"]
+            self.EXT_TRIG_SOURCE_MODE_VALUES["default"]
         ]  # level by default
-        self.scan_speed = self.SCAN_SPEED_VALUES[self.SCAN_SPEED_VALUES["Default"]]  # high by default
+        self.scan_speed = self.SCAN_SPEED_VALUES[self.SCAN_SPEED_VALUES["default"]]  # high by default
         self.external_trigger_source = self.EXT_TRIG_SOURCE_VALUES[
-            self.EXT_TRIG_SOURCE_MODE_VALUES["Default"]
+            self.EXT_TRIG_SOURCE_MODE_VALUES["default"]
         ]
-        self.scan_mode = self.SCAN_MODE_VALUES[self.SCAN_MODE_VALUES["Default"]]
+        self.scan_mode = self.SCAN_MODE_VALUES[self.SCAN_MODE_VALUES["default"]]
         self.super_pixel_binning = ""  # WHERES. MY. SUPER. SUIT?
         # Uses uint16 in labview, use ints here, cast where necessary
         self.sub_array = SubArray(0, 0, 0, 0)
@@ -85,10 +85,10 @@ class Hamamatsu(Instrument):
         self.shots_per_measurement = 2
         self.images_to_U16 = False
         self.low_light_sensitivity = self.LL_SENSITIVITY_VALUES[
-            self.LL_SENSITIVITY_VALUES["Default"]
+            self.LL_SENSITIVITY_VALUES["default"]
         ]
-        self.cooling = self.COOLING_VALUES[self.COOLING_VALUES["Default"]]
-        self.fan = self.FAN_VALUES[self.FAN_VALUES["Default"]]
+        self.cooling = self.COOLING_VALUES[self.COOLING_VALUES["default"]]
+        self.fan = self.FAN_VALUES[self.FAN_VALUES["default"]]
         # Uses int32 in labview, use ints here, cast where necessary
         self.fg_acquisition_region = FrameGrabberAqRegion(0, 0, 0, 0)
         self.session = NIIMAQSession()

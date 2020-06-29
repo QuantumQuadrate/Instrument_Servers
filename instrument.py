@@ -95,7 +95,9 @@ class XMLLoader(ABC):
         Class attribute is set based on node_text, using a dictionary of
         values for the attribute. If node_text is not a key in the
         dictionary, a default value specified in the dictionary itself will
-        be used.
+        be used. The node_text will be converted to lowercase, such that
+        supplying a dictionary with lowercase keys makes this method 
+        case-insensitive.
 
         Args:
             'attr': the name of the attribute to be set, which is
@@ -103,10 +105,12 @@ class XMLLoader(ABC):
             'node_text': the text of the node whose tag  is 'attr'
             'values': dictionary of values, where at least one key
                 is "Default", whose value is the key for the default value
-                in the dictionary
+                in the dictionary. Note that the keys should be lowercase.
         """
+        # check that the dict keys are lowercase
+        assert set([v.lower() for v in values.keys()]) == set(values.keys())
         try:
-            default = values["Default"]
+            default = values["default"]
         except KeyError as e:
             cl_str = str(self.__class__.__name__)
             m = f"{e}\nIn {cl_str}, value dictionary for {attr} must include" +\
@@ -115,7 +119,7 @@ class XMLLoader(ABC):
             raise KeyError(m)
 
         try:
-            setattr(self, attr, values[node_text])
+            setattr(self, attr, values[node_text.lower()])
         except KeyError as er:
             self.logger.warning(
                 f"{er}\n {attr} value {node_text} should be in {values.keys()}"
@@ -138,6 +142,7 @@ class Instrument(XMLLoader):
         """
         super().__init__(node)
         self.pxi = pxi
+        self.pxi.devices.append(self) # Tell PXI it created this instance
         self.expectedRoot = expected_root
         self.enable = False
         self.is_initialized = False
