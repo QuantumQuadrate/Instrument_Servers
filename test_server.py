@@ -44,7 +44,8 @@ def setup_logging_handlers():
 if __name__ == '__main__':
     setup_logging_handlers()
     logger = logging.getLogger(__name__)
-    
+    logger.setLevel(logging.DEBUG)
+
     #TODO: add config file to write this to and check config file in future
     port = 9000
     logger.info(f"Default port={port}. \n Hit \'Enter\' for host=localhost "+

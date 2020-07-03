@@ -39,6 +39,10 @@ class PXI:
 
     def __init__(self, address: Tuple[str, int]):
         self.logger = logging.getLogger(str(self.__class__))
+        self.logger.setLevel(logging.DEBUG)
+        fh = logging.FileHandler('spam.log')
+        fh.setLevel(logging.DEBUG)
+        self.logger.addHandler(fh)
         self._stop_connections = False
         self._reset_connection = False
         self._exit_measurement = False
@@ -130,7 +134,7 @@ class PXI:
                 self.return_data = ""  # clear the return data
 
                 if self.cycle_continuously:
-                    self.logger.info("Entering cycle continously...")
+                    self.logger.debug("Entering cycle continously...")
                     # This method returns the data
                     self.return_data_queue = self.measurement()
 
@@ -380,7 +384,7 @@ class PXI:
 
     # wrap batch_method_call calls in convenience functions
 
-    def start_tasks(self):
+    def start_tasks(self, handle_error=True):
         """
         Start measurement and output tasks for relevant devices
         """
@@ -394,10 +398,10 @@ class PXI:
             # self.counters # TODO: implement Counters.start
         ]
 
-        self.batch_method_call(devices, 'start')
+        self.batch_method_call(devices, 'start', handle_error)
         # self.reset_timeout()  # TODO : Implement or discard
 
-    def stop_tasks(self):
+    def stop_tasks(self, handle_error=True):
         """
         Stop measurement and output tasks for relevant devices
         """
@@ -411,9 +415,9 @@ class PXI:
             # self.counters # TODO: implement Counters.stop
         ]
 
-        self.batch_method_call(devices, 'stop')
+        self.batch_method_call(devices, 'stop', handle_error)
         
-    def close_tasks(self):
+    def close_tasks(self, handle_error=True):
         """
         Close references to tasks for relevant devices
         """
@@ -427,10 +431,9 @@ class PXI:
             # self.counters # TODO: implement Counters.stop
         ]
 
-        self.batch_method_call(devices, 'close')
-        
+        self.batch_method_call(devices, 'close', handle_error)
 
-    def get_data(self):
+    def get_data(self, handle_error=True):
         """
         Get data from the devices
         """
@@ -442,7 +445,7 @@ class PXI:
             # self.counters  # TODO: implement Counters.get_data
         ]
 
-        self.batch_method_call(devices, 'get_data')
+        self.batch_method_call(devices, 'get_data', handle_error)
 
     def is_done(self) -> bool:
         """
@@ -567,7 +570,7 @@ class PXI:
         elif isinstance(error, HardwareError):
             self.logger.error(traceback_str + "\n" + error.message)
             self.cycle_message(error.device)
-            self.stop_tasks() # stop all current measurement tasks
+            self.stop_tasks(handle_error=False)  # stop all current measurement tasks
             error.device.close() # close the reference to the problematic device
             self.reset_exp_thread() # this stalls the program currently
 
@@ -603,7 +606,12 @@ class PXI:
         self.launch_experiment_thread() 
         self.logger.info("Experiment thread relaunched")
 
-    def batch_method_call(self, device_list: List[Instrument], method: str):
+    def batch_method_call(
+            self,
+            device_list: List[Instrument],
+            method: str,
+            handle_error: bool = True
+    ):
         """
         Call a method common to several device classes
 
@@ -618,17 +626,22 @@ class PXI:
             device_list: list of device instances
             method: name of the method to be called. make sure every device
                 in device list has a method with this name.
+            handle_error: Should self.handle_errors() be called to deal with
+                errors during this operation?
         """
 
-        for dev in device_list:
-            # if dev.is_initialized:
+        for dev in filter(lambda dev : dev.is_initialized, device_list):
             try:
                 getattr(dev, method)()  # call the method
             except (HardwareError, AttributeError) as e:
                 if isinstance(e, AttributeError):
                     self.logger.warning(f'{dev} does not have method \'{method}\'')
                 else:
-                    self.handle_errors(e)
+                    self.logger.info(
+                        f"Error {e} encountered while performing {dev}.{method}()"
+                        f"handle_error = {handle_error}")
+                    if handle_error:
+                        self.handle_errors(e)
 
     def stop(self):
         """

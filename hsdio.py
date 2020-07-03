@@ -33,6 +33,7 @@ class HSDIO(Instrument):
     dllpath32 = os.path.join(f"C:\{programsDir32}\IVI Foundation\IVI\Bin", "niHSDIO.dll")
     dllpath64 = os.path.join("C:\Program Files\IVI Foundation\IVI\Bin", "niHSDIO_64.dll")
 
+    HSDIO_ERR_BSESSION = -1074130544  # Invalid session code
     def __init__(self, pxi, node: ET.Element = None):
         # device settings
         self.resourceNames = np.array([], dtype=str)
@@ -140,17 +141,15 @@ class HSDIO(Instrument):
         if not self.enable:
             return
 
-        if not self.is_initialized: 
+        if self.is_initialized:
 
             for session in self.sessions:
-                try:
-                    self.stop()
-                    self.close()
-                except: 
-                    self.logger.warning("tried to cloes HSDIOSession which probably didn't exist")
-                    pass
+                self.stop()
+                self.close()
 
             self.sessions = []  # reset
+
+            self.is_initialized = False
 
         iterables = zip(self.idleStates, self.initialStates,
                         self.activeChannels, self.resourceNames)
@@ -191,6 +190,7 @@ class HSDIO(Instrument):
                     )
             except (AssertionError, HSDIOError) as e:
                 self.stop()
+                self.close()
 
                 if isinstance(e, HSDIOError):
                     raise HardwareError(self, session, message=e.message)
@@ -282,7 +282,8 @@ class HSDIO(Instrument):
                 try:
                     session.initiate()
                 except HSDIOError as e:
-                    self.stop()
+                    self.logger.debug(f"Unable to initiate session {session}.")
+                    # self.stop()
                     self.is_initialized = False
                     raise HardwareError(self, session, message=e.message)
 
@@ -290,29 +291,39 @@ class HSDIO(Instrument):
         """
         Abort the session
         """
-        
+        self.logger.debug("Stopping operation")
         if self.enable:
             for session in self.sessions:
                 try:
                     session.abort()
-                    self.logger.info("Aborted an HSDIO session")
-                except HSDIOError:
-                    # self.logger.warning("Issue aborting HSDIOSession, which may not actually exist")
-                    pass
+                    self.logger.debug("Aborted an HSDIO session")
+                except HSDIOError as e:
+                    if e.error_code == HSDIO.HSDIO_ERR_BSESSION:
+                        self.logger.warning(
+                            f"Tried to abort {session}, but it does not exist"
+                        )
+                    else:
+                        raise HardwareError(self, session, message=e.message)
 
     def close(self):
         """
         Close the session
         """
-        
+
+        self.logger.debug("Closing HSDIO operation")
         if self.enable:
+            self.is_initialized = False
             for session in self.sessions:
                 try:
-                    session.close()
-                    self.logger.info("Closed an HSDIO session")
-                except HSDIOError:
-                    # self.logger.warning("Issue closing HSDIOSession, which may not actually exist")
-                    pass
+                    session.close(check_error=False)
+                    self.logger.debug("Closed an HSDIO session")
+                except HSDIOError as e:
+                    if e.error_code == HSDIO.HSDIO_ERR_BSESSION:
+                        self.logger.warning(
+                            f"Tried to close {session}, but it does not exist"
+                        )
+                    else:
+                        raise HardwareError(self, session, message=e.message)
                     
     def log_settings(self, wf_arr, wf_names):  # TODO : @Juan Implement
         pass

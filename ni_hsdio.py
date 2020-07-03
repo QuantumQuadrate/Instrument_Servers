@@ -98,7 +98,7 @@ class HSDIOSession:
             message = f"{code_type} {error_code} in {traceback_msg}:\n {err_msg}"
 
         if error_code < 0:
-            self.logger.error(message)
+            self.logger.error(message, exc_info=False)
             raise HSDIOError(error_code, message)
         else:
             self.logger.warning(message)
@@ -782,7 +782,7 @@ class HSDIOSession:
         """
 
         if reset:
-            self.reset()
+            self.reset(check_error=check_error)
         error_code = self.hsdio.niHSDIO_close(self.vi)
 
         if error_code != 0 and check_error:
