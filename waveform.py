@@ -159,7 +159,8 @@ class HSDIOWaveform(Waveform):
         re-initialize attributes for existing Waveformfrom children of node. 
         'node' is of type xml.etree.ElementTree.Element, with tag="waveform"
         """
-    
+
+        self.logger.info("Initializing waveform from xml")
         waveform_attrs = node
         for child in waveform_attrs:
             
@@ -169,16 +170,20 @@ class HSDIOWaveform(Waveform):
                     self.name = child.text
 
                 elif child.tag == "transitions":
+                    self.logger.info(f"writing transitions {child.text}")
                     t = np.array([x for x in child.text.split(" ")], 
                                  dtype=c_uint32)
                     self.transitions = t
+                    self.logger.info(f"transitions written {self.transitions}")
                     self.length = len(self.transitions)
 
                 elif child.tag == "states":
+                    self.logger.info(f"writing states {child.text}")
                     states = np.array([[int(x) for x in line.split(" ")]
                                       for line in child.text.split("\n")],
                                       dtype=c_uint32)
                     self.states = states
+                    self.logger.info(f"states writen {self.states}")
                     self.check_state_len()
 
                 else:
@@ -242,7 +247,10 @@ class HSDIOWaveform(Waveform):
 
             t_old = self.transitions[0]
             s_old = self.states[0]
-            wvfm = np.zeros((max(self.transitions), len(self.states[0])), dtype=c_uint8)
+            wvfm = np.zeros(
+                (max(self.transitions+[1]), len(self.states[0])),
+                dtype=c_uint8
+            )
             for state, transition in iterables:
                 for c in range(t_old, transition):
                     wvfm[c, :] = s_old
@@ -339,3 +347,9 @@ class HSDIOWaveform(Waveform):
         as_ms = f"{cl_str}.states.shape[0] = {state_len}; it's not divisible by 32! Expected " \
                 f"channels per card to be 32."
         assert state_len % 32 == 0, as_ms
+
+    def __repr__(self):
+        ms = f"Waveform {self.name}\n samples_per_chan {max(self.transitions)}"
+        # comment out when not debugging
+        ms += f"\n Full Waveform: transitions : {self.transitions}\n states : {self.states}"
+        return ms
