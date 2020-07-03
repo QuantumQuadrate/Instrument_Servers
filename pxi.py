@@ -90,6 +90,13 @@ class PXI:
     def exit_measurement(self, value):
         self._exit_measurement = value
 
+    @property
+    def active_devices(self):
+        """
+        Number of devices that were successfully initialized
+        """
+        return sum(dev.is_initialized for dev in self.devices)
+
     def queue_command(self, command):
         self.command_queue.put(command)
 
@@ -133,7 +140,7 @@ class PXI:
                 self.exit_measurement = False
                 self.return_data = ""  # clear the return data
 
-                if self.cycle_continuously:
+                if self.cycle_continuously and self.active_devices > 0:
                     self.logger.debug("Entering cycle continously...")
                     # This method returns the data
                     self.return_data_queue = self.measurement()
@@ -355,8 +362,8 @@ class PXI:
                 return_data = self.data_to_xml()
                 return return_data
 
-            except Exception as e: # TODO: make less general
-                self.logger.warning("We hit an error, so no data is returned.")
+            except Exception as e:  # TODO: make less general
+                self.logger.warning(f"Error encountered {e}\nNo data returned.")
                 self.handle_errors(e)
                 return ""
 
@@ -630,18 +637,18 @@ class PXI:
                 errors during this operation?
         """
 
-        for dev in filter(lambda dev : dev.is_initialized, device_list):
+        # only iterate over initialized devices
+        for dev in filter(lambda x: x.is_initialized, device_list):
             try:
                 getattr(dev, method)()  # call the method
-            except (HardwareError, AttributeError) as e:
-                if isinstance(e, AttributeError):
-                    self.logger.warning(f'{dev} does not have method \'{method}\'')
-                else:
-                    self.logger.info(
-                        f"Error {e} encountered while performing {dev}.{method}()"
-                        f"handle_error = {handle_error}")
-                    if handle_error:
-                        self.handle_errors(e)
+            except AttributeError as ae:
+                self.logger.warning(f'{dev} does not have method \'{method}\'')
+            except HardwareError as he:
+                self.logger.info(
+                    f"Error {he} encountered while performing {dev}.{method}()"
+                    f"handle_error = {handle_error}")
+                if handle_error:
+                    self.handle_errors(he)
 
     def stop(self):
         """
