@@ -137,7 +137,7 @@ class DAQmxDO(Instrument):
 
                 # Optionally set up start trigger
                 if self.startTrigger.wait_for_start_trigger:
-                    self.task.start_trigger.cfg_dig_edge_start_trig(
+                    self.task.triggers.start_trigger.cfg_dig_edge_start_trig(
                         trigger_source=self.startTrigger.source,
                         trigger_edge=self.startTrigger.edge)
 

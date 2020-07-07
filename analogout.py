@@ -127,7 +127,7 @@ class AnalogOutput(Instrument):
 
                     elif child.tag == "triggerEdge":
                         try:
-                            self.startTrigger.edge = StartTrigger.nidaqmx_edges[child.text]
+                            self.startTrigger.edge = StartTrigger.nidaqmx_edges[child.text.lower()]
                         except KeyError as e:
                             raise KeyError(f"Not a valid {child.tag} value {child.text} \n {e}")
 
@@ -184,7 +184,7 @@ class AnalogOutput(Instrument):
                             samps_per_chan=1000) # default
                         
                     if self.startTrigger.wait_for_start_trigger:
-                        self.task.start_trigger.cfg_dig_edge_start_trig(
+                        self.task.triggers.start_trigger.cfg_dig_edge_start_trig(
                             trigger_source=self.startTrigger.source,
                             trigger_edge=self.startTrigger.edge) # default
                                         

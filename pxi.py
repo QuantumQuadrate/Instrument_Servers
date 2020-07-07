@@ -25,7 +25,7 @@ from pxierrors import XMLError, HardwareError, PXIError
 from hsdio import HSDIO
 # from hamamatsu import Hamamatsu
 # from analogin import AnalogInput
-# from analogout import AnalogOutput
+from analogout import AnalogOutput
 # from digitalin import TTLInput
 # from digitalout import DAQmxDO
 from tcp import TCP
@@ -59,7 +59,7 @@ class PXI:
         self.hsdio = HSDIO(self)
         self.tcp = TCP(self, address)
         # self.analog_input = AnalogInput(self)
-        # self.analog_output = AnalogOutput(self)
+        self.analog_output = AnalogOutput(self)
         # self.ttl = TTLInput(self)
         # self.daqmx_do = DAQmxDO(self)
         # self.hamamatsu = Hamamatsu(self)
@@ -205,14 +205,14 @@ class PXI:
                         pass
 
                     elif child.tag == "HSDIO":
-                        self.hsdio.load_xml(child)
-                        self.logger.info("HSDIO XML loaded")
-                        self.hsdio.init()
-                        self.logger.info("HSDIO hardware initialized")
-                        self.hsdio.update()
-                        self.logger.info("HSDIO hardware updated")
-                        self.logger.info(f"HSDIO.enable = {self.hsdio.enable}")
-
+                        # self.hsdio.load_xml(child)
+                        # self.logger.info("HSDIO XML loaded")
+                        # self.hsdio.init()
+                        # self.logger.info("HSDIO hardware initialized")
+                        # self.hsdio.update()
+                        # self.logger.info("HSDIO hardware updated")
+                        # self.logger.info(f"HSDIO.enable = {self.hsdio.enable}")
+                        pass
 
                     # elif child.tag == "TTL":
                     #     self.ttl.load_xml(child)
@@ -237,35 +237,38 @@ class PXI:
                             cycle = True
                         self.cycle_continuously = cycle
 
-                    # elif child.tag == "camera":
-                    #     # set up the Hamamatsu camera
-                    #     self.hamamatsu.load_xml(child)  # Raises ValueError
-                    #     self.hamamatsu.init()  # Raises IMAQErrors
-                    #
-                    # elif child.tag == "AnalogOutput":
-                    #     # set up the analog_output
-                    #     self.analog_output.load_xml(child)
-                    #     self.analog_output.init()
-                    #     self.analog_output.update()
-                    #     pass
-                    #
-                    # elif child.tag == "AnalogInput":
+                    elif child.tag == "camera":
+                        # set up the Hamamatsu camera
+                        # self.hamamatsu.load_xml(child)  # Raises ValueError
+                        # self.hamamatsu.init()  # Raises IMAQErrors
+                        pass
+                    
+                    elif child.tag == "AnalogOutput":
+                        # set up the analog_output
+                        self.analog_output.load_xml(child)
+                        self.logger.info("AnalogOutput XML loaded")
+                        self.analog_output.init()
+                        self.logger.info("AnalogOutput initialized")
+                        self.analog_output.update()
+                        self.logger.info("AnalogOutput hardware updated")
+                    
+                    elif child.tag == "AnalogInput":
                     #     # set up the analog_input
                     #     self.analog_input.load_xml(child)
                     #     self.analog_input.init()
-                    #     pass
-                    #
-                    # elif child.tag == "Counters":
+                        pass
+                    
+                    elif child.tag == "Counters":
                     #     # TODO: implement counters class
                     #     # set up the counters
                     #     # self.counters.load_xml(child)
                     #     # self.counters.init()
-                    #     pass
-                    #
+                        pass
+                    
                     # # might implement, or might move RF generator functionality to
                     # # CsPy based on code used by Hybrid.
-                    # elif child.tag == "RF_generators":
-                    #     pass
+                    elif child.tag == "RF_generators":
+                        pass
 
                     else:
                         self.logger.warning(f"Node {child.tag} received is not a valid" +
