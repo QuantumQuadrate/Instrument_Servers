@@ -30,6 +30,8 @@ class XMLLoader(ABC):
             node : optional node so that a second call to load_xml does not have to be made
         """
         self.logger = logging.getLogger(str(self.__class__.__name__))
+        self.logger.setLevel(logging.DEBUG)  # Adjust instrument level logging here
+        # TODO : Set logging level globally. Maybe config file
         if node is not None:
             self.load_xml(node)
 
