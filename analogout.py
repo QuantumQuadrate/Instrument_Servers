@@ -263,7 +263,6 @@ class AnalogOutput(Instrument):
         
             try:
                 self.task.start()
-                self.logger.info("AO write started")
 
             except DaqError:
                 # end the task nicely
@@ -294,7 +293,6 @@ class AnalogOutput(Instrument):
             self.is_initialized = False
             try:
                 self.task.close()
-                del self.task
             except DaqError as e:
                 msg = '\n AnalogOutput failed to close current task'
                 self.logger.warning(msg)

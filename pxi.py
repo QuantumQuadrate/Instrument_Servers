@@ -401,10 +401,10 @@ class PXI:
 
         # devices which have a method 'start'
         devices = [
-            self.hsdio
+            self.hsdio,
             # self.daqmx_do,
             # self.analog_input,
-            # self.analog_output
+            self.analog_output
             # self.counters # TODO: implement Counters.start
         ]
 
@@ -418,10 +418,10 @@ class PXI:
 
         # devices which have a method 'stop'
         devices = [
-            self.hsdio
+            self.hsdio,
             # self.daqmx_do,
             # self.analog_input,
-            # self.analog_output
+            self.analog_output
             # self.counters # TODO: implement Counters.stop
         ]
 
@@ -434,10 +434,10 @@ class PXI:
 
         # devices which have a method 'stop'
         devices = [
-            self.hsdio
+            self.hsdio,
             # self.daqmx_do,
             # self.analog_input,
-            # self.analog_output
+            self.analog_output
             # self.counters # TODO: implement Counters.stop
         ]
 
@@ -475,8 +475,8 @@ class PXI:
 
             # devices which have a method named 'is_done' that returns a bool
             devices = [
-                self.hsdio
-                # self.analog_output,
+                self.hsdio,
+                self.analog_output #,
                 # self.analog_input,
                 # self.daqmx_do
             ]
