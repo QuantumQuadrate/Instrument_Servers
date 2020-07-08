@@ -125,7 +125,7 @@ class AnalogInput(Instrument):
                 inputTerminalConfig = TerminalConfiguration['NRSE']
                 
             try:
-                self.task = nidaqmx.Task() # might be task.Task()
+                self.task = nidaqmx.Task()
                 self.task.ai_channels.add_ai_voltage_chan(
                     physical_channel=self.source,
                     min_val=self.minValue,

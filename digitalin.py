@@ -91,7 +91,7 @@ class TTLInput(Instrument):
                     raise HardwareError(self, task=self.task, message=msg)
                
             try:
-                self.task = nidaqmx.Task() # might be task.Task()
+                self.task = nidaqmx.Task()
             
                 # Create a digital input channel.
                 # Number of samples_per channel unspecified, so returns only one 

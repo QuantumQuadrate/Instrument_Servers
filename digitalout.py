@@ -120,7 +120,7 @@ class DAQmxDO(Instrument):
                     raise HardwareError(self, task=self.task, message=msg)
 
             try:
-                self.task = nidaqmx.Task() # might be task.Task()
+                self.task = nidaqmx.Task()
 
                 # Create digital out virtual channel
                 self.task.do_channels.add_do_chan(
