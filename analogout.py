@@ -159,17 +159,12 @@ class AnalogOutput(Instrument):
                 # Clear old task
                 if self.task is not None:
                     try:
-                        self.task.close()
-
-                    except DaqError:
-                        # end the task nicely
-                        self.stop()
                         self.close()
-                        msg = '\n AnalogOutput failed to close current task'
-                        raise HardwareError(self, task=self.task, message=msg)
+                    except DaqError: # could extract error code to check if stale reference
+                        self.logger.warning("Tried to close AO task that probably didn't exist")
                         
                 try:
-                    self.task = nidaqmx.Task() # might be task.Task()
+                    self.task = nidaqmx.Task()
                     self.task.ao_channels.add_ao_voltage_chan(
                         self.physicalChannels,
                         min_val=self.minValue,
@@ -193,6 +188,8 @@ class AnalogOutput(Instrument):
                             Signal.START_TRIGGER,
                             self.exportTrigger.outputTerminal)
                 
+                    self.logger.info("AO Triggers setup")
+                    
                 except DaqError:
                     # end the task nicely
                     self.stop()
@@ -223,12 +220,13 @@ class AnalogOutput(Instrument):
                 # more than one sample per channel
                 self.task.write(self.waveforms)
                 
+                self.logger.info("AO Waveform written")
+                
             except DaqError:
                 # end the task nicely
                 self.stop()
                 self.close()
                 msg = '\n AnalogOutput hardware update failed'
-                self.is_initialized = False
                 raise HardwareError(self, task=self.task, message=msg)
 
     def is_done(self) -> bool:
@@ -252,7 +250,6 @@ class AnalogOutput(Instrument):
                 self.stop()
                 self.close()
                 msg = '\n AnalogOutput check for task completion failed'
-                self.is_initialized = False
                 raise HardwareError(self, task=self.task, message=msg)
 
         return done
@@ -266,13 +263,13 @@ class AnalogOutput(Instrument):
         
             try:
                 self.task.start()
-                
+                self.logger.info("AO write started")
+
             except DaqError:
                 # end the task nicely
                 self.stop()
                 self.close()
                 msg = '\n AnalogOutput failed to start task'
-                self.is_initialized = False
                 raise HardwareError(self, task=self.task, message=msg)
 
     def stop(self):
@@ -294,8 +291,10 @@ class AnalogOutput(Instrument):
         """
         
         if self.task is not None:
+            self.is_initialized = False
             try:
                 self.task.close()
+                del self.task
             except DaqError as e:
                 msg = '\n AnalogOutput failed to close current task'
                 self.logger.warning(msg)
