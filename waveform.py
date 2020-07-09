@@ -242,7 +242,6 @@ class HSDIOWaveform(Waveform):
         allowed_formats = ["WDT", "uInt32"]
         assert data_format in allowed_formats
 
-        iterables = zip(self.states, self.transitions)
         if data_format == "WDT":
 
             t_old = self.transitions[0]
@@ -251,8 +250,8 @@ class HSDIOWaveform(Waveform):
                 (max(self.transitions+[1]), len(self.states[0])),
                 dtype=c_uint8
             )
-            for state, transition in iterables:
-                for c in range(t_old, transition):
+            for state, transition in zip(self.states, self.transitions):
+                for c in range(t_old, len(wvfm)):
                     wvfm[c, :] = s_old
                 t_old = transition
                 s_old = state
@@ -266,7 +265,7 @@ class HSDIOWaveform(Waveform):
             t_old = self.transitions[0]
             s_old = self.state_to_int32(self.states[0])
             wvfm = np.zeros(max(self.transitions), dtype=c_uint32)
-            for state, transition in iterables:
+            for state, transition in zip(self.states, self.transitions):
                 c_state = self.state_to_int32(state)
                 for c in range(t_old, transition):
                     wvfm[c] = s_old
