@@ -541,7 +541,7 @@ class Hamamatsu(Instrument):
         return hm_str
 
 
-def u16_ar_to_str(ar: np.ndarray) -> str:  # Should the type hint on the return be modified?
+def u16_ar_to_bytes(ar: np.ndarray) -> bytes:
     """
     Converts ar to a string encoded as useful for parsing xml messages sent back to cspy
 
@@ -550,5 +550,4 @@ def u16_ar_to_str(ar: np.ndarray) -> str:  # Should the type hint on the return 
     Returns:
         string that's parsable by cspy xml receiver
     """
-
     return struct.pack(f"!{len(ar)}H", *ar)
