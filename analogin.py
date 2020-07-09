@@ -107,7 +107,8 @@ class AnalogInput(Instrument):
         if not (self.stop_connections or self.reset_connection) and self.enable:
                 
             # Clear old task
-            self.close()
+            if self.task is not None:
+                self.close()
             
             # configure the output terminal from an NI Enum
             
@@ -118,9 +119,12 @@ class AnalogInput(Instrument):
             # value is what gets used. This seems like a bug on the CsPy side,
             # even if the default here is desired.
             try: 
+                # this is what is done in LabVIEW but I believe it is an error. 
+                # self.source will always refer to physical channel(s), which will
+                # never be a key in TerminalConfiguration. 
                 inputTerminalConfig = TerminalConfiguration[self.source]
             except KeyError as e:
-                self.logger.error(f"Invalid output terminal setting \'{self.source}\' \n"+
+                self.logger.warning(f"Invalid output terminal setting \'{self.source}\' \n"+
                          "Using default, 'NRSE' , instead")
                 inputTerminalConfig = TerminalConfiguration['NRSE']
                 
@@ -194,6 +198,7 @@ class AnalogInput(Instrument):
                 # measurement type inferred from the task virtual channel
                 self.data = self.task.read()
                 
+                # TODO: remove after debugging
                 try:
                     self.logger.info("aqcuired data:\n"+
                         f"len(data) = {len(self.data)}\n"
@@ -213,7 +218,7 @@ class AnalogInput(Instrument):
     # TODO: compare output to what the LabVIEW method returns
     def data_out(self) -> str:
         """
-        Convert the received data into a specially-formatted string for CsPy
+        Convert the received data into a string parsable by CsPy
         
         Returns:
             the instance's data string, formatted for reception by CsPy
@@ -224,7 +229,7 @@ class AnalogInput(Instrument):
             try:
                 # flatten the data and convert to a str
                 data_shape = np.array(self.data).shape
-                flat_data = np.reshape(self.data, np.prod(data_shape))
+                flat_data = np.reshape(self.data, np.prod(data_shape)) # nD data --> 1D data
 
                 shape_str = ",".join([str(x) for x in data_shape])
 
@@ -232,14 +237,14 @@ class AnalogInput(Instrument):
                 # which is inappropriately named. according to the inconsistent docs it either outputs
                 # UTF-8 JSON or binary. this returns bytes and may therefore be wrong.
                 
-                dstring = "".join([str(x) for x in flat_data])
-                self.logger.info("AI data is " + dstring)
+                data_string = "".join([str(x) for x in flat_data])
+                self.logger.info("AI data is " + data_string)
                 
                 # data_bytes = struct.pack('!L', "".join([str(x) for x in flat_data]))
-                data_bytes = TCP.format_message(dstring)
+                # data_string = TCP.bytes_to_str(data_string)
 
                 self.data_string = TCP.format_data('AI/dimensions', shape_str) + \
-                    TCP.format_data('AI/data', dstring) #data_bytes)
+                    TCP.format_data('AI/data', data_string)
 
             except Exception as e:
                 self.logger.exception(f"Error formatting data from {self.__class__.__name__}")
