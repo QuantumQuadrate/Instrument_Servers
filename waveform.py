@@ -247,7 +247,7 @@ class HSDIOWaveform(Waveform):
             t_old = self.transitions[0]
             s_old = self.states[0]
             wvfm = np.zeros(
-                (max(self.transitions+[1]), len(self.states[0])),
+                (len(self), len(self.states[0])),
                 dtype=c_uint8
             )
             for state, transition in zip(self.states, self.transitions):
@@ -264,7 +264,7 @@ class HSDIOWaveform(Waveform):
         elif data_format == "uInt32":
             t_old = self.transitions[0]
             s_old = self.state_to_int32(self.states[0])
-            wvfm = np.zeros(max(self.transitions), dtype=c_uint32)
+            wvfm = np.zeros(len(self), dtype=c_uint32)
             for state, transition in zip(self.states, self.transitions):
                 c_state = self.state_to_int32(state)
                 for c in range(t_old, transition):
@@ -352,3 +352,7 @@ class HSDIOWaveform(Waveform):
         # comment out when not debugging
         ms += f"\n Full Waveform: transitions : {self.transitions}\n states : {self.states}"
         return ms
+
+    def __len__(self):
+        # the [1] makes the 1 transition case (self.transitions = [0]) work nicely
+        return max(self.transitions+[1])
