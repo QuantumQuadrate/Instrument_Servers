@@ -12,6 +12,7 @@ that inherits from Instrument.
 For example usage, go look at implementation in hsdio.py, analogin.py, etc. 
 """
 
+## built-in modules
 import xml.etree.ElementTree as ET
 from abc import ABC, abstractmethod
 import logging
@@ -29,6 +30,8 @@ class XMLLoader(ABC):
             node : optional node so that a second call to load_xml does not have to be made
         """
         self.logger = logging.getLogger(str(self.__class__.__name__))
+        self.logger.setLevel(logging.DEBUG)  # Adjust instrument level logging here
+        # TODO : Set logging level globally. Maybe config file
         if node is not None:
             self.load_xml(node)
 
@@ -94,7 +97,9 @@ class XMLLoader(ABC):
         Class attribute is set based on node_text, using a dictionary of
         values for the attribute. If node_text is not a key in the
         dictionary, a default value specified in the dictionary itself will
-        be used.
+        be used. The node_text will be converted to lowercase, such that
+        supplying a dictionary with lowercase keys makes this method 
+        case-insensitive.
 
         Args:
             'attr': the name of the attribute to be set, which is
@@ -102,10 +107,12 @@ class XMLLoader(ABC):
             'node_text': the text of the node whose tag  is 'attr'
             'values': dictionary of values, where at least one key
                 is "Default", whose value is the key for the default value
-                in the dictionary
+                in the dictionary. Note that the keys should be lowercase.
         """
+        # check that the dict keys are lowercase
+        assert set([v.lower() for v in values.keys()]) == set(values.keys())
         try:
-            default = values["Default"]
+            default = values["default"]
         except KeyError as e:
             cl_str = str(self.__class__.__name__)
             m = f"{e}\nIn {cl_str}, value dictionary for {attr} must include" +\
@@ -114,7 +121,7 @@ class XMLLoader(ABC):
             raise KeyError(m)
 
         try:
-            setattr(self, attr, values[node_text])
+            setattr(self, attr, values[node_text.lower()])
         except KeyError as er:
             self.logger.warning(
                 f"{er}\n {attr} value {node_text} should be in {values.keys()}"
@@ -133,12 +140,14 @@ class Instrument(XMLLoader):
             'pxi': reference to the parent PXI instance
             'expectedRoot': the xml tag corresponding to your instrument. This 
                 should be in the xml sent by CsPy to talk to setup this device.
-            'node': xml node if available, if passed self.load_xml is called in __init__
+            'node': xml node if available. if passed, self.load_xml is called in __init__
         """
         super().__init__(node)
         self.pxi = pxi
+        self.pxi.devices.append(self) # Tell PXI it created this instance
         self.expectedRoot = expected_root
         self.enable = False
+        self.is_initialized = False
     
     @property
     def reset_connection(self) -> bool:
@@ -155,6 +164,14 @@ class Instrument(XMLLoader):
     @stop_connections.setter
     def stop_connections(self, value):
         self.pxi.stop_connections = value
+
+    @property
+    def exit_measurement(self) -> bool:
+        return self.pxi.exit_measurement
+
+    @exit_measurement.setter
+    def exit_measurement(self, value):
+        self.pxi.exit_measurement = value
    
     @abstractmethod
     def load_xml(self, node: ET.Element):
@@ -166,34 +183,11 @@ class Instrument(XMLLoader):
             node.tag == self.expectedRoot
         """
 
-        if self.stop_connections or self.reset_connection:
+        if not (self.exit_measurement or self.stop_connections):
             return
 
         as_ms = f"node to open camera is tagged {node.tag}. Must be tagged {self.expectedRoot}"
         assert node.tag == self.expectedRoot, as_ms
-
-        '''
-        Not sure any of this (except the self.enable setting) should be here -Juan
-
-        if not (self.stop_connections or self.reset_connection):
-        
-            assert node.tag == self.expectedRoot, f"Expected xml tag {self.expectedRoot}"
-
-            for child in node: 
-
-                if type(child) == ET.Element:
-                
-                    if child.tag == "enable":
-                        self.enable = self.str_to_bool(child.text)
-                
-                    # elif child.tag == "someOtherProperty":
-                        # self.thatProperty = child.text
-                    
-                    else:
-                        # TODO handle unexpected tag case
-                        # self.logger.warning(f"Unrecognized XML tag \'{child.tag}\' in <{self.expectedRoot}>")
-                        pass
-        '''
 
     @abstractmethod
     def init(self):
@@ -206,8 +200,3 @@ class Instrument(XMLLoader):
 
         if not self.enable:
             return
-                    
-            
-    
-        
-        

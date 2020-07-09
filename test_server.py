@@ -44,11 +44,12 @@ def setup_logging_handlers():
 if __name__ == '__main__':
     setup_logging_handlers()
     logger = logging.getLogger(__name__)
-    
+    logger.setLevel(logging.DEBUG)
+
     #TODO: add config file to write this to and check config file in future
-    port = 9001
+    port = 9000
     logger.info(f"Default port={port}. \n Hit \'Enter\' for host=localhost "+
-                "(default), any other key to use host=\'\'")
+                "(default), any other key then \'Enter\' to use host=\'\'")
     host_choice = input()
     if host_choice == "":
         hostname = "localhost"
@@ -56,7 +57,7 @@ if __name__ == '__main__':
         hostname = ""
     address = (hostname, port)
 
-    logger.info(f'starting up on {hostname} port {port}')
+    logger.info(f'starting up on host={hostname} port {port}')
     experiment = PXI(address)
     experiment.launch_keylisten_thread()
     logger.info(PXI.help_str)

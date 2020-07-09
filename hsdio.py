@@ -6,23 +6,24 @@ For parsing XML strings which specify triggers and waveforms to be loaded to Nat
 Instruments HSDIO hardware. 
 """
 
-from ctypes import * # open to suggestions on making this better with minimal obstruction to workflow
+from ctypes import *
 import numpy as np
 import xml.etree.ElementTree as ET
 import os
 import struct
 import platform  # for checking the os bit
 import logging
-from ni_hsdio import HSDIOSession, HSDIOError
+from ni_hsdio import HSDIOSession
 from typing import List
 
 ## local class imports
 from trigger import Trigger, StartTrigger
 from waveform import HSDIOWaveform
 from instrument import Instrument
+from pxierrors import XMLError, HSDIOError, HardwareError
 
 
-class HSDIO(Instrument): # could inherit from an Instrument class if helpful
+class HSDIO(Instrument):
 
     if platform.machine().endswith("64"):
         programsDir32 = "Program Files (x86)"
@@ -32,6 +33,7 @@ class HSDIO(Instrument): # could inherit from an Instrument class if helpful
     dllpath32 = os.path.join(f"C:\{programsDir32}\IVI Foundation\IVI\Bin", "niHSDIO.dll")
     dllpath64 = os.path.join("C:\Program Files\IVI Foundation\IVI\Bin", "niHSDIO_64.dll")
 
+    HSDIO_ERR_BSESSION = -1074130544  # Invalid session code
     def __init__(self, pxi, node: ET.Element = None):
         # device settings
         self.resourceNames = np.array([], dtype=str)
@@ -50,8 +52,6 @@ class HSDIO(Instrument): # could inherit from an Instrument class if helpful
         self.sessions: List[HSDIOSession] = []
         self.waveformArr: List[HSDIOWaveform] = []
 
-        # whether or not we've actually populated the attributes above
-        self.isInitialized = False
         # check this to see if waveform has been written and updated without error
         self.wvf_written = False
 
@@ -63,59 +63,72 @@ class HSDIO(Instrument): # could inherit from an Instrument class if helpful
         device settings
         'node': type is ET.Element. tag should be "HSDIO"
         """
+        
+        self.is_initialized = False
 
         super().load_xml(node)
 
-        for child in node:
-            self.logger.debug(child)
-            # handle each tag by name:
-            if child.tag == "enable":
-                self.enable = Instrument.str_to_bool(child.text)
+        if not (self.exit_measurement or self.stop_connections):
 
-            elif child.tag == "description":
-                self.description = child.text
+            for child in node:
 
-            elif child.tag == "resourceName":
-                resources = np.array(child.text.split(","))
-                self.resourceNames = resources
+                if self.exit_measurement or self.stop_connections:
+                    break
+        
+                try:
 
-            elif child.tag == "clockRate":
-                self.clockRate = float(child.text)
+                    self.logger.debug(child)
+                    # handle each tag by name:
+                    if child.tag == "enable":
+                        self.enable = Instrument.str_to_bool(child.text)
 
-            elif child.tag == "hardwareAlignmentQuantum":
-                self.hardwareAlignmentQuantum = child.text
+                    elif child.tag == "description":
+                        self.description = child.text
 
-            elif child.tag == "triggers":
+                    elif child.tag == "resourceName":
+                        resources = np.array(child.text.split(","))
+                        self.resourceNames = resources
 
-                if type(child) == ET.Element:
-                    trigger_node = child
-                    for t_child in trigger_node:
-                        self.scriptTriggers.append(Trigger(t_child))
+                    elif child.tag == "clockRate":
+                        self.clockRate = float(child.text)
 
-            elif child.tag == "waveforms":
-                self.logger.debug("found a waveform")
-                wvforms_node = child
-                for wvf_child in wvforms_node:
-                    if wvf_child.tag == "waveform":
-                        self.waveformArr.append(HSDIOWaveform(wvf_child))
+                    elif child.tag == "hardwareAlignmentQuantum":
+                        self.hardwareAlignmentQuantum = child.text
 
-            elif child.tag == "script":
-                self.pulseGenScript = child.text
+                    elif child.tag == "triggers":
 
-            elif child.tag == "startTrigger":
-                self.startTrigger = StartTrigger(child)
+                        if type(child) == ET.Element:
+                            trigger_node = child
+                            for t_child in trigger_node:
+                                self.scriptTriggers.append(Trigger(t_child))
 
-            elif child.tag == "InitialState":
-                self.initialStates = np.array(child.text.split(","))
+                    elif child.tag == "waveforms":
+                        self.logger.debug("found a waveform")
+                        wvforms_node = child
+                        for wvf_child in wvforms_node:
+                            if wvf_child.tag == "waveform":
+                                self.waveformArr.append(HSDIOWaveform(node=wvf_child))
 
-            elif child.tag == "IdleState":
-                self.idleStates = np.array(child.text.split(","))
+                    elif child.tag == "script":
+                        self.pulseGenScript = child.text
 
-            elif child.tag == "ActiveChannels":
-                self.activeChannels = np.array(child.text.split("\n"))
+                    elif child.tag == "startTrigger":
+                        self.startTrigger = StartTrigger(child)
 
-            else:
-                self.logger.warning(f"Unrecognized XML tag '{child.tag}' in <{self.expectedRoot}>")
+                    elif child.tag == "InitialState":
+                        self.initialStates = np.array(child.text.split(","))
+
+                    elif child.tag == "IdleState":
+                        self.idleStates = np.array(child.text.split(","))
+
+                    elif child.tag == "ActiveChannels":
+                        self.activeChannels = np.array(child.text.split("\n"))
+
+                    else:
+                        self.logger.warning(f"Unrecognized XML tag '{child.tag}' in <{self.expectedRoot}>")
+
+                except ValueError: # maybe catch other errors too.
+                    raise XMLError(self, child)
 
     def init(self):
         """
@@ -128,15 +141,15 @@ class HSDIO(Instrument): # could inherit from an Instrument class if helpful
         if not self.enable:
             return
 
-        if self.isInitialized:
+        if self.is_initialized:
 
-            # TODO : Figure out error handling when these fail
             for session in self.sessions:
-                session.abort()
-                session.close()
+                self.stop()
+                self.close()
 
             self.sessions = []  # reset
-            self.isInitialized = False
+
+            self.is_initialized = False
 
         iterables = zip(self.idleStates, self.initialStates,
                         self.activeChannels, self.resourceNames)
@@ -145,6 +158,7 @@ class HSDIO(Instrument): # could inherit from an Instrument class if helpful
             session = self.sessions[-1]
 
             try:
+                self.logger.info(f"resource: {resource} \n chan_list: {chan_list} \n idle_state: {idle_state} \n init_state: {init_state}")
                 session.init_generation_sess()
                 # TODO : deal with error case where session is not initiated
                 session.assign_dynamic_channels(chan_list)
@@ -174,12 +188,17 @@ class HSDIO(Instrument): # could inherit from an Instrument class if helpful
                         self.startTrigger.source,
                         self.startTrigger.edge
                     )
-            except (AssertionError, HSDIOError):
-                session.abort()
-                session.close()
-                raise
+            except (AssertionError, HSDIOError) as e:
+                self.stop()
+                self.close()
 
-        self.isInitialized = True
+                if isinstance(e, HSDIOError):
+                    raise HardwareError(self, session, message=e.message)
+                else:
+                    raise e
+                    
+        self.logger.info(f"{len(self.sessions)} HSDIO card(s) initiated")
+        self.is_initialized = True
 
     def update(self):
         """
@@ -193,18 +212,26 @@ class HSDIO(Instrument): # could inherit from an Instrument class if helpful
 
         if not self.enable:
             return
+            
+        self.logger.info("Updating HSDIO...")
 
         for wf in self.waveformArr:
 
+            # self.logger.info(f"wf pre-split : {wf}")
             wv_arr = wf.wave_split()
             # for each HSDIO card (e.g., Rb experiment has two cards)
             for session, wave in zip(self.sessions, wv_arr):
 
-                fmt, data = wave.decompress()
+                # self.logger.info(f"post-split : {wave}")
+                format, data = wave.decompress()
+                # self.logger.info(f"format of waveform is {format}")
                 try:
                     if format == "WDT":
                         # grouping = HSDIOSession.NIHSDIO_VAL_GROUP_BY_CHANNEL
                         grouping = HSDIOSession.NIHSDIO_VAL_GROUP_BY_SAMPLE
+                        
+                        # self.logger.info(f"{wave}")
+                        
                         session.write_waveform_wdt(
                             wave.name,
                             max(wave.transitions),
@@ -219,8 +246,11 @@ class HSDIO(Instrument): # could inherit from an Instrument class if helpful
                         )
                 except HSDIOError as e:
                     m = f"{e}\nError writing waveform. Waveform has not been updated",
-                    raise HSDIOError(e.error_code, m)
+                    self.is_initialized = False
+                    raise HardwareError(self, session, message=e.message)
+
         self.wvf_written = True
+        self.logger.info(f"Waveforms written")
 
     def is_done(self) -> bool:
         """
@@ -235,10 +265,13 @@ class HSDIO(Instrument): # could inherit from an Instrument class if helpful
         if not (self.stop_connections or self.reset_connection) and self.enable:
 
             for session in self.sessions:
-                error_code, _is_done = session.is_done()
-                if not _is_done:
-                    done = False
-                    break
+                try:
+                    error_code, _is_done = session.is_done()
+                    if not _is_done:
+                        done = False
+                        break
+                except HSDIOError as e:
+                    raise HardwareError(self, session, message=e.message)
 
         return done
 
@@ -250,19 +283,50 @@ class HSDIO(Instrument): # could inherit from an Instrument class if helpful
             for session in self.sessions:
                 try:
                     session.initiate()
-                except HSDIOError:
-                    session.abort()
-                    session.close()
-                    raise
+                except HSDIOError as e:
+                    self.logger.debug(f"Unable to initiate session {session}.")
+                    # self.stop()
+                    self.is_initialized = False
+                    raise HardwareError(self, session, message=e.message)
 
     def stop(self):
         """
         Abort the session
         """
+        self.logger.debug("Stopping operation")
         if self.enable:
             for session in self.sessions:
-                session.abort()
+                try:
+                    session.abort()
+                    self.logger.debug("Aborted an HSDIO session")
+                except HSDIOError as e:
+                    if e.error_code == HSDIO.HSDIO_ERR_BSESSION:
+                        self.logger.warning(
+                            f"Tried to abort {session}, but it does not exist"
+                        )
+                    else:
+                        raise HardwareError(self, session, message=e.message)
 
+    def close(self):
+        """
+        Close the session
+        """
+
+        self.logger.debug("Closing HSDIO operation")
+        if self.enable:
+            self.is_initialized = False
+            for session in self.sessions:
+                try:
+                    session.close(check_error=False)
+                    self.logger.debug("Closed an HSDIO session")
+                except HSDIOError as e:
+                    if e.error_code == HSDIO.HSDIO_ERR_BSESSION:
+                        self.logger.warning(
+                            f"Tried to close {session}, but it does not exist"
+                        )
+                    else:
+                        raise HardwareError(self, session, message=e.message)
+                    
     def log_settings(self, wf_arr, wf_names):  # TODO : @Juan Implement
         pass
         # the labview code has HSDIO.settings specifically for reading out the
