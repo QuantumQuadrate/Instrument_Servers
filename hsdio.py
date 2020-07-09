@@ -234,14 +234,14 @@ class HSDIO(Instrument):
                         
                         session.write_waveform_wdt(
                             wave.name,
-                            max(wave.transitions),
+                            max(wave.transitions+[1]),  # TODO : Make this less duct-tape-y
                             grouping,
                             data
                         )
                     elif format == "uInt32":
                         session.write_waveform_uint32(
                             wave.name,
-                            max(wave.transitions),
+                            max(wave.transitions+[1]),
                             data
                         )
                 except HSDIOError as e:
