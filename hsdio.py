@@ -34,6 +34,7 @@ class HSDIO(Instrument):
     dllpath64 = os.path.join("C:\Program Files\IVI Foundation\IVI\Bin", "niHSDIO_64.dll")
 
     HSDIO_ERR_BSESSION = -1074130544  # Invalid session code
+
     def __init__(self, pxi, node: ET.Element = None):
         # device settings
         self.resourceNames = np.array([], dtype=str)
@@ -215,6 +216,7 @@ class HSDIO(Instrument):
             
         self.logger.info("Updating HSDIO...")
 
+        # write the waveforms
         for wf in self.waveformArr:
 
             self.logger.info(f"wf pre-split : {wf}")
@@ -251,6 +253,10 @@ class HSDIO(Instrument):
 
         self.wvf_written = True
         self.logger.info(f"Waveforms written")
+
+        # write the script
+        for session in self.sessions:
+            session.write_script(self.pulseGenScript)
 
     def is_done(self) -> bool:
         """
