@@ -285,9 +285,11 @@ class HSDIO(Instrument):
         """
         Start the tasks
         """
+        self.logger.info("HSDIO start called")
         if not (self.stop_connections or self.reset_connection) and self.enable:
             for session in self.sessions:
                 try:
+                    self.logger.info("HSDIO card starting...")
                     session.initiate()
                 except HSDIOError as e:
                     self.logger.debug(f"Unable to initiate session {session}.")
