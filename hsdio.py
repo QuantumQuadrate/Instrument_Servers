@@ -10,13 +10,12 @@ from ctypes import *
 import numpy as np
 import xml.etree.ElementTree as ET
 import os
-import struct
 import platform  # for checking the os bit
-import logging
-from ni_hsdio import HSDIOSession
+from math import floor
 from typing import List
 
 ## local class imports
+from ni_hsdio import HSDIOSession
 from trigger import Trigger, StartTrigger
 from waveform import HSDIOWaveform
 from instrument import Instrument
@@ -94,14 +93,16 @@ class HSDIO(Instrument):
                         self.clockRate = float(child.text)
 
                     elif child.tag == "hardwareAlignmentQuantum":
-                        self.hardwareAlignmentQuantum = child.text
+                        try:
+                            self.hardwareAlignmentQuantum = floor(float(child.text))
+                        except ValueError as e:
+                            raise e
 
                     elif child.tag == "triggers":
 
-                        if type(child) == ET.Element:
-                            trigger_node = child
-                            for t_child in trigger_node:
-                                self.scriptTriggers.append(Trigger(t_child))
+                        trigger_node = child
+                        for t_child in trigger_node:
+                            self.scriptTriggers.append(Trigger(t_child))
 
                     elif child.tag == "waveforms":
                         self.logger.debug("found a waveform")
@@ -136,7 +137,7 @@ class HSDIO(Instrument):
         set up the triggering, initial states, script triggers, etc
         """
 
-        if self.stop_connections or self.reset_connection:
+        if self.stop_connections or self.exit_measurement:
             return
 
         if not self.enable:
@@ -208,7 +209,7 @@ class HSDIO(Instrument):
 
         self.wvf_written = False
 
-        if self.stop_connections or self.reset_connection:
+        if self.stop_connections or self.exit_measurement:
             return
 
         if not self.enable:
@@ -268,7 +269,7 @@ class HSDIO(Instrument):
         """
 
         done = True
-        if not (self.stop_connections or self.reset_connection) and self.enable:
+        if not (self.stop_connections or self.exit_measurement) and self.enable:
 
             for session in self.sessions:
                 try:
@@ -285,15 +286,16 @@ class HSDIO(Instrument):
         """
         Start the tasks
         """
-        if not (self.stop_connections or self.reset_connection) and self.enable:
-            for session in self.sessions:
-                try:
-                    session.initiate()
-                except HSDIOError as e:
-                    self.logger.debug(f"Unable to initiate session {session}.")
-                    # self.stop()
-                    self.is_initialized = False
-                    raise HardwareError(self, session, message=e.message)
+        if not (self.stop_connections or self.exit_measurement) and self.enable:
+            if self.enable:
+                for session in self.sessions:
+                    try:
+                        session.initiate()
+                    except HSDIOError as e:
+                        self.logger.debug(f"Unable to initiate session {session}.")
+                        # self.stop()
+                        self.is_initialized = False
+                        raise HardwareError(self, session, message=e.message)
 
     def stop(self):
         """
