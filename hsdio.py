@@ -63,8 +63,8 @@ class HSDIO(Instrument):
         device settings
         'node': type is ET.Element. tag should be "HSDIO"
         """
-        
-        self.is_initialized = False
+
+        self.de_initialize()
 
         super().load_xml(node)
 
@@ -143,15 +143,7 @@ class HSDIO(Instrument):
         if not self.enable:
             return
 
-        if self.is_initialized:
-
-            for session in self.sessions:
-                self.stop()
-                self.close()
-
-            self.sessions = []  # reset
-
-            self.is_initialized = False
+        self.de_initialize()
 
         iterables = zip(self.idleStates, self.initialStates,
                         self.activeChannels, self.resourceNames)
@@ -282,6 +274,16 @@ class HSDIO(Instrument):
 
         return done
 
+    def de_initialize(self):
+
+        if self.is_initialized:
+            self.logger.info("stopping initialized sessions")
+            self.stop()
+            self.close()
+
+            self.sessions = []  # reset
+        self.is_initialized = False
+
     def start(self):
         """
         Start the tasks
@@ -325,7 +327,7 @@ class HSDIO(Instrument):
             self.is_initialized = False
             for session in self.sessions:
                 try:
-                    session.close(check_error=False)
+                    session.close(check_error=True)
                     self.logger.debug("Closed an HSDIO session")
                 except HSDIOError as e:
                     if e.error_code == HSDIO.HSDIO_ERR_BSESSION:

@@ -805,7 +805,6 @@ class HSDIOSession:
 
         return error_code, c_done.value
 
-
     def close(
             self,
             reset: bool = True,
@@ -820,8 +819,7 @@ class HSDIOSession:
         you want to tristate your terminals and channels before closing your session.
 
         Args:
-            reset : error code which reports status of operation. 0 = Success,
-                positive values = Warnings , negative values = Errors
+            reset : should hsdio be reset first?
             check_error : should the check() function be called once operation has completed
 
         Returns:
