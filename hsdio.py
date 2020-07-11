@@ -209,42 +209,8 @@ class HSDIO(Instrument):
             
         self.logger.info("Updating HSDIO...")
 
-        # write the waveforms
-        for wf in self.waveformArr:
+        self.write_waveforms()
 
-            self.logger.debug(f"wf pre-split : {wf}")
-            wv_arr = wf.wave_split(flip=False)
-            # for each HSDIO card (e.g., Rb experiment has two cards)
-            for session, wave in zip(self.sessions, wv_arr):
-
-                self.logger.debug(f"post-split : {wave}")
-                format, data = wave.decompress()
-                self.logger.debug(f"format of waveform is {format}")
-                try:
-                    if format == "WDT":
-                        # grouping = HSDIOSession.NIHSDIO_VAL_GROUP_BY_CHANNEL
-                        grouping = HSDIOSession.NIHSDIO_VAL_GROUP_BY_SAMPLE
-                        
-                        self.logger.debug(f"{wave}")
-                        
-                        session.write_waveform_wdt(
-                            wave.name,
-                            len(wave),
-                            grouping,
-                            data
-                        )
-                    elif format == "uInt32":
-                        session.write_waveform_uint32(
-                            wave.name,
-                            len(wave),
-                            data
-                        )
-                except HSDIOError as e:
-                    m = f"{e}\nError writing waveform. Waveform has not been updated",
-                    self.is_initialized = False
-                    raise HardwareError(self, session, message=e.message)
-
-        self.wvf_written = True
         self.logger.info(f"Waveforms written")
 
         # write the script
@@ -279,6 +245,7 @@ class HSDIO(Instrument):
         if self.is_initialized:
             self.logger.info("stopping initialized sessions")
             self.stop()
+            self.remove_waveforms()
             self.close()
 
             self.sessions = []  # reset
@@ -347,3 +314,53 @@ class HSDIO(Instrument):
 
     def print_txt(self, node):  # for debugging
         self.logger.info(f"{node.tag} = {node.text}")
+
+    def write_waveforms(self):
+        """
+        Writes our defined waveforms to hardware.
+        """
+        for wf in self.waveformArr:
+
+            self.logger.debug(f"wf pre-split : {wf}")
+            wv_arr = wf.wave_split(flip=False)
+            # for each HSDIO card (e.g., Rb experiment has two cards)
+            for session, wave in zip(self.sessions, wv_arr):
+
+                self.logger.debug(f"post-split : {wave}")
+                wave_format, data = wave.decompress()
+                self.logger.debug(f"format of waveform is {wave_format}")
+                try:
+                    if wave_format == "WDT":
+                        # grouping = HSDIOSession.NIHSDIO_VAL_GROUP_BY_CHANNEL
+                        grouping = HSDIOSession.NIHSDIO_VAL_GROUP_BY_SAMPLE
+
+                        self.logger.debug(f"{wave}")
+
+                        session.write_waveform_wdt(
+                            wave.name,
+                            len(wave),
+                            grouping,
+                            data
+                        )
+                    elif wave_format == "uInt32":
+                        session.write_waveform_uint32(
+                            wave.name,
+                            len(wave),
+                            data
+                        )
+                except HSDIOError as e:
+                    m = f"{e}\nError writing waveform. Waveform has not been updated",
+                    self.is_initialized = False
+                    raise HardwareError(self, session, message=e.message)
+
+        self.wvf_written = True
+
+    def remove_waveforms(self):
+        """
+        Removes our written waveforms from the hsdio devices
+        """
+        for wave_name in [wf.name for wf in self.waveformArr]:
+            for session in self.sessions:
+                session.delete_named_waveform(wave_name)
+
+        self.waveformArr = []

@@ -722,6 +722,51 @@ class HSDIOSession:
 
         return error_code
 
+    def delete_named_waveform(
+            self,
+            waveform_name: str,
+            check_error: bool = True
+    ) -> int:
+        """
+        Frees the named waveform's space in onboard memory.
+
+        This function releases onboard memory space previously allocated by
+        either the niHSDIO_AllocateNamedWaveform or Write Named Waveform
+        functions. Any future reference to the deleted waveform results in an
+        error.
+
+        However, previously written scripts that still reference the deleted
+        waveform do not generate an error at initiation.
+
+        An error is generated if the waveform name is not allocated in onboard
+        memory.
+
+        wraps niHSDIO_DeleteNamedWaveform
+
+        Args:
+            waveform_name : name of waveform to be deleted
+            check_error : should the check() function be called once operation
+                has completed
+
+        Returns:
+            error code which reports status of operation.
+
+                0 = Success, positive values = Warnings,
+                negative values = Errors
+        """
+
+        c_waveform_name = c_char_p(waveform_name.encode('utf-8'))
+        error_code = self.hsdio.niHSDIO_DeleteNamedWaveform(
+            self.vi,            # ViSession
+            c_waveform_name     # ViConstString
+        )
+
+        ms = f"delete_named_waveform : {waveform_name}"
+        if error_code != 0 and check_error:
+            self.check(error_code, traceback_msg=ms)
+
+        return error_code
+
     def write_script(
                 self,
                 script: str,
