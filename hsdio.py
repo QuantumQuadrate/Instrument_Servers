@@ -221,7 +221,7 @@ class HSDIO(Instrument):
         for wf in self.waveformArr:
 
             self.logger.debug(f"wf pre-split : {wf}")
-            wv_arr = wf.wave_split()
+            wv_arr = wf.wave_split(flip=False)
             # for each HSDIO card (e.g., Rb experiment has two cards)
             for session, wave in zip(self.sessions, wv_arr):
 
