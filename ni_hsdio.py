@@ -722,6 +722,53 @@ class HSDIOSession:
 
         return error_code
 
+    def write_script(
+                self,
+                script: str,
+                check_error: bool = True
+        ) -> int:
+        """
+        Writes a script to the onboard memory containing scripts that govern the waveform
+        generation.
+
+        If this function is called repeatedly, previously written scripts with unique names remain
+        loaded. Previously written scripts with identical names to those being written are replaced.
+
+        If multiple scripts load when the HSDIOSession.Initiate method is called, then one of the
+        scripts must be designated as the script to generate by setting the
+        NIHSDIO_ATTR_SCRIPT_TO_GENERATE attribute to the desired script name. If only one script
+        exists in memory, then you do not need to  designate the script to generate. All waveforms
+        referenced in the scripts must be written before the script is written.
+
+        An error is returned if the script uses incorrect syntax. This function calls the
+        niHSDIO_CommitDynamic function. All pending attributes are committed to hardware.
+
+        wraps niHSDIO_WriteScript
+
+        Args:
+            script : string containing syntactically correct script
+
+            check_error : should the check() function be called once operation has completed
+
+        Returns:
+            error code which reports status of operation.
+
+                0 = Success, positive values = Warnings,
+                negative values = Errors
+        """
+
+        c_script = c_char_p(script.encode('utf-*'))
+
+        error_code = self.hsdio.niHSDIO_WriteScript(
+            self.vi,  # ViSession
+            c_script  # ViConstString
+        )
+
+        if error_code != 0 and check_error:
+            self.check(error_code, traceback_msg="write_script")
+
+        return error_code
+
     def is_done(
             self,
             check_error: bool = True
