@@ -18,6 +18,7 @@ import nidaqmx
 from nidaqmx.constants import (Edge, AcquisitionType, Signal, 
     TerminalConfiguration, LineGrouping)
 from nidaqmx.errors import DaqError
+from nidaqmx.error_codes import INVALID_TASK
 import logging
 import struct
 
@@ -77,18 +78,16 @@ class TTLInput(Instrument):
         """
     
         if not (self.stop_connections or self.exit_measurement) and self.enable:
-                        
+
             # Clear old task
             if self.task is not None:
                 try:
-                    self.task.close()
-                    
-                except DaqError:
-                    # end the task nicely
-                    self.stop()
                     self.close()
-                    msg = '\n TTLInput failed to close current task'
-                    raise HardwareError(self, task=self.task, message=msg)
+                except DaqError as e:
+                    if e.error_code == INVALID_TASK:
+                        self.logger.warning("Tried to close TTLInput task that probably didn't exist")
+                    else:
+                        self.logger.exception(e)
                
             try:
                 self.task = nidaqmx.Task()

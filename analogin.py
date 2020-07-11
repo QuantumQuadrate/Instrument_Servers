@@ -9,6 +9,7 @@ SaffmanLab, University of Wisconsin - Madison
 import nidaqmx
 from nidaqmx.constants import Edge, AcquisitionType, Signal, TerminalConfiguration
 from nidaqmx.errors import DaqError
+from nidaqmx.error_codes import INVALID_TASK
 import numpy as np
 import xml.etree.ElementTree as ET
 import struct
@@ -107,7 +108,14 @@ class AnalogInput(Instrument):
         if not (self.stop_connections or self.reset_connection) and self.enable:
                 
             # Clear old task
-            self.close()
+            if self.task is not None:
+                try:
+                    self.close()
+                except DaqError as e:
+                    if e.error_code == INVALID_TASK:
+                        self.logger.warning("Tried to close AI task that probably didn't exist")
+                    else:
+                        self.logger.exception(e)
             
             # configure the output terminal from an NI Enum
             

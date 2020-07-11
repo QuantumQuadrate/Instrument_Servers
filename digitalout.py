@@ -7,6 +7,7 @@ SaffmanLab, University of Wisconsin - Madison
 import nidaqmx
 from nidaqmx.constants import Edge, LineGrouping, AcquisitionType
 from nidaqmx.errors import DaqError
+from nidaqmx.error_codes import INVALID_TASK
 import numpy as np
 import logging
 
@@ -110,14 +111,12 @@ class DAQmxDO(Instrument):
             # Clear old task
             if self.task is not None:
                 try:
-                    self.task.close()
-
-                except DaqError:
-                    # end the task nicely
-                    self.stop()
                     self.close()
-                    msg = '\n DAQmxDO failed to close current task'
-                    raise HardwareError(self, task=self.task, message=msg)
+                except DaqError as e:
+                    if e.error_code == INVALID_TASK:
+                        self.logger.warning("Tried to close DAQmxDO task that probably didn't exist")
+                    else:
+                        self.logger.exception(e)
 
             try:
                 self.task = nidaqmx.Task()

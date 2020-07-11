@@ -10,6 +10,7 @@ SaffmanLab, University of Wisconsin - Madison
 import nidaqmx
 from nidaqmx.constants import Edge, AcquisitionType, Signal
 from nidaqmx.errors import DaqError
+from nidaqmx.error_codes import INVALID_TASK
 import numpy as np
 import xml.etree.ElementTree as ET
 import csv
@@ -146,7 +147,6 @@ class AnalogOutput(Instrument):
                 except (KeyError, ValueError):
                     raise XMLError(self, child)
 
-    # TODO: test with hardware
     def init(self):
         """
         Create and initialize an nidaqmx Task object
@@ -160,8 +160,11 @@ class AnalogOutput(Instrument):
                 if self.task is not None:
                     try:
                         self.close()
-                    except DaqError: # could extract error code to check if stale reference
-                        self.logger.warning("Tried to close AO task that probably didn't exist")
+                    except DaqError as e:
+                        if e.error_code == INVALID_TASK:
+                            self.logger.warning("Tried to close AO task that probably didn't exist")
+                        else:
+                            self.logger.exception(e)
                         
                 try:
                     self.task = nidaqmx.Task()
@@ -199,7 +202,6 @@ class AnalogOutput(Instrument):
 
                 self.is_initialized = True
 
-    # TODO: test with hardware
     def update(self):
         """
         Update the Analog Output hardware
