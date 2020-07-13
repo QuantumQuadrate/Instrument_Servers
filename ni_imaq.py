@@ -155,12 +155,13 @@ class NIIMAQSession:
         if error_code == 0:
             return
 
-        err_msg = c_char_p("".encode('utf-8'))
+        c_err_msg = c_char_p("".encode('utf-8'))
 
         self.imaq.imgShowError(
             c_int32(error_code),    # IMG_ERR
-            err_msg)                # char*
+            c_err_msg)                # char*
 
+        err_msg = c_err_msg.value
         if error_code < 0:
             code_type = "Error Code"
         elif error_code > 0:

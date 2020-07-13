@@ -8,14 +8,12 @@ For parsing XML strings which specify the settings for the Hamamatsu C9100-13
 camera and initialization of the hardware of said camera. 
 """
 
-from ctypes import *
 import numpy as np
 import xml.etree.ElementTree as ET
 from ni_imaq import NIIMAQSession, SubArray, FrameGrabberAqRegion
 import re
 import struct
 from tcp import TCP
-from recordclass import recordclass as rc
 from instrument import Instrument
 from pxierrors import XMLError, IMAQError, HardwareError
 
@@ -73,9 +71,9 @@ class Hamamatsu(Instrument):
         self.external_trigger_mode = self.EXT_TRIG_SOURCE_MODE_VALUES[
             self.EXT_TRIG_SOURCE_MODE_VALUES["default"]
         ]  # level by default
-        self.scan_speed = self.SCAN_SPEED_VALUES[self.SCAN_SPEED_VALUES["default"]]  # high by default
+        self.scan_speed = self.SCAN_SPEED_VALUES[self.SCAN_SPEED_VALUES["default"]]
         self.external_trigger_source = self.EXT_TRIG_SOURCE_VALUES[
-            self.EXT_TRIG_SOURCE_MODE_VALUES["default"]
+            self.EXT_TRIG_SOURCE_VALUES["default"]
         ]
         self.scan_mode = self.SCAN_MODE_VALUES[self.SCAN_MODE_VALUES["default"]]
         self.super_pixel_binning = ""  # WHERES. MY. SUPER. SUIT?
@@ -106,9 +104,6 @@ class Hamamatsu(Instrument):
         Args:
             'node': node with tag="camera"
         """
-
-        self.is_initialized = False
-        
         super().load_xml(node)
 
         if not (self.exit_measurement or self.stop_connections):
@@ -137,7 +132,7 @@ class Hamamatsu(Instrument):
 
                     elif child.tag == "exposureTime":
                         # can convert scientifically-formatted numbers - good
-                        self.exposure_time = self.float(child.text)
+                        self.exposure_time = float(child.text)
 
                     elif child.tag == "EMGain":
                         gain = self.str_to_int(child.text)
@@ -235,22 +230,14 @@ class Hamamatsu(Instrument):
 
         super().init()
 
-        if self.session.session_id.value != 0:
-            self.session.close()
-
-        self.is_initialized = False
+        if self.is_initialized:
+            self.close()
 
         try:
             # "img0" really shouldn't be hard-coded but it is in labview so we keep for now
             self.session.open_interface("img0")
             self.session.open_session()
         except IMAQError as e:
-            try:
-                self.session.close(check_error=True)
-            except IMAQError as e1:
-                # This error code indicates session/interface never opened
-                if e1.error_code != self.IMG_ERR_BINT:
-                    raise HardwareError(self, self.session, e1.message)
             raise HardwareError(self, self.session, e.message)
 
         # call the Hamamatsu serial function to set the Hamamatsu settings
@@ -345,21 +332,18 @@ class Hamamatsu(Instrument):
             # default is to do nothing
         except IMAQError as e:
             ms = f"{e}\nError writing camera settings. Many camera settings likely not set."
-            self.session.close()
             raise HardwareError(self, self.session, ms)
 
         try:
             self.session.set_roi(self.fg_acquisition_region)
         except IMAQError as e:
             ms = f" {e}\nError: ROI not set correctly"
-            self.session.close()
             raise HardwareError(self, self.session, ms)
 
         try:
             self.session.setup_buffers(num_buffers=self.num_img_buffers)
         except IMAQError as e:
             ms = f"{e}\nBuffer list not initialized correctly"
-            self.session.close()
             raise HardwareError(self, self.session, ms)
 
         # session attributes set in set_roi
@@ -373,6 +357,7 @@ class Hamamatsu(Instrument):
         )
         self.is_initialized = True
         self.num_images = 0
+        self.logger.info(f"Starting session {self.session}")
         self.start()
 
     def start(self):
@@ -390,7 +375,6 @@ class Hamamatsu(Instrument):
             self.session.session_acquire(asynchronous=True)
         except IMAQError as e:
             ms = f"{e}\n Error beginning asynchronous acquisition"
-            self.session.close()
             self.is_initialized = False
             raise HardwareError(self, self.session, ms)
 
@@ -415,7 +399,7 @@ class Hamamatsu(Instrument):
                           f"acquiring? = {acquiring}\n"
                           f"last buffer acquired image number = {last_buffer_number}")
 
-    def get_data(self): # name change to comply with name/functionality convention used in pxi.py
+    def get_data(self):  # name change to comply with name/functionality convention used in pxi.py
         """
         Writes data from session's image buffers to local image array (self.last_measurement)
 
@@ -435,7 +419,6 @@ class Hamamatsu(Instrument):
             er_c, session_acquiring, last_buf_ind, last_buf_num = self.session.status()
         except IMAQError as e:
             ms = f"{e}\nError Reading out session status during measurement"
-            self.is_initialized = False
             raise HardwareError(self, self.session, ms)
 
         bf_dif = last_buf_num - self.last_frame_acquired
@@ -468,7 +451,6 @@ class Hamamatsu(Instrument):
                 er_c, bf_ind, img = self.session.extract_buffer(frame_ind)
             except IMAQError as e:
                 ms = f"{e}\nError acquiring buffer number {frame_ind} measurement abandoned"
-                self.is_initialized = False
                 raise HardwareError(self, self.session, ms)
             self.last_measurement[i, :, :] = img
 
@@ -528,17 +510,34 @@ class Hamamatsu(Instrument):
                 else:
                     # A failed measurement returns useless data of all 0
                     flat_ar = np.zeroes(sz[1]*sz[2])
-                tmp_str = u16_ar_to_str(flat_ar)
+                tmp_str = u16_ar_to_bytes(flat_ar)
                 hm_str += TCP.format_data(f"{hm}/shots/{shot}", tmp_str)
 
             hm_str += TCP.format_data(f"{hm}/temperature", "{:.3f}".format(self.camera_temp))
 
-        except Exception as e:
+        except Exception as e:  # TODO : More specific error handling!
             self.logger.exception(f"Error formatting data from {self.__class__.__name__}")
-            self.is_initialized = False
             raise e
 
         return hm_str
+
+    def close(self):
+        """
+        Closes the Hamamatsu Imaq session gracefully
+        """
+        try:
+            self.logger.info(f"Closing session {self.session}")
+            self.session.close(check_error=True)
+        except IMAQError as e:
+            # This error code indicates session/interface is invalid
+            if e.error_code == self.IMG_ERR_BINT:
+                self.logger.warning(
+                    f"tried to close session {self.session} but it probably does not exist"
+                )
+            else:
+                raise HardwareError(self, self.session, e.message)
+
+        self.is_initialized = False
 
 
 def u16_ar_to_bytes(ar: np.ndarray) -> bytes:
