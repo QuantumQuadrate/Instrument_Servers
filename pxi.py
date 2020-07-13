@@ -23,7 +23,7 @@ from pxierrors import XMLError, HardwareError, PXIError
 
 ## local device classes
 from hsdio import HSDIO
-# from hamamatsu import Hamamatsu
+from hamamatsu import Hamamatsu
 # from analogin import AnalogInput
 # from analogout import AnalogOutput
 # from digitalin import TTLInput
@@ -62,7 +62,7 @@ class PXI:
         # self.analog_output = AnalogOutput(self)
         # self.ttl = TTLInput(self)
         # self.daqmx_do = DAQmxDO(self)
-        # self.hamamatsu = Hamamatsu(self)
+        self.hamamatsu = Hamamatsu(self)
         # TODO: implement these classes
         # self.counters = None  # Counters()
 
@@ -237,11 +237,11 @@ class PXI:
                             cycle = True
                         self.cycle_continuously = cycle
 
-                    # elif child.tag == "camera":
-                    #     # set up the Hamamatsu camera
-                    #     self.hamamatsu.load_xml(child)  # Raises ValueError
-                    #     self.hamamatsu.init()  # Raises IMAQErrors
-                    #
+                    elif child.tag == "camera":
+                        # set up the Hamamatsu camera
+                        self.hamamatsu.load_xml(child)  # Raises ValueError
+                        self.hamamatsu.init()  # Raises IMAQErrors
+
                     # elif child.tag == "AnalogOutput":
                     #     # set up the analog_output
                     #     self.analog_output.load_xml(child)
@@ -300,13 +300,13 @@ class PXI:
         return_data = ""
 
         # the devices which have a method named 'data_out' which returns a str
-        # devices = [
-        #     self.hamamatsu,
-        #     # self.counters, #TODO: implement
-        #     self.ttl,
-        #     self.analog_input
-        #     # self.demo # not implemented, and debatable whether it needs to be
-        # ]
+        devices = [
+            self.hamamatsu
+            # self.counters, #TODO: implement
+            # self.ttl,
+            # self.analog_input
+            # self.demo # not implemented, and debatable whether it needs to be
+        ]
         #
         # for dev in devices:
         #     if dev.is_initialized:
@@ -447,7 +447,7 @@ class PXI:
 
         # devices which have a method 'get_data'
         devices = [
-            # self.hamamatsu,
+            self.hamamatsu
             # self.analog_input,
             # self.counters  # TODO: implement Counters.get_data
         ]
