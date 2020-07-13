@@ -637,10 +637,10 @@ class HSDIOSession:
                 negative values = Errors
         """
 
-        self.logger.info(f"Python Waveform data is {data}\nlength = {len(data)}")
+        self.logger.debug(f"Python Waveform data is {data}\nlength = {len(data)}")
         c_data = (c_uint8 * len(data))(*data)
-        self.logger.info(f"C Waveform data is {list(c_data)}\n length = {len(list(c_data))}")
-        self.logger.info(f"Pyhon samples per channel = {samples_per_chan}\n C samples per chan {c_int32(samples_per_chan)}")
+        self.logger.debug(f"C Waveform data is {list(c_data)}\n length = {len(list(c_data))}")
+        self.logger.debug(f"Pyhon samples per channel = {samples_per_chan}\n C samples per chan {c_int32(samples_per_chan)}")
         c_wvfm_name = c_char_p(waveform_name.encode('utf-8'))
         error_code = self.hsdio.niHSDIO_WriteNamedWaveformWDT(
             self.vi,                    # ViSession
@@ -724,11 +724,56 @@ class HSDIOSession:
 
         return error_code
 
-    def write_script(
+    def delete_named_waveform(
             self,
-            script: str,
+            waveform_name: str,
             check_error: bool = True
     ) -> int:
+        """
+        Frees the named waveform's space in onboard memory.
+
+        This function releases onboard memory space previously allocated by
+        either the niHSDIO_AllocateNamedWaveform or Write Named Waveform
+        functions. Any future reference to the deleted waveform results in an
+        error.
+
+        However, previously written scripts that still reference the deleted
+        waveform do not generate an error at initiation.
+
+        An error is generated if the waveform name is not allocated in onboard
+        memory.
+
+        wraps niHSDIO_DeleteNamedWaveform
+
+        Args:
+            waveform_name : name of waveform to be deleted
+            check_error : should the check() function be called once operation
+                has completed
+
+        Returns:
+            error code which reports status of operation.
+
+                0 = Success, positive values = Warnings,
+                negative values = Errors
+        """
+
+        c_waveform_name = c_char_p(waveform_name.encode('utf-8'))
+        error_code = self.hsdio.niHSDIO_DeleteNamedWaveform(
+            self.vi,            # ViSession
+            c_waveform_name     # ViConstString
+        )
+
+        ms = f"delete_named_waveform : {waveform_name}"
+        if error_code != 0 and check_error:
+            self.check(error_code, traceback_msg=ms)
+
+        return error_code
+
+    def write_script(
+                self,
+                script: str,
+                check_error: bool = True
+        ) -> int:
         """
         Writes a script to the onboard memory containing scripts that govern the waveform
         generation.
@@ -762,8 +807,8 @@ class HSDIOSession:
         c_script = c_char_p(script.encode('utf-*'))
 
         error_code = self.hsdio.niHSDIO_WriteScript(
-            self.vi,    # ViSession
-            c_script    # ViConstString
+            self.vi,  # ViSession
+            c_script  # ViConstString
         )
 
         if error_code != 0 and check_error:
@@ -807,7 +852,6 @@ class HSDIOSession:
 
         return error_code, c_done.value
 
-
     def close(
             self,
             reset: bool = True,
@@ -822,8 +866,7 @@ class HSDIOSession:
         you want to tristate your terminals and channels before closing your session.
 
         Args:
-            reset : error code which reports status of operation. 0 = Success,
-                positive values = Warnings , negative values = Errors
+            reset : should hsdio be reset first?
             check_error : should the check() function be called once operation has completed
 
         Returns:

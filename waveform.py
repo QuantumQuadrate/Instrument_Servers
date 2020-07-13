@@ -160,7 +160,7 @@ class HSDIOWaveform(Waveform):
         'node' is of type xml.etree.ElementTree.Element, with tag="waveform"
         """
 
-        self.logger.info("Initializing waveform from xml")
+        self.logger.debug("Initializing waveform from xml")
         waveform_attrs = node
         for child in waveform_attrs:
             
@@ -170,20 +170,20 @@ class HSDIOWaveform(Waveform):
                     self.name = child.text
 
                 elif child.tag == "transitions":
-                    self.logger.info(f"writing transitions {child.text}")
+                    self.logger.debug(f"writing transitions {child.text}")
                     t = np.array([x for x in child.text.split(" ")], 
                                  dtype=c_uint32)
                     self.transitions = t
-                    self.logger.info(f"transitions written {self.transitions}")
+                    self.logger.debug(f"transitions written {self.transitions}")
                     self.length = len(self.transitions)
 
                 elif child.tag == "states":
-                    self.logger.info(f"writing states {child.text}")
+                    self.logger.debug(f"writing states {child.text}")
                     states = np.array([[int(x) for x in line.split(" ")]
                                       for line in child.text.split("\n")],
                                       dtype=c_uint32)
                     self.states = states
-                    self.logger.info(f"states writen {self.states}")
+                    self.logger.debug(f"states writen {self.states}")
                     self.check_state_len()
 
                 else:
