@@ -402,7 +402,7 @@ class HSDIOSession:
         if error_code != 0 and check_error:
             self.check(error_code, traceback_msg="initiate")
         else:
-            self.logger.info("niHSDIO_Initiate called without error")
+            self.logger.debug("niHSDIO_Initiate called without error")
 
         return error_code
 
