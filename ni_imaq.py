@@ -117,6 +117,10 @@ class NIIMAQSession:
     # Add all keys from ATTRIBUTE dicts to this array
     ATTRIBUTE_KEYS = IMG_ATTRIBUTES_UINT32.keys()
 
+    # Specific Error Codes
+    IMG_ERR_BAD_BUFFER_LIST = int(0xBFF60089)  # Invalid buffer list id
+    IMG_ERR_BINT = -int(0xBFF60015)  # Invalid interface or session
+
     def __init__(self):
         self.logger = logging.getLogger(str(self.__class__))
 
@@ -422,7 +426,7 @@ class NIIMAQSession:
             byref(attr_bf),   # void*, typing depends on attr
         )
 
-        self.attributes[attribute] = attr_bf
+        self.attributes[attribute] = attr_bf.value
 
         if error_code != 0 and check_error:
             self.check(error_code, traceback_msg=f"get attribute\n attribute : {attribute}")
@@ -432,7 +436,7 @@ class NIIMAQSession:
     def set_attribute2(
             self,
             attribute: str,
-            value,
+            value: int,
             check_error: bool = True
     ) -> int:
         """
@@ -475,7 +479,7 @@ class NIIMAQSession:
             attr_val          # variable argument
         )
 
-        self.attributes[attr] = attr_val
+        self.attributes[attribute] = attr_val.value
         if error_code != 0 and check_error:
             msg = f"set attribute 2\n attribute : {attribute} value : {value}"
             self.check(error_code, traceback_msg=msg)
@@ -544,12 +548,14 @@ class NIIMAQSession:
             c_uint32(free_resources)  # uInt32
         )
 
-        if error_code == 0:
+        if error_code == 0 or error_code == self.IMG_ERR_BAD_BUFFER_LIST:
             self.buflist_id = c_uint32(0)
             if free_resources:
                 self.buffers = [c_void_p(0)]*self.num_buffers
             self.buff_list_init = False
 
+        if error_code == self.IMG_ERR_BAD_BUFFER_LIST:
+            self.logger.warning("Attempted to dispose a buffer list, but it likely didn't exist")
         if error_code != 0 and check_error:
             self.check(error_code, traceback_msg="Dispose Buffer List")
 
@@ -578,9 +584,15 @@ class NIIMAQSession:
                 negative values = Errors
         """
 
-        if self.buflist_id != c_uint32(0):
+        if self.buflist_id.value != 0:
             # Make sure buffer list data and memory is cleared safely before making a new one
-            self.dispose_buffer_list()
+            self.logger.info(f"bufflist_id = {self.buflist_id}")
+            try:
+                self.dispose_buffer_list()
+            except IMAQError as e:
+                if e.error_code == self.IMG_ERR_BAD_BUFFER_LIST:
+                    self.logger.warning("Attempted to dispose a buffer list but that buffer list does not exist.")
+                    self.buflist_id
 
         error_code = self.imaq.imgCreateBufList(
             c_uint32(no_elements),  # uInt32
@@ -958,10 +970,10 @@ class NIIMAQSession:
         """
 
         m = roi.__class__.__name__
-        if m.group(1) == "FrameGrabberAqRegion":
+        if m == "FrameGrabberAqRegion":
             width = roi.right - roi.left
             height = roi.bottom - roi.top
-        elif m.group(1) == "SubArray":
+        elif m == "SubArray":
             width = roi.width
             height = roi.height
         else:
@@ -974,9 +986,9 @@ class NIIMAQSession:
 
         # Soft checks to ensure roi is within camera acquisition region
         if width <= acq_width:
-            self.set_attribute2("ROI Width", c_uint32(width))
+            self.set_attribute2("ROI Width", width)
         if height <= acq_height:
-            self.set_attribute2("ROI Height", c_uint32(height))
+            self.set_attribute2("ROI Height", height)
         self.set_attribute2("ROI Left", left)
         self.set_attribute2("ROI Top", top)
 
@@ -1089,7 +1101,7 @@ class NIIMAQSession:
         c_cmd = c_char_p(f"{command}\r".encode('utf-8'))
         enc_exp_rsp = f"{expected_response}\r".encode('utf-8')
 
-        bf_size = c_uint32(sizeof(c_cmd))
+        bf_size = c_uint32(100)
 
         error_code = self.imaq.imgSessionSerialWrite(
             self.session_id,   # SESSION_ID

@@ -49,7 +49,7 @@ class Hamamatsu(Instrument):
                             "default": "positive"}
 
     # Error Codes ----------------------------------------------------------------------------------
-    IMG_ERR_BINT = -1074397163  # Invalid interface or session
+    IMG_ERR_BINT = NIIMAQSession.IMG_ERR_BINT  # Invalid interface or session
 
     def __init__(self, pxi, node: ET.Element = None):
         self.measurement_success = False  # Tracks whether self.last_measurement is useful.
@@ -57,7 +57,6 @@ class Hamamatsu(Instrument):
         # Labview Camera variables
         self.is_initialized = False
         self.num_images = 0
-        self.shots_per_measurement = 0
         self.camera_roi_file_refnum = 0
         # Labview Hamamatsu variables
         # TODO : @Juan compile descriptions of settings set bellow for ease of use later
@@ -268,7 +267,7 @@ class Hamamatsu(Instrument):
             # labview uses "Number to Fraction String Format VI" to convert the
             # exposure time to a string; as far as I can tell this formatting
             # accomplishes the same.
-            exposure = "AET\s{.6f}".format(self.exposure_time)
+            exposure = "AET\s{:.6f}".format(self.exposure_time)
             self.session.hamamatsu_serial(exposure, exposure)
 
             # labview uses "Number to Decimal String VI" to convert the
@@ -350,8 +349,8 @@ class Hamamatsu(Instrument):
         self.last_measurement = np.zeros(
             (
                 self.shots_per_measurement,
-                self.session.attributes("ROI Width"),
-                self.session.attributes("ROI Height")
+                self.session.attributes["ROI Width"],
+                self.session.attributes["ROI Height"]
             ),
             dtype=np.uint16
         )
