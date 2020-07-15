@@ -31,7 +31,6 @@ class AnalogOutput(Instrument):
     
     def __init__(self, pxi):
         super().__init__(pxi, "AnalogOutput")
-        self.logger = logging.getLogger(str(self.__class__))
         self.physicalChannels = ""
         self.minValue = -10
         self.maxValue = 10
