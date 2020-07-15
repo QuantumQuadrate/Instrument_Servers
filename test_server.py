@@ -1,9 +1,10 @@
 import logging
 import colorlog
+from typing import Tuple
 from pxi import PXI
 
 
-def setup_logging_handlers() -> logging.Logger:
+def setup_logging_handlers():
     """
     This function sets up the error logging to the console. Logging
     can be set up at the top of each file by doing:
@@ -39,11 +40,10 @@ def setup_logging_handlers() -> logging.Logger:
 
     # put the handlers to use
     root_logger.addHandler(sh)
-    return root_logger
 
 
 if __name__ == '__main__':
-    root_logger = setup_logging_handlers()
+    setup_logging_handlers()
     logger = logging.getLogger(__name__)
     logger.setLevel(logging.DEBUG)
 
@@ -62,7 +62,7 @@ if __name__ == '__main__':
     address = (hostname, port)
     
     logger.info(f'listening on host={hostname} (ip={ip_str}) port={port}')
-    experiment = PXI(address, root_logger=root_logger)
+    experiment = PXI(address)
     experiment.launch_keylisten_thread()
     logger.info(PXI.help_str)
 

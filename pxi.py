@@ -9,6 +9,7 @@ responses from hardware to CsPy.
 
 ## modules
 import logging
+import colorlog
 import threading
 import xml.etree.ElementTree as ET
 from typing import Tuple
@@ -39,13 +40,17 @@ class PXI:
     
     """
     help_str = ("At any time, type... \n" +
-                " - \'h\' to see this message again \n" +
-                " - \'r\' to reset the connection to CsPy \n" +
-                " - \'q\' to stop the connection and close this server.")
+                " - 'h to see this message again \n" +
+                " - 'r' to reset the connection to CsPy \n" +
+                " - 'd' to toggle the server DEBUG level logging \n" +
+                " - 'q' to stop the connection and close this server.")
 
-    def __init__(self, address: Tuple[str, int], root_logger: logging.Logger):
-        self.root_logger = root_logger
+    def __init__(self, address: Tuple[str, int]):
+        self.root_logger = logging.getLogger() # root_logger
         self._root_logging_lvl_default = self.root_logger.level
+        self.sh = self.root_logger.handlers[0] # stream_handler
+        self._sh_lvl_default = self.sh.level
+
         self.logger = logging.getLogger(str(self.__class__))
         self.logger.setLevel(logging.DEBUG)
         fh = logging.FileHandler('spam.log')
@@ -111,6 +116,13 @@ class PXI:
         The default root logging level for this server
         """
         return self._root_logging_lvl_default
+        
+    @property
+    def sh_lvl_default(self):
+        """
+        The default stream handler level for this server
+        """
+        return self._sh_lvl_default
 
     def queue_command(self, command):
         self.command_queue.put(command)
@@ -539,12 +551,18 @@ class PXI:
         if key == 'd': # toggle debug/info level root logging
             if self.root_logger.level != logging.DEBUG:
                 self.root_logger.setLevel(logging.DEBUG)
-                self.logger.debug("Root logger level is now DEBUG")
             else:
                 self.root_logger.setLevel(self.root_logging_lvl_default)
                 self.logger.info("set the root level logging to default")
-
                 
+            if self.sh.level != logging.DEBUG:
+                self.sh.setLevel(logging.DEBUG)
+            else:
+                self.sh.setLevel(self.sh_lvl_default)
+                self.logger.info("set the stream handler level logging to default")
+                
+            self.logger.debug("Logging level is now DEBUG")
+
             
         elif key == 'q':
             self.logger.info("Connection stopped by user. Closing server.")
