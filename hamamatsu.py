@@ -281,6 +281,7 @@ class Hamamatsu(Instrument):
 
             analog_gain = f"CEG {self.analog_gain}"
             self.session.hamamatsu_serial(analog_gain,analog_gain)
+
             self.read_camera_temp()
 
             # last frame acquired. first actual frame will be zero.
@@ -481,13 +482,14 @@ class Hamamatsu(Instrument):
                 self.is_initialized = False
                 return
 
-            m = re.match(r"TMP (\d+)\.(\d+)", str(msg_out))
+            m = re.match(r'TMP -(\d+)\.(\d+)', msg_out.decode('utf-8'))
             try:
-                self.camera_temp = float("{}.{}".format(m.group(1), m.group(2)))
+                self.camera_temp = -float("{}.{}".format(m.group(1), m.group(2)))
+                self.logger.debug(f"Measured Camera temp = {self.camera_temp}")
             except AttributeError:
                 self.camera_temp = np.inf
                 self.logger.warning(
-                    f"Could not read camera temperature. Returned value = {msg_out}"
+                    f"Could not read camera temperature. Returned value = {msg_out.decode('utf-8')}"
                 )
 
         else:

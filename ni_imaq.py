@@ -1070,7 +1070,7 @@ class NIIMAQSession:
             expected_response: str = "Nothing",
             timeout: int = 10000,
             check_error: bool = True
-    ) -> Tuple[int, str]:
+    ) -> Tuple[int, bytes]:
         """
         Writes data to the hamamatsu serial port.
 
@@ -1139,10 +1139,12 @@ class NIIMAQSession:
         enc_rsp = str_bf.value
         if expected_response == "Nothing" or enc_exp_rsp == enc_rsp:
             if expected_response == "Nothing":
-                self.logger.debug(f"Command : {command} Received : {enc_rsp.decode('utf-8')}")
+                # self.logger.debug(f"Command : {command} Received : {enc_rsp.decode('utf-8')}")
+                pass
             else:
-                self.logger.debug(
-                    f"Command {command} executed as expected. Received : {enc_rsp.decode('utf-8')}")
+                # self.logger.debug(
+                #   f"Command {command} executed as expected. Received : {enc_rsp.decode('utf-8')}")
+                pass
             return error_code, enc_rsp
         error_resp = ""
         if enc_rsp == b"E0\r":
