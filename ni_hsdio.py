@@ -45,7 +45,7 @@ class HSDIOSession:
             handle :  address of device to be accessed as it shows up in NI MAX (e.g. "Dev1")
         """
 
-        self.logger = logging.getLogger(str(self.__class__))
+        self.handle = handle
         # Quick test for bitness
         self.bitness = struct.calcsize("P") * 8
         if self.bitness == 32:
@@ -56,7 +56,8 @@ class HSDIOSession:
             self.hsdio = CDLL(self.dllpath64)
 
         self.vi = c_uint32(0)  # session id
-        self.handle = handle
+
+        self.logger = logging.getLogger(repr(self))
 
     def check(
             self,
@@ -954,3 +955,6 @@ class HSDIOSession:
             self.check(error_code, traceback_msg="reset")
 
         return error_code
+
+    def __repr__(self):
+        return f"{self.__class__.__name__} - Handle : {self.handle}"

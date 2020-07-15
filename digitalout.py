@@ -22,7 +22,6 @@ class DAQmxDO(Instrument):
 
     def __init__(self, pxi):
         super().__init__(pxi, "DAQmxDO")
-        self.logger = logging.getLogger(str(self.__class__))
         self.physicalChannels = None
         self.startTrigger = StartTrigger()
         self.task = None

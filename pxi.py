@@ -51,7 +51,7 @@ class PXI:
         self.sh = self.root_logger.handlers[0] # stream_handler
         self._sh_lvl_default = self.sh.level
 
-        self.logger = logging.getLogger(str(self.__class__))
+        self.logger = logging.getLogger(self.__class__.__name__)
         self.logger.setLevel(logging.DEBUG)
         fh = logging.FileHandler('spam.log')
         fh.setLevel(logging.DEBUG)
