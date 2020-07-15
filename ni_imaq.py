@@ -119,7 +119,7 @@ class NIIMAQSession:
 
     # Specific Error Codes
     IMG_ERR_BAD_BUFFER_LIST = int(0xBFF60089)  # Invalid buffer list id
-    IMG_ERR_BINT = -int(0xBFF60015)  # Invalid interface or session
+    IMG_ERR_BINT = int(0xBFF60015)  # Invalid interface or session
 
     def __init__(self):
         self.logger = logging.getLogger(str(self.__class__))

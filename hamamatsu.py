@@ -135,8 +135,8 @@ class Hamamatsu(Instrument):
 
                     elif child.tag == "EMGain":
                         gain = self.str_to_int(child.text)
-                        as_ms = f"EMGain is {gain}\n EMGain must be between 0 and 255"
-                        assert 0 < gain < 255, as_ms
+                        as_ms = f"EMGain is {gain}. EMGain must be between 0 and 255"
+                        assert 0 <= gain <= 255, as_ms
                         self.em_gain = gain
 
                     elif child.tag == "triggerPolarity":
@@ -214,8 +214,8 @@ class Hamamatsu(Instrument):
                     else:
                         self.logger.warning(f"Node {child.tag} is not a valid Hamamatsu attribute")
 
-                except (KeyError, ValueError, AssertionError):
-                    raise XMLError(self, child)
+                except (KeyError, ValueError, AssertionError) as e:
+                    raise XMLError(self, child, message=f"{e}")
 
     def init(self):
         """
@@ -267,16 +267,16 @@ class Hamamatsu(Instrument):
             # labview uses "Number to Fraction String Format VI" to convert the
             # exposure time to a string; as far as I can tell this formatting
             # accomplishes the same.
-            exposure = "AET\s{:.6f}".format(self.exposure_time)
+            exposure = "AET {:.6f}".format(self.exposure_time)
             self.session.hamamatsu_serial(exposure, exposure)
 
             # labview uses "Number to Decimal String VI" to convert the
             # EMGain to a string; as far as I can tell this formatting
             # accomplishes the same thing in this use case
-            emgain = f"EMG\s{self.em_gain}"
+            emgain = f"EMG {self.em_gain}"
             self.session.hamamatsu_serial(emgain, emgain)
 
-            analog_gain = f"CEG\s{self.analog_gain}"
+            analog_gain = f"CEG {self.analog_gain}"
             self.session.hamamatsu_serial(analog_gain,analog_gain)
 
             self.read_camera_temp()
@@ -297,7 +297,7 @@ class Hamamatsu(Instrument):
 
                 elif self.scan_mode == "SMD A":  # sub-array
 
-                    sub_array_left = ("SHO\s" +
+                    sub_array_left = ("SHO " +
                                       str(self.sub_array.left))
 
                     self.session.hamamatsu_serial(
@@ -305,7 +305,7 @@ class Hamamatsu(Instrument):
                         sub_array_left
                     )
 
-                    sub_array_top = ("SVO\s" +
+                    sub_array_top = ("SVO " +
                                      str(self.sub_array.top))
 
                     self.session.hamamatsu_serial(
@@ -313,7 +313,7 @@ class Hamamatsu(Instrument):
                         sub_array_top
                     )
 
-                    sub_array_width = ("SHW\s" +
+                    sub_array_width = ("SHW " +
                                        str(self.sub_array.width))
 
                     self.session.hamamatsu_serial(
@@ -321,7 +321,7 @@ class Hamamatsu(Instrument):
                         sub_array_width
                     )
 
-                    sub_array_height = ("SVW\s" +
+                    sub_array_height = ("SVW " +
                                         str(self.sub_array.height))
 
                     self.session.hamamatsu_serial(
@@ -414,6 +414,7 @@ class Hamamatsu(Instrument):
         if not self.enable:
             return
 
+        self.logger.info("Getting data!")
         try:
             er_c, session_acquiring, last_buf_ind, last_buf_num = self.session.status()
         except IMAQError as e:
@@ -478,8 +479,14 @@ class Hamamatsu(Instrument):
                 self.is_initialized = False
                 return
 
-            m = re.match(r"TMP (\d+)\.(\d+)", msg_out)
-            self.camera_temp = float("{}.{}".format(m.group(1), m.group(2)))
+            m = re.match(r"TMP (\d+)\.(\d+)", str(msg_out))
+            try:
+                self.camera_temp = float("{}.{}".format(m.group(1), m.group(2)))
+            except AttributeError:
+                self.camera_temp = np.inf
+                self.logger.warning(
+                    f"Could not read camera temperature. Returned value = {msg_out}"
+                )
 
         else:
             self.camera_temp = np.inf
