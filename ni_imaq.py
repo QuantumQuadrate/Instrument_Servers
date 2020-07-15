@@ -1127,8 +1127,32 @@ class NIIMAQSession:
 
         enc_rsp = str_bf.value
         if expected_response == "Nothing" or enc_exp_rsp == enc_rsp:
+            if expected_response == "Nothing":
+                self.logger.debug(f"Command : {command} Received : {enc_rsp.decode('utf-8')}")
+            else:
+                self.logger.debug(
+                    f"Command {command} executed as expected. Received : {enc_rsp.decode('utf-8')}")
             return error_code, enc_rsp
-        msg = f"Serial write {command}.\n Expected Response {enc_exp_rsp} got {enc_rsp}\n"
+        error_resp = ""
+        if enc_rsp == b"E0\r":
+            error_resp = "E0 : camera above max temperature"
+        elif enc_rsp == b"E1\r":
+            error_resp = "E1 : Error on reception: Framing, parity or overrun error"
+        elif enc_rsp == b"E2\r":
+            error_resp = "E2 : Error on reception: input buffer overload"
+        elif enc_rsp == b"E3\r":
+            error_resp = f"E3 : Command {command} contains an error"
+        elif enc_rsp == b"E4\r":
+            error_resp = f"E4 : Command {command} is not suitable for current operating mode"
+        elif enc_rsp == b"E5\r":
+            error_resp = f"E5 : Command {command} has error in parameters"
+        elif enc_rsp == b"E6\r":
+            error_resp = \
+                f"E6 : Command {command} has parameters unsuitable for current operating mode"
+        msg = \
+            f"Serial write {command}.\n" \
+            f"  Expected Response {expected_response} got {enc_rsp.decode('utf-8')}\n" \
+            f"\t{error_resp}"
         self.logger.warning(msg)
         return error_code, enc_rsp
 
