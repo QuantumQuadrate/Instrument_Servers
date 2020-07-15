@@ -10,13 +10,12 @@ from ctypes import *
 import numpy as np
 import xml.etree.ElementTree as ET
 import os
-import struct
 import platform  # for checking the os bit
-import logging
-from ni_hsdio import HSDIOSession
+from math import floor
 from typing import List
 
 ## local class imports
+from ni_hsdio import HSDIOSession
 from trigger import Trigger, StartTrigger
 from waveform import HSDIOWaveform
 from instrument import Instrument
@@ -34,6 +33,7 @@ class HSDIO(Instrument):
     dllpath64 = os.path.join("C:\Program Files\IVI Foundation\IVI\Bin", "niHSDIO_64.dll")
 
     HSDIO_ERR_BSESSION = -1074130544  # Invalid session code
+
     def __init__(self, pxi, node: ET.Element = None):
         # device settings
         self.resourceNames = np.array([], dtype=str)
@@ -63,8 +63,8 @@ class HSDIO(Instrument):
         device settings
         'node': type is ET.Element. tag should be "HSDIO"
         """
-        
-        self.is_initialized = False
+
+        self.de_initialize()
 
         super().load_xml(node)
 
@@ -93,14 +93,16 @@ class HSDIO(Instrument):
                         self.clockRate = float(child.text)
 
                     elif child.tag == "hardwareAlignmentQuantum":
-                        self.hardwareAlignmentQuantum = child.text
+                        try:
+                            self.hardwareAlignmentQuantum = floor(float(child.text))
+                        except ValueError as e:
+                            raise e
 
                     elif child.tag == "triggers":
 
-                        if type(child) == ET.Element:
-                            trigger_node = child
-                            for t_child in trigger_node:
-                                self.scriptTriggers.append(Trigger(t_child))
+                        trigger_node = child
+                        for t_child in trigger_node:
+                            self.scriptTriggers.append(Trigger(t_child))
 
                     elif child.tag == "waveforms":
                         self.logger.debug("found a waveform")
@@ -135,21 +137,13 @@ class HSDIO(Instrument):
         set up the triggering, initial states, script triggers, etc
         """
 
-        if self.stop_connections or self.reset_connection:
+        if self.stop_connections or self.exit_measurement:
             return
 
         if not self.enable:
             return
 
-        if self.is_initialized:
-
-            for session in self.sessions:
-                self.stop()
-                self.close()
-
-            self.sessions = []  # reset
-
-            self.is_initialized = False
+        self.de_initialize()
 
         iterables = zip(self.idleStates, self.initialStates,
                         self.activeChannels, self.resourceNames)
@@ -207,7 +201,7 @@ class HSDIO(Instrument):
 
         self.wvf_written = False
 
-        if self.stop_connections or self.reset_connection:
+        if self.stop_connections or self.exit_measurement:
             return
 
         if not self.enable:
@@ -215,42 +209,13 @@ class HSDIO(Instrument):
             
         self.logger.info("Updating HSDIO...")
 
-        for wf in self.waveformArr:
+        self.write_waveforms()
 
-            # self.logger.info(f"wf pre-split : {wf}")
-            wv_arr = wf.wave_split()
-            # for each HSDIO card (e.g., Rb experiment has two cards)
-            for session, wave in zip(self.sessions, wv_arr):
-
-                # self.logger.info(f"post-split : {wave}")
-                format, data = wave.decompress()
-                # self.logger.info(f"format of waveform is {format}")
-                try:
-                    if format == "WDT":
-                        # grouping = HSDIOSession.NIHSDIO_VAL_GROUP_BY_CHANNEL
-                        grouping = HSDIOSession.NIHSDIO_VAL_GROUP_BY_SAMPLE
-                        
-                        # self.logger.info(f"{wave}")
-                        
-                        session.write_waveform_wdt(
-                            wave.name,
-                            max(wave.transitions),
-                            grouping,
-                            data
-                        )
-                    elif format == "uInt32":
-                        session.write_waveform_uint32(
-                            wave.name,
-                            max(wave.transitions),
-                            data
-                        )
-                except HSDIOError as e:
-                    m = f"{e}\nError writing waveform. Waveform has not been updated",
-                    self.is_initialized = False
-                    raise HardwareError(self, session, message=e.message)
-
-        self.wvf_written = True
         self.logger.info(f"Waveforms written")
+
+        # write the script
+        for session in self.sessions:
+            session.write_script(self.pulseGenScript)
 
     def is_done(self) -> bool:
         """
@@ -262,7 +227,7 @@ class HSDIO(Instrument):
         """
 
         done = True
-        if not (self.stop_connections or self.reset_connection) and self.enable:
+        if not (self.stop_connections or self.exit_measurement) and self.enable:
 
             for session in self.sessions:
                 try:
@@ -275,19 +240,32 @@ class HSDIO(Instrument):
 
         return done
 
+    def de_initialize(self):
+
+        if self.is_initialized:
+            self.logger.info("stopping initialized sessions")
+            self.stop()
+            self.remove_waveforms()
+            self.close()
+
+            self.sessions = []  # reset
+        self.is_initialized = False
+
     def start(self):
         """
         Start the tasks
         """
-        if not (self.stop_connections or self.reset_connection) and self.enable:
-            for session in self.sessions:
-                try:
-                    session.initiate()
-                except HSDIOError as e:
-                    self.logger.debug(f"Unable to initiate session {session}.")
-                    # self.stop()
-                    self.is_initialized = False
-                    raise HardwareError(self, session, message=e.message)
+
+        if not (self.stop_connections or self.exit_measurement) and self.enable:
+            if self.enable:
+                for session in self.sessions:
+                    try:
+                        session.initiate()
+                    except HSDIOError as e:
+                        self.logger.debug(f"Unable to initiate session {session}.")
+                        # self.stop()
+                        self.is_initialized = False
+                        raise HardwareError(self, session, message=e.message)
 
     def stop(self):
         """
@@ -317,7 +295,7 @@ class HSDIO(Instrument):
             self.is_initialized = False
             for session in self.sessions:
                 try:
-                    session.close(check_error=False)
+                    session.close(check_error=True)
                     self.logger.debug("Closed an HSDIO session")
                 except HSDIOError as e:
                     if e.error_code == HSDIO.HSDIO_ERR_BSESSION:
@@ -337,3 +315,53 @@ class HSDIO(Instrument):
 
     def print_txt(self, node):  # for debugging
         self.logger.info(f"{node.tag} = {node.text}")
+
+    def write_waveforms(self):
+        """
+        Writes our defined waveforms to hardware.
+        """
+        for wf in self.waveformArr:
+
+            self.logger.debug(f"wf pre-split : {wf}")
+            wv_arr = wf.wave_split(flip=False)
+            # for each HSDIO card (e.g., Rb experiment has two cards)
+            for session, wave in zip(self.sessions, wv_arr):
+
+                self.logger.debug(f"post-split : {wave}")
+                wave_format, data = wave.decompress()
+                self.logger.debug(f"format of waveform is {wave_format}")
+                try:
+                    if wave_format == "WDT":
+                        # grouping = HSDIOSession.NIHSDIO_VAL_GROUP_BY_CHANNEL
+                        grouping = HSDIOSession.NIHSDIO_VAL_GROUP_BY_SAMPLE
+
+                        self.logger.debug(f"{wave}")
+
+                        session.write_waveform_wdt(
+                            wave.name,
+                            len(wave),
+                            grouping,
+                            data
+                        )
+                    elif wave_format == "uInt32":
+                        session.write_waveform_uint32(
+                            wave.name,
+                            len(wave),
+                            data
+                        )
+                except HSDIOError as e:
+                    m = f"{e}\nError writing waveform. Waveform has not been updated",
+                    self.is_initialized = False
+                    raise HardwareError(self, session, message=e.message)
+
+        self.wvf_written = True
+
+    def remove_waveforms(self):
+        """
+        Removes our written waveforms from the hsdio devices
+        """
+        for wave_name in [wf.name for wf in self.waveformArr]:
+            for session in self.sessions:
+                session.delete_named_waveform(wave_name)
+
+        self.waveformArr = []

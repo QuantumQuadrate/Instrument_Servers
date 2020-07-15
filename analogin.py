@@ -3,12 +3,11 @@ AnalogInput class for the PXI Server
 SaffmanLab, University of Wisconsin - Madison
 """
 
-# TODO: handle errors where nidaqmx functions are called?
-
 ## modules 
 import nidaqmx
 from nidaqmx.constants import Edge, AcquisitionType, Signal, TerminalConfiguration
 from nidaqmx.errors import DaqError
+from nidaqmx.error_codes import DAQmxErrors
 import numpy as np
 import xml.etree.ElementTree as ET
 import struct
@@ -88,10 +87,6 @@ class AnalogInput(Instrument):
 
                     elif child.tag == "triggerEdge":
                         try:
-                            # CODO: could make dictionary keys in StartTrigger
-                            # lowercase and then just .lower() the capitalized keys
-                            # passed in elsewhere
-                            # text = child.text[0].upper() + child.text[1:]
                             self.startTrigger.edge = StartTrigger.nidaqmx_edges[child.text.lower()]
                         except KeyError as e:
                             raise KeyError(f"Not a valid {child.tag} value {child.text} \n {e}")
@@ -108,7 +103,13 @@ class AnalogInput(Instrument):
                 
             # Clear old task
             if self.task is not None:
-                self.close()
+                try:
+                    self.close()
+                except DaqError as e:
+                    if e.error_code == DAQmxErrors.INVALID_TASK.value:
+                        self.logger.warning("Tried to close AI task that probably didn't exist")
+                    else:
+                        self.logger.exception(e)
             
             # configure the output terminal from an NI Enum
             
