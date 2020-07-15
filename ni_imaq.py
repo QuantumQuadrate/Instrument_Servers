@@ -136,16 +136,6 @@ class NIIMAQSession:
         self.attributes = {}
         self.logger = logging.getLogger(repr(self))
 
-    @property
-    def SID(self) -> int:
-        """ Returns value of current session id"""
-        return self.session_id.value
-
-    @property
-    def IID(self) -> int:
-        """ Returns value of current interface id"""
-        return self.interface_id.value
-
     def check(
             self,
             error_code: int,
