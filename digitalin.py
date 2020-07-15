@@ -18,6 +18,7 @@ import nidaqmx
 from nidaqmx.constants import (Edge, AcquisitionType, Signal, 
     TerminalConfiguration, LineGrouping)
 from nidaqmx.errors import DaqError
+from nidaqmx.error_codes import DAQmxErrors
 import logging
 import struct
 
@@ -77,21 +78,19 @@ class TTLInput(Instrument):
         """
     
         if not (self.stop_connections or self.exit_measurement) and self.enable:
-                        
+
             # Clear old task
             if self.task is not None:
                 try:
-                    self.task.close()
-                    
-                except DaqError:
-                    # end the task nicely
-                    self.stop()
                     self.close()
-                    msg = '\n TTLInput failed to close current task'
-                    raise HardwareError(self, task=self.task, message=msg)
+                except DaqError as e:
+                    if e.error_code == DAQmxErrors.INVALID_TASK.value:
+                        self.logger.warning("Tried to close TTLInput task that probably didn't exist")
+                    else:
+                        self.logger.exception(e)
                
             try:
-                self.task = nidaqmx.Task() # might be task.Task()
+                self.task = nidaqmx.Task()
             
                 # Create a digital input channel.
                 # Number of samples_per channel unspecified, so returns only one 

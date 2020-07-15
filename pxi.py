@@ -242,30 +242,33 @@ class PXI:
                         self.hamamatsu.load_xml(child)  # Raises ValueError
                         self.hamamatsu.init()  # Raises IMAQErrors
 
-                    # elif child.tag == "AnalogOutput":
-                    #     # set up the analog_output
-                    #     self.analog_output.load_xml(child)
-                    #     self.analog_output.init()
-                    #     self.analog_output.update()
-                    #     pass
-                    #
-                    # elif child.tag == "AnalogInput":
+                    elif child.tag == "AnalogOutput":
+                        # # set up the analog_output
+                        # self.analog_output.load_xml(child)
+                        # self.logger.info("AnalogOutput XML loaded")
+                        # self.analog_output.init()
+                        # self.logger.info("AnalogOutput initialized")
+                        # self.analog_output.update()
+                        # self.logger.info("AnalogOutput hardware updated")
+                        pass
+
+                    elif child.tag == "AnalogInput":
                     #     # set up the analog_input
                     #     self.analog_input.load_xml(child)
                     #     self.analog_input.init()
-                    #     pass
-                    #
-                    # elif child.tag == "Counters":
+                        pass
+
+                    elif child.tag == "Counters":
                     #     # TODO: implement counters class
                     #     # set up the counters
                     #     # self.counters.load_xml(child)
                     #     # self.counters.init()
-                    #     pass
-                    #
+                        pass
+
                     # # might implement, or might move RF generator functionality to
                     # # CsPy based on code used by Hybrid.
-                    # elif child.tag == "RF_generators":
-                    #     pass
+                    elif child.tag == "RF_generators":
+                        pass
 
                     else:
                         self.logger.warning(f"Node {child.tag} received is not a valid" +

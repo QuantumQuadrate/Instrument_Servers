@@ -7,6 +7,7 @@ SaffmanLab, University of Wisconsin - Madison
 import nidaqmx
 from nidaqmx.constants import Edge, LineGrouping, AcquisitionType
 from nidaqmx.errors import DaqError
+from nidaqmx.error_codes import DAQmxErrors
 import numpy as np
 import logging
 
@@ -110,17 +111,15 @@ class DAQmxDO(Instrument):
             # Clear old task
             if self.task is not None:
                 try:
-                    self.task.close()
-
-                except DaqError:
-                    # end the task nicely
-                    self.stop()
                     self.close()
-                    msg = '\n DAQmxDO failed to close current task'
-                    raise HardwareError(self, task=self.task, message=msg)
+                except DaqError as e:
+                    if e.error_code == DAQmxErrors.INVALID_TASK.value:
+                        self.logger.warning("Tried to close DAQmxDO task that probably didn't exist")
+                    else:
+                        self.logger.exception(e)
 
             try:
-                self.task = nidaqmx.Task() # might be task.Task()
+                self.task = nidaqmx.Task()
 
                 # Create digital out virtual channel
                 self.task.do_channels.add_do_chan(
@@ -137,7 +136,7 @@ class DAQmxDO(Instrument):
 
                 # Optionally set up start trigger
                 if self.startTrigger.wait_for_start_trigger:
-                    self.task.start_trigger.cfg_dig_edge_start_trig(
+                    self.task.triggers.start_trigger.cfg_dig_edge_start_trig(
                         trigger_source=self.startTrigger.source,
                         trigger_edge=self.startTrigger.edge)
 

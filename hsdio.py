@@ -255,6 +255,7 @@ class HSDIO(Instrument):
         """
         Start the tasks
         """
+
         if not (self.stop_connections or self.exit_measurement) and self.enable:
             if self.enable:
                 for session in self.sessions:

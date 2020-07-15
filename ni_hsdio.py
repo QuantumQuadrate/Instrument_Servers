@@ -398,9 +398,11 @@ class HSDIOSession:
         """
 
         error_code = self.hsdio.niHSDIO_Initiate(self.vi)  # ViSession
-
+        
         if error_code != 0 and check_error:
             self.check(error_code, traceback_msg="initiate")
+        else:
+            self.logger.debug("niHSDIO_Initiate called without error")
 
         return error_code
 
