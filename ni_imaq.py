@@ -1096,12 +1096,22 @@ class NIIMAQSession:
                 negative values = Errors
                 camera_response : camera's response to command. encoded in utf-8
         """
+        # Clear internal buffer before write
+        error_code = self.imaq.imgSessionSerialFlush(
+            self.session_id     # SESSION_ID
+        )
+
+        if error_code != 0 and check_error:
+            self.check(error_code, f"IMAQ serial flush before writing {command}")
+            return error_code, "Error"
 
         # add carriage return, ends all camera serial i/o
         c_cmd = c_char_p(f"{command}\r".encode('utf-8'))
         enc_exp_rsp = f"{expected_response}\r".encode('utf-8')
 
-        bf_size = c_uint32(100)
+        bf_size = c_uint32(len(c_cmd.value))
+        # self.logger.debug(f"len of {c_cmd.value} = {len(c_cmd.value)}")
+        # self.logger.debug(f"Size of buffer = {bf_size.value}")
 
         error_code = self.imaq.imgSessionSerialWrite(
             self.session_id,   # SESSION_ID
@@ -1114,6 +1124,7 @@ class NIIMAQSession:
             self.check(error_code, f"IMAQ serial write command {command}")
             return error_code, "Error"
 
+        bf_size = c_uint32(100)
         str_bf = create_string_buffer(b"", bf_size.value)
         error_code = self.imaq.imgSessionSerialRead(
             self.session_id,  # SESSION_ID

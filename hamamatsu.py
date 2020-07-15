@@ -241,6 +241,8 @@ class Hamamatsu(Instrument):
 
         # call the Hamamatsu serial function to set the Hamamatsu settings
         try:
+            self.session.hamamatsu_serial(self.fan, self.fan)
+            self.session.hamamatsu_serial(self.fan, self.fan)
             self.session.hamamatsu_serial(self.cooling, self.cooling)
             self.session.hamamatsu_serial(self.fan, self.fan)
             self.session.hamamatsu_serial(self.scan_speed, self.scan_speed)
@@ -267,8 +269,9 @@ class Hamamatsu(Instrument):
             # labview uses "Number to Fraction String Format VI" to convert the
             # exposure time to a string; as far as I can tell this formatting
             # accomplishes the same.
-            exposure = "AET {:.6f}".format(self.exposure_time)
+            exposure = "AET {:.3f}".format(self.exposure_time)
             self.session.hamamatsu_serial(exposure, exposure)
+            # default is to do nothing
 
             # labview uses "Number to Decimal String VI" to convert the
             # EMGain to a string; as far as I can tell this formatting
@@ -278,7 +281,6 @@ class Hamamatsu(Instrument):
 
             analog_gain = f"CEG {self.analog_gain}"
             self.session.hamamatsu_serial(analog_gain,analog_gain)
-
             self.read_camera_temp()
 
             # last frame acquired. first actual frame will be zero.
@@ -328,7 +330,7 @@ class Hamamatsu(Instrument):
                         sub_array_height,
                         sub_array_height
                     )
-            # default is to do nothing
+
         except IMAQError as e:
             ms = f"{e}\nError writing camera settings. Many camera settings likely not set."
             raise HardwareError(self, self.session, ms)
