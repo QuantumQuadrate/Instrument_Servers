@@ -70,7 +70,29 @@ class Trigger(XMLLoader):
 
 class StartTrigger(XMLLoader):
     """
-    TODO : @Preston write docstring for this class
+    StartTrigger class for initializing and setting triggers for NI devices
+    
+    For example usage, see hsdio.py,analogout.py,analogin.py,digitalout.py,
+    and digitalin.py in the PXI Server project.
+    
+    Allowed trigger edges, which are set in load_xml, are the values in the
+    dictionaries below. The second dictionary applies to devices which uses
+    the NI-DAQmx python module. 
+    
+    EDGES = {"rising edge": 12,
+             "falling edge": 13,
+             "default": "rising edge"}
+             
+    nidaqmx_edges = {"rising": Edge.RISING,
+                     "falling": Edge.FALLING,
+                     "default": "rising"}
+    
+    Attributes:
+        source: the physical source name
+        wait_for_start_trigger: boolean. self-documenting.
+        description: again, self-documenting.
+        edge: an allowed trigger edge, as defined by internal dictionaries (see
+            above).
     """
     EDGES = {"rising edge": 12,
              "falling edge": 13,
@@ -91,7 +113,10 @@ class StartTrigger(XMLLoader):
     def load_xml(self, node: ET.Element):
         """
         re-initialize attributes for existing StartTrigger from children of node. 
-        'node' is of type xml.etree.ElementTree.Element, with tag="startTrigger"
+        
+        Args:
+            'node' is of type xml.etree.ElementTree.Element, with 
+            tag="startTrigger"
         """
         for child in node:
 
@@ -115,7 +140,7 @@ class StartTrigger(XMLLoader):
             except KeyError:
                 raise XMLError(self, child)
 
-    def __repr__(self):  # mostly for debugging
+    def __repr__(self):
         return (f"StartTrigger(waitForStartTrigger={self.wait_for_start_trigger}, "
                 f"source={self.source}, description={self.description}, "
                 f"edge={self.edge})")
