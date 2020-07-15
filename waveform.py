@@ -160,7 +160,7 @@ class HSDIOWaveform(Waveform):
         'node' is of type xml.etree.ElementTree.Element, with tag="waveform"
         """
 
-        # self.logger.info("Initializing waveform from xml")
+        self.logger.debug("Initializing waveform from xml")
         waveform_attrs = node
         for child in waveform_attrs:
             
@@ -170,20 +170,20 @@ class HSDIOWaveform(Waveform):
                     self.name = child.text
 
                 elif child.tag == "transitions":
-                    # self.logger.info(f"writing transitions {child.text}")
+                    self.logger.debug(f"writing transitions {child.text}")
                     t = np.array([x for x in child.text.split(" ")], 
                                  dtype=c_uint32)
                     self.transitions = t
-                    # self.logger.info(f"transitions written {self.transitions}")
+                    self.logger.debug(f"transitions written {self.transitions}")
                     self.length = len(self.transitions)
 
                 elif child.tag == "states":
-                    # self.logger.info(f"writing states {child.text}")
+                    self.logger.debug(f"writing states {child.text}")
                     states = np.array([[int(x) for x in line.split(" ")]
                                       for line in child.text.split("\n")],
                                       dtype=c_uint32)
                     self.states = states
-                    # self.logger.info(f"states writen {self.states}")
+                    self.logger.debug(f"states writen {self.states}")
                     self.check_state_len()
 
                 else:
@@ -242,17 +242,16 @@ class HSDIOWaveform(Waveform):
         allowed_formats = ["WDT", "uInt32"]
         assert data_format in allowed_formats
 
-        iterables = zip(self.states, self.transitions)
         if data_format == "WDT":
 
             t_old = self.transitions[0]
             s_old = self.states[0]
             wvfm = np.zeros(
-                (max(self.transitions+[1]), len(self.states[0])),
+                (len(self), len(self.states[0])),
                 dtype=c_uint8
             )
-            for state, transition in iterables:
-                for c in range(t_old, transition):
+            for state, transition in zip(self.states, self.transitions):
+                for c in range(t_old, len(wvfm)):
                     wvfm[c, :] = s_old
                 t_old = transition
                 s_old = state
@@ -265,8 +264,8 @@ class HSDIOWaveform(Waveform):
         elif data_format == "uInt32":
             t_old = self.transitions[0]
             s_old = self.state_to_int32(self.states[0])
-            wvfm = np.zeros(max(self.transitions), dtype=c_uint32)
-            for state, transition in iterables:
+            wvfm = np.zeros(len(self), dtype=c_uint32)
+            for state, transition in zip(self.states, self.transitions):
                 c_state = self.state_to_int32(state)
                 for c in range(t_old, transition):
                     wvfm[c] = s_old
@@ -353,3 +352,7 @@ class HSDIOWaveform(Waveform):
         # comment out when not debugging
         ms += f"\n Full Waveform: transitions : {self.transitions}\n states : {self.states}"
         return ms
+
+    def __len__(self):
+        # the [1] makes the 1 transition case (self.transitions = [0]) work nicely
+        return max(self.transitions+[1])
