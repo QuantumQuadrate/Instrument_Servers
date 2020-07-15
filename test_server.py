@@ -3,7 +3,7 @@ import colorlog
 from pxi import PXI
 
 
-def setup_logging_handlers():
+def setup_logging_handlers() -> logging.Logger:
     """
     This function sets up the error logging to the console. Logging
     can be set up at the top of each file by doing:
@@ -39,10 +39,11 @@ def setup_logging_handlers():
 
     # put the handlers to use
     root_logger.addHandler(sh)
+    return root_logger
 
 
 if __name__ == '__main__':
-    setup_logging_handlers()
+    root_logger = setup_logging_handlers()
     logger = logging.getLogger(__name__)
     logger.setLevel(logging.DEBUG)
 
@@ -53,12 +54,15 @@ if __name__ == '__main__':
     host_choice = input()
     if host_choice == "":
         hostname = "localhost"
+        ip_str = "127.0.0.1"
     else: 
         hostname = ""
+        ip_str = "0.0.0.0"
+        
     address = (hostname, port)
-
-    logger.info(f'starting up on host={hostname} port {port}')
-    experiment = PXI(address)
+    
+    logger.info(f'listening on host={hostname} (ip={ip_str}) port={port}')
+    experiment = PXI(address, root_logger=root_logger)
     experiment.launch_keylisten_thread()
     logger.info(PXI.help_str)
 
