@@ -34,7 +34,6 @@ class AnalogInput(Instrument):
         from CsPy. 
         """
         super().__init__(pxi, "AnalogInput")
-        self.logger = logging.getLogger(str(self.__class__))
         self.groundMode = ''
         self.sampleRate = 0
         self.samplesPerMeasurement = 0

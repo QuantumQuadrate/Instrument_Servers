@@ -32,7 +32,6 @@ class TTLInput(Instrument):
     
     def __init__(self, pxi):
         super().__init__(pxi, "TTL")
-        self.logger = logging.getLogger(str(self.__class__))
         self.data_string = ""
         self.task = None
         self.lines = ""
