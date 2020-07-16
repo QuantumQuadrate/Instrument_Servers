@@ -269,7 +269,7 @@ class Hamamatsu(Instrument):
             # labview uses "Number to Fraction String Format VI" to convert the
             # exposure time to a string; as far as I can tell this formatting
             # accomplishes the same.
-            exposure = "AET {:.3f}".format(self.exposure_time)
+            exposure = "AET {:.6f}".format(self.exposure_time)
             self.session.hamamatsu_serial(exposure, exposure)
             # default is to do nothing
 
@@ -346,6 +346,14 @@ class Hamamatsu(Instrument):
             self.session.setup_buffers(num_buffers=self.num_img_buffers)
         except IMAQError as e:
             ms = f"{e}\nBuffer list not initialized correctly"
+            raise HardwareError(self, self.session, ms)
+
+        # Configure the session to use our newly set-up buffers
+        try:
+            self.session.mem_lock()
+            self.session.session_configure()
+        except IMAQError as e:
+            ms = f"{e}\nSession configured incorrectly"
             raise HardwareError(self, self.session, ms)
 
         # session attributes set in set_roi
