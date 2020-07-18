@@ -40,7 +40,7 @@ class PXI:
     
     """
     help_str = ("At any time, type... \n" +
-                " - 'h to see this message again \n" +
+                " - 'h' to see this message again \n" +
                 " - 'r' to reset the connection to CsPy \n" +
                 " - 'd' to toggle the server DEBUG level logging \n" +
                 " - 'q' to stop the connection and close this server.")

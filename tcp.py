@@ -49,7 +49,7 @@ class TCP:
             self.reset_connection = False
 
             # TODO: entering q in cmd line should terminate this process
-            self.logger.info("attempting to accept connection request.")
+            self.logger.info("Attempting to accept connection request.")
             self.current_connection, client_address = self.listening_socket.accept()
             self.logger.info(f"Started connection with {client_address}")
             while not (self.pxi.reset_connection or self.stop_connections):
@@ -57,6 +57,11 @@ class TCP:
                     self.receive_message()
                 except socket.timeout:
                     pass
+                except ConnectionResetError as e:
+                    self.logger.warning(e)
+                    self.pxi.reset_connection = True
+                    self.logger.info("Connection reset")
+                    
             self.logger.info(f"Closing connection with {client_address}")
             self.current_connection.close()
 

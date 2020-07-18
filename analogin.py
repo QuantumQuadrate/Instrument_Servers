@@ -200,7 +200,7 @@ class AnalogInput(Instrument):
                 
                 # TODO: remove after debugging
                 try:
-                    self.logger.info("aqcuired data:\n"+
+                    self.logger.debug("aqcuired data:\n"+
                         f"len(data) = {len(self.data)}\n"
                         f"data = {self.data}"
                     )
@@ -238,7 +238,7 @@ class AnalogInput(Instrument):
                 # UTF-8 JSON or binary. this returns bytes and may therefore be wrong.
                 
                 data_string = "".join([str(x) for x in flat_data])
-                self.logger.info("AI data is " + data_string)
+                self.logger.debug("AI data is " + data_string)
                 
                 # data_bytes = struct.pack('!L', "".join([str(x) for x in flat_data]))
                 # data_string = TCP.bytes_to_str(data_string)
