@@ -1,5 +1,6 @@
 import logging
 import colorlog
+from typing import Tuple
 from pxi import PXI
 
 
@@ -53,11 +54,14 @@ if __name__ == '__main__':
     host_choice = input()
     if host_choice == "":
         hostname = "localhost"
+        ip_str = "127.0.0.1"
     else: 
         hostname = ""
+        ip_str = "0.0.0.0"
+        
     address = (hostname, port)
-
-    logger.info(f'starting up on host={hostname} port {port}')
+    
+    logger.info(f'listening on host={hostname} (ip={ip_str}) port={port}')
     experiment = PXI(address)
     experiment.launch_keylisten_thread()
     logger.info(PXI.help_str)

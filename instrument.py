@@ -29,7 +29,7 @@ class XMLLoader(ABC):
         Args:
             node : optional node so that a second call to load_xml does not have to be made
         """
-        self.logger = logging.getLogger(str(self.__class__.__name__))
+        self.logger = logging.getLogger(repr(self))
         self.logger.setLevel(logging.DEBUG)  # Adjust instrument level logging here
         # TODO : Set logging level globally. Maybe config file
         if node is not None:
@@ -129,6 +129,11 @@ class XMLLoader(ABC):
             )
             setattr(self, attr, values[default])
 
+    def __repr__(self):
+        """
+        Overwrite in other instruments if more detailed info is desired
+        """
+        return self.__class__.__name__
 
 class Instrument(XMLLoader):
     

@@ -118,8 +118,6 @@ class NIIMAQSession:
     ATTRIBUTE_KEYS = IMG_ATTRIBUTES_UINT32.keys()
 
     def __init__(self):
-        self.logger = logging.getLogger(str(self.__class__))
-
         self.imaq = CDLL(os.path.join("C:\Windows\System32", "imaq.dll"))
         self.interface_id = c_uint32(0)
         self.session_id = c_uint32(0)
@@ -136,6 +134,7 @@ class NIIMAQSession:
 
         # dict of values mapped to keys
         self.attributes = {}
+        self.logger = logging.getLogger(repr(self))
 
     def check(
             self,
@@ -1119,6 +1118,8 @@ class NIIMAQSession:
         self.logger.warning(msg)
         return error_code, enc_rsp
 
+    def __repr__(self):
+        return self.__class__.__name__
 
 
 
