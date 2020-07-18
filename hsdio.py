@@ -145,6 +145,12 @@ class HSDIO(Instrument):
 
         self.de_initialize()
 
+        # it's not obvious from looking at these iterables that what is being
+        # done is that we're actually looping over HSDIO cards. Each card has
+        # its own idleState,initialState,activeChannels, and resourceNames. 
+        # a more reader-friendly structure might create HSDIOCard objects, each
+        # of which has these attrs, then explicitly loop over the cards instead
+        # of the attrs. 
         iterables = zip(self.idleStates, self.initialStates,
                         self.activeChannels, self.resourceNames)
         for idle_state, init_state, chan_list, resource in iterables:
@@ -152,7 +158,7 @@ class HSDIO(Instrument):
             session = self.sessions[-1]
 
             try:
-                self.logger.info(f"resource: {resource} \n chan_list: {chan_list} \n idle_state: {idle_state} \n init_state: {init_state}")
+                self.logger.debug(f"resource: {resource} \n chan_list: {chan_list} \n idle_state: {idle_state} \n init_state: {init_state}")
                 session.init_generation_sess()
                 # TODO : deal with error case where session is not initiated
                 session.assign_dynamic_channels(chan_list)
