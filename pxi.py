@@ -203,7 +203,8 @@ class PXI:
             self.logger.warning("Not a valid msg for the pxi")
 
         else:
-            # loop non-recursively over children in root
+            # loop non-recursively over children in root to setup device
+            # hardware and other server settings
             for child in root:
 
                 self.element_tags.append(child)
@@ -232,22 +233,24 @@ class PXI:
                         pass
 
                     elif child.tag == "HSDIO":
-                        # self.hsdio.load_xml(child)
-                        # self.logger.info("HSDIO XML loaded")
-                        # self.hsdio.init()
-                        # self.logger.info("HSDIO hardware initialized")
-                        # self.hsdio.update()
-                        # self.logger.info("HSDIO hardware updated")
-                        # self.logger.info(f"HSDIO.enable = {self.hsdio.enable}")
-                        pass
+                        # setup the HSDIO
+                        self.hsdio.load_xml(child)
+                        self.logger.info("HSDIO XML loaded")
+                        self.hsdio.init()
+                        self.logger.info("HSDIO hardware initialized")
+                        self.hsdio.update()
+                        self.logger.info("HSDIO hardware updated")
+                        self.logger.info(f"HSDIO.enable = {self.hsdio.enable}")
 
-                    # elif child.tag == "TTL":
+                    elif child.tag == "TTL":
                     #     self.ttl.load_xml(child)
                     #     self.ttl.init()
-                    #
-                    # elif child.tag == "DAQmxDO":
-                    #     self.daqmx_do.load_xml(child)
-                    #     self.daqmx_do.init()
+                        pass
+
+                    elif child.tag == "DAQmxDO":
+                        # self.daqmx_do.load_xml(child)
+                        # self.daqmx_do.init()
+                        pass
 
                     elif child.tag == "timeout":
                         try:
