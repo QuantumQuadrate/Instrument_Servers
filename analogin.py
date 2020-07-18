@@ -3,6 +3,8 @@ AnalogInput class for the PXI Server
 SaffmanLab, University of Wisconsin - Madison
 """
 
+# TODO: handle errors where nidaqmx functions are called?
+
 ## modules 
 import nidaqmx
 from nidaqmx.constants import Edge, AcquisitionType, Signal, TerminalConfiguration
@@ -86,7 +88,11 @@ class AnalogInput(Instrument):
 
                     elif child.tag == "triggerEdge":
                         try:
-                            self.startTrigger.edge = StartTrigger.nidaqmx_edges[child.text.lower()]
+                            # CODO: could make dictionary keys in StartTrigger
+                            # lowercase and then just .lower() the capitalized keys
+                            # passed in elsewhere
+                            text = child.text[0].upper() + child.text[1:]
+                            self.startTrigger.edge = StartTrigger.nidaqmx_edges[text]
                         except KeyError as e:
                             raise KeyError(f"Not a valid {child.tag} value {child.text} \n {e}")
 
@@ -119,12 +125,9 @@ class AnalogInput(Instrument):
             # value is what gets used. This seems like a bug on the CsPy side,
             # even if the default here is desired.
             try: 
-                # this is what is done in LabVIEW but I believe it is an error. 
-                # self.source will always refer to physical channel(s), which will
-                # never be a key in TerminalConfiguration. 
                 inputTerminalConfig = TerminalConfiguration[self.source]
             except KeyError as e:
-                self.logger.warning(f"Invalid output terminal setting \'{self.source}\' \n"+
+                self.logger.error(f"Invalid output terminal setting \'{self.source}\' \n"+
                          "Using default, 'NRSE' , instead")
                 inputTerminalConfig = TerminalConfiguration['NRSE']
                 
@@ -179,6 +182,7 @@ class AnalogInput(Instrument):
                 self.stop()
                 self.close()
                 msg = '\n AnalogInput check for task completion failed'
+                self.is_initialized = False
                 raise HardwareError(self, task=self.task, message=msg)
 
         return done
@@ -194,31 +198,22 @@ class AnalogInput(Instrument):
         if not (self.stop_connections or self.exit_measurement) and self.enable:
         
             try: 
-                # dadmx read 2D DBL N channel N sample. use defaults kwargs. 
+                # dadmx read 2D DBL N channel N sample. use defaults args. 
                 # measurement type inferred from the task virtual channel
                 self.data = self.task.read()
-                
-                # TODO: remove after debugging
-                try:
-                    self.logger.debug("aqcuired data:\n"+
-                        f"len(data) = {len(self.data)}\n"
-                        f"data = {self.data}"
-                    )
-                except Exception as e:
-                    self.logger.info("trouble logging ai data")
-                    self.logger.exception(e)
                 
             except DaqError:
                 # end the task nicely
                 self.stop()
                 self.close()
                 msg = '\n AnalogInput failed to read data from hardware'
+                self.is_initialized = False
                 raise HardwareError(self, task=self.task, message=msg)
             
     # TODO: compare output to what the LabVIEW method returns
     def data_out(self) -> str:
         """
-        Convert the received data into a string parsable by CsPy
+        Convert the received data into a specially-formatted string for CsPy
         
         Returns:
             the instance's data string, formatted for reception by CsPy
@@ -228,23 +223,18 @@ class AnalogInput(Instrument):
 
             try:
                 # flatten the data and convert to a str
-                data_shape = np.array(self.data).shape
-                flat_data = np.reshape(self.data, np.prod(data_shape)) # nD data --> 1D data
+                data_shape = self.data.shape
+                flat_data = np.reshape(self.data, np.prod(data_shape))
 
                 shape_str = ",".join([str(x) for x in data_shape])
 
                 # flatten data to string of bytes. supposed to mimic LabVIEW's Flatten to String VI,
                 # which is inappropriately named. according to the inconsistent docs it either outputs
                 # UTF-8 JSON or binary. this returns bytes and may therefore be wrong.
-                
-                data_string = "".join([str(x) for x in flat_data])
-                self.logger.debug("AI data is " + data_string)
-                
-                # data_bytes = struct.pack('!L', "".join([str(x) for x in flat_data]))
-                # data_string = TCP.bytes_to_str(data_string)
+                data_bytes = struct.pack('!L', "".join([str(x) for x in flat_data]))
 
                 self.data_string = TCP.format_data('AI/dimensions', shape_str) + \
-                    TCP.format_data('AI/data', data_string)
+                    TCP.format_data('AI/data', data_bytes)
 
             except Exception as e:
                 self.logger.exception(f"Error formatting data from {self.__class__.__name__}")
@@ -266,6 +256,7 @@ class AnalogInput(Instrument):
                 self.stop()
                 self.close()
                 msg = '\n AnalogInput failed to start task'
+                self.is_initialized = False
                 raise HardwareError(self, task=self.task, message=msg)
 
     def stop(self):
@@ -287,10 +278,10 @@ class AnalogInput(Instrument):
         """
         
         if self.task is not None:
-            self.is_initialized = False
             try:
                 self.task.close()
             except DaqError as e:
                 msg = '\n AnalogInput failed to close current task'
+                self.is_initialized = False
                 self.logger.warning(msg)
                 self.logger.exception(e)

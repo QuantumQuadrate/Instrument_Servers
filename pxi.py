@@ -25,7 +25,7 @@ from pxierrors import XMLError, HardwareError, PXIError
 ## local device classes
 from hsdio import HSDIO
 # from hamamatsu import Hamamatsu
-from analogin import AnalogInput
+# from analogin import AnalogInput
 from analogout import AnalogOutput
 # from digitalin import TTLInput
 # from digitalout import DAQmxDO
@@ -40,7 +40,7 @@ class PXI:
     
     """
     help_str = ("At any time, type... \n" +
-                " - 'h' to see this message again \n" +
+                " - 'h to see this message again \n" +
                 " - 'r' to reset the connection to CsPy \n" +
                 " - 'd' to toggle the server DEBUG level logging \n" +
                 " - 'q' to stop the connection and close this server.")
@@ -71,7 +71,7 @@ class PXI:
         # instantiate the device objects
         self.hsdio = HSDIO(self)
         self.tcp = TCP(self, address)
-        self.analog_input = AnalogInput(self)
+        # self.analog_input = AnalogInput(self)
         self.analog_output = AnalogOutput(self)
         # self.ttl = TTLInput(self)
         # self.daqmx_do = DAQmxDO(self)
@@ -283,11 +283,10 @@ class PXI:
                         self.logger.info("AnalogOutput hardware updated")
                     
                     elif child.tag == "AnalogInput":
-                        # set up the analog_input
-                        self.analog_input.load_xml(child)
-                        self.logger.info("AnalogInput XML loaded")
-                        self.analog_input.init()
-                        self.logger.info("AnalogInput hardware initialized")
+                    #     # set up the analog_input
+                    #     self.analog_input.load_xml(child)
+                    #     self.analog_input.init()
+                        pass
                     
                     elif child.tag == "Counters":
                     #     # TODO: implement counters class
@@ -334,20 +333,20 @@ class PXI:
         return_data = ""
 
         # the devices which have a method named 'data_out' which returns a str
-        devices = [
+        # devices = [
         #     self.hamamatsu,
         #     # self.counters, #TODO: implement
         #     self.ttl,
-            self.analog_input
+        #     self.analog_input
         #     # self.demo # not implemented, and debatable whether it needs to be
-        ]
-        
-        for dev in devices:
-            if dev.is_initialized:
-                try:
-                    return_data += dev.data_out()
-                except HardwareError as e:
-                    self.handle_errors(e)
+        # ]
+        #
+        # for dev in devices:
+        #     if dev.is_initialized:
+        #         try:
+        #             return_data += dev.data_out()
+        #         except HardwareError as e:
+        #             self.handle_errors(e)
 
         self.return_data = return_data
         return return_data
@@ -391,13 +390,13 @@ class PXI:
             try:
                 self.get_data()
                 self.system_checks()
+                self.system_checks()
                 self.stop_tasks()
                 return_data = self.data_to_xml()
                 return return_data
 
             except Exception as e:  # TODO: make less general
-                self.logger.warning(f"Error encountered:\n {e}\n"+
-                                    "No data returned.")
+                self.logger.warning(f"Error encountered {e}\nNo data returned.")
                 self.handle_errors(e)
                 return ""
 
@@ -434,7 +433,7 @@ class PXI:
         devices = [
             self.hsdio,
             # self.daqmx_do,
-            self.analog_input,
+            # self.analog_input,
             self.analog_output
             # self.counters # TODO: implement Counters.start
         ]
@@ -451,7 +450,7 @@ class PXI:
         devices = [
             self.hsdio,
             # self.daqmx_do,
-            self.analog_input,
+            # self.analog_input,
             self.analog_output
             # self.counters # TODO: implement Counters.stop
         ]
@@ -467,7 +466,7 @@ class PXI:
         devices = [
             self.hsdio,
             # self.daqmx_do,
-            self.analog_input,
+            # self.analog_input,
             self.analog_output
             # self.counters # TODO: implement Counters.stop
         ]
@@ -482,7 +481,7 @@ class PXI:
         # devices which have a method 'get_data'
         devices = [
             # self.hamamatsu,
-            self.analog_input
+            # self.analog_input,
             # self.counters  # TODO: implement Counters.get_data
         ]
 
@@ -507,8 +506,8 @@ class PXI:
             # devices which have a method named 'is_done' that returns a bool
             devices = [
                 self.hsdio,
-                self.analog_output,
-                self.analog_input,
+                self.analog_output #,
+                # self.analog_input,
                 # self.daqmx_do
             ]
 
