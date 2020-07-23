@@ -60,8 +60,8 @@ class PXI:
         self._reset_connection = False
         self._exit_measurement = False
         self.cycle_continuously = False
-        self.return_data = ""
-        self.return_data_queue = ""
+        self.return_data = b""
+        self.return_data_queue = b""
         self.measurement_timeout = 0
         self.keylisten_thread = None
         self.command_queue = Queue(0)  # 0 indicates no maximum queue length enforced.
@@ -165,7 +165,7 @@ class PXI:
 
             except Empty:
                 self.exit_measurement = False
-                self.return_data = ""  # clear the return data
+                self.return_data = b""  # clear the return data
 
                 if self.cycle_continuously and self.active_devices > 0:
                     self.logger.debug("Entering cycle continously...")
@@ -214,7 +214,7 @@ class PXI:
                     if child.tag == "measure":
                         # if no data available, take one measurement. Otherwise,
                         # use the most recent data.
-                        if self.return_data_queue == "":
+                        if self.return_data_queue == b"":
                             self.measurement()
                         else:
                             self.return_data = self.return_data_queue
@@ -317,8 +317,8 @@ class PXI:
         self.tcp.send_message(self.return_data)
 
         # clear the return data
-        self.return_data = ""
-        self.return_data_queue = ""
+        self.return_data = b""
+        self.return_data_queue = b""
 
     def data_to_xml(self) -> str:
         """
@@ -331,7 +331,7 @@ class PXI:
             'return_data': concatenated string of xml-formatted data
         """
 
-        return_data = ""
+        return_data = b""
 
         # the devices which have a method named 'data_out' which returns a str
         devices = [

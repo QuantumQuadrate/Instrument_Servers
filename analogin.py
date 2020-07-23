@@ -233,23 +233,14 @@ class AnalogInput(Instrument):
 
                 shape_str = ",".join([str(x) for x in data_shape])
 
-                # flatten data to string of bytes. supposed to mimic LabVIEW's Flatten to String VI,
-                # which is inappropriately named. according to the inconsistent docs it either outputs
-                # UTF-8 JSON or binary. this returns bytes and may therefore be wrong.
-                
-                data_string = "".join([str(x) for x in flat_data])
-                self.logger.debug("AI data is " + data_string)
-                
-                # data_bytes = struct.pack('!L', "".join([str(x) for x in flat_data]))
-                # data_string = TCP.bytes_to_str(data_string)
+                data_bytes = struct.pack(f'!{len(flat_data)}d', *flat_data)
 
-                self.data_string = TCP.format_data('AI/dimensions', shape_str) + \
-                    TCP.format_data('AI/data', data_string)
+                self.data_string = (TCP.format_data('AI/dimensions', shape_str) + 
+                                    TCP.format_data('AI/data', data_bytes))
 
             except Exception as e:
                 self.logger.exception(f"Error formatting data from {self.__class__.__name__}")
                 raise e
-
             return self.data_string
             
     def start(self):
