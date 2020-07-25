@@ -71,6 +71,7 @@ class AnalogInput(Instrument):
 
                     elif child.tag == "samples_per_measurement":
                         self.samplesPerMeasurement = Instrument.str_to_int(child.text)
+                        self.logger.debug(self.samplesPerMeasurement)
 
                     elif child.tag == "source":
                         self.source = child.text
@@ -143,8 +144,12 @@ class AnalogInput(Instrument):
                     sample_mode=AcquisitionType.FINITE, # default
                     samps_per_chan=self.samplesPerMeasurement)
                 
+                self.logger.debug(f"sampRate = {self.sampleRate} \n"+
+                    f"sampsPerMeasurement = {self.samplesPerMeasurement} \n")
+                
                 # Setup start trigger if configured to wait for one
                 if self.startTrigger.wait_for_start_trigger:
+                    self.logger.debug("Will wait for digital edge trigger")
                     self.task.triggers.start_trigger.cfg_dig_edge_start_trig(
                         trigger_source=self.startTrigger.source,
                         trigger_edge=self.startTrigger.edge)
@@ -194,11 +199,12 @@ class AnalogInput(Instrument):
         if not (self.stop_connections or self.exit_measurement) and self.enable:
         
             try: 
-                # dadmx read 2D DBL N channel N sample. use defaults kwargs. 
+                # daqmx read 2D DBL N channel N sample. use defaults kwargs. 
                 # measurement type inferred from the task virtual channel
-                self.data = self.task.read()
+                self.data = self.task.read(
+                    number_of_samples_per_channel=self.samplesPerMeasurement
+                )
                 
-                # TODO: remove after debugging
                 try:
                     self.logger.debug("aqcuired data:\n"+
                         f"len(data) = {len(self.data)}\n"
