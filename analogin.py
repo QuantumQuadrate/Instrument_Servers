@@ -6,8 +6,8 @@ SaffmanLab, University of Wisconsin - Madison
 ## modules 
 import nidaqmx
 from nidaqmx.constants import Edge, AcquisitionType, Signal, TerminalConfiguration
-from nidaqmx.errors import DaqError
-from nidaqmx.error_codes import DAQmxErrors
+from nidaqmx.errors import DaqError, DaqWarning
+from nidaqmx.error_codes import DAQmxErrors, DAQmxWarnings
 import numpy as np
 import xml.etree.ElementTree as ET
 import struct
@@ -180,7 +180,7 @@ class AnalogInput(Instrument):
                 done = self.task.is_task_done()
                 
             except DaqError as e:
-                if not e.error_code == INVALID_TASK.value:
+                if not e.error_code == DAQmxErrors.INVALID_TASK.value:
                     # end the task nicely
                     self.stop()
                     self.close()
@@ -203,7 +203,8 @@ class AnalogInput(Instrument):
                 # daqmx read 2D DBL N channel N sample. use defaults kwargs. 
                 # measurement type inferred from the task virtual channel
                 self.data = self.task.read(
-                    number_of_samples_per_channel=self.samplesPerMeasurement
+                    number_of_samples_per_channel=self.samplesPerMeasurement,
+                    timeout=1 # [s]
                 )
                 
                 try:
@@ -274,18 +275,20 @@ class AnalogInput(Instrument):
         if self.task is not None:
             msg = ""
             try:
-                # be nice and wait for the measurement to end
+                # be nice and attempt to wait for the measurement to end
                 try:
                     while not self.is_done():
                         pass
                 except DaqWarning as e:
-                    pass #msg = str(e.error_code)
+                    if e.error_code == DAQmxWarnings.STOPPED_BEFORE_DONE.value:
+                        pass
                                             
                 self.task.stop()
             except DaqError as e:
-                msg = '\n AnalogInput failed to stop current task'
-                self.logger.warning(msg)
-                self.logger.exception(e)
+                if not e.error_code == DAQmxErrors.INVALID_TASK.value:
+                    msg = f'\n {self.__class__.__name__} failed to stop current task'
+                    self.logger.warning(msg)
+                    self.logger.exception(e)
 
     def close(self):
         """
