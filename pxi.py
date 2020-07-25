@@ -27,7 +27,7 @@ from hsdio import HSDIO
 # from hamamatsu import Hamamatsu
 from analogin import AnalogInput
 from analogout import AnalogOutput
-# from digitalin import TTLInput
+from digitalin import TTLInput
 # from digitalout import DAQmxDO
 from tcp import TCP
 
@@ -73,7 +73,7 @@ class PXI:
         self.tcp = TCP(self, address)
         self.analog_input = AnalogInput(self)
         self.analog_output = AnalogOutput(self)
-        # self.ttl = TTLInput(self)
+        self.ttl = TTLInput(self)
         # self.daqmx_do = DAQmxDO(self)
         # self.hamamatsu = Hamamatsu(self)
         # TODO: implement these classes
@@ -243,9 +243,10 @@ class PXI:
                         self.logger.info(f"HSDIO.enable = {self.hsdio.enable}")
 
                     elif child.tag == "TTL":
-                    #     self.ttl.load_xml(child)
-                    #     self.ttl.init()
-                        pass
+                        self.ttl.load_xml(child)
+                        self.logger.info("TTLInput XML loaded")
+                        self.ttl.init()
+                        self.logger.info("TTLInput hardware initialized")
 
                     elif child.tag == "DAQmxDO":
                         # self.daqmx_do.load_xml(child)
@@ -335,7 +336,7 @@ class PXI:
         devices = [
             # self.hamamatsu,
             # self.counters, #TODO: implement
-            # self.ttl,
+            self.ttl,
             self.analog_input
             # self.demo # not implemented, and debatable whether it needs to be
         ]
@@ -405,10 +406,10 @@ class PXI:
 
         For now, only applies to TTL
         """
-        # try:
-        #     self.ttl.reset_data()
-        # except HardwareError as e:
-        #     self.handle_errors(e)
+        try:
+            self.ttl.reset_data()
+        except HardwareError as e:
+            self.handle_errors(e)
 
     def system_checks(self):
         """
@@ -416,10 +417,10 @@ class PXI:
 
         For now, only applies to TTL
         """
-        # try:
-        #     self.ttl.check()
-        # except HardwareError as e:
-        #     self.handle_errors(e)
+        try:
+            self.ttl.check()
+        except HardwareError as e:
+            self.handle_errors(e)
 
     # wrap batch_method_call calls in convenience functions
 
