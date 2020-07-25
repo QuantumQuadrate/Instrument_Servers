@@ -690,6 +690,7 @@ class PXI:
             try:
                 getattr(dev, method)()  # call the method
             except AttributeError as ae:
+                self.logger.exception(ae)
                 self.logger.warning(f'{dev} does not have method \'{method}\'')
             except HardwareError as he:
                 self.logger.info(

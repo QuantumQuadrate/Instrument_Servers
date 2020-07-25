@@ -179,12 +179,13 @@ class AnalogInput(Instrument):
                 # check if NI task is done
                 done = self.task.is_task_done()
                 
-            except DaqError:               
-                # end the task nicely
-                self.stop()
-                self.close()
-                msg = '\n AnalogInput check for task completion failed'
-                raise HardwareError(self, task=self.task, message=msg)
+            except DaqError as e:
+                if not e.error_code == INVALID_TASK.value:
+                    # end the task nicely
+                    self.stop()
+                    self.close()
+                    msg = '\n AnalogInput check for task completion failed'
+                    raise HardwareError(self, task=self.task, message=msg)
 
         return done
             
@@ -271,7 +272,15 @@ class AnalogInput(Instrument):
         """
         
         if self.task is not None:
+            msg = ""
             try:
+                # be nice and wait for the measurement to end
+                try:
+                    while not self.is_done():
+                        pass
+                except DaqWarning as e:
+                    pass #msg = str(e.error_code)
+                                            
                 self.task.stop()
             except DaqError as e:
                 msg = '\n AnalogInput failed to stop current task'
