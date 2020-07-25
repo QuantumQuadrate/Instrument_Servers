@@ -5,10 +5,6 @@ SaffmanLab, University of Wisconsin - Madison
 For parsing XML strings which setup NI DAQ hardware for reading digital input.
 """
 
-# TODO: there exist DaqResourceWarning warnings that i neither handle nor log, 
-# as it seems that the class merely points to a built-in Python ResourceWarning, 
-# which is itself abstract. - Preston
-
 ## built-in modules
 import xml.etree.ElementTree as ET
 
@@ -139,7 +135,7 @@ class TTLInput(Instrument):
                 data = self.task.read(timeout=1)
                 
                 # for debugging:
-                self.logger.info(f'TTL Data out: {data}')# \n shape: {data.shape}')
+                self.logger.debug(f'TTL Data out: {data}')# \n shape: {data.shape}')
                 
                 # get data out and append it to the extant data array
                 # i think this ends up being an array of dimensions (1, samples)
