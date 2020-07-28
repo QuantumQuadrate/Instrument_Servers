@@ -663,7 +663,7 @@ class NIIMAQSession:
 
         error_code = self.imaq.imgCreateBuffer(
             self.session_id,                         # SESSION_ID
-            where,                                   # uInt32
+            c_uint32(where),                         # uInt32
             c_uint32(buffer_size),                   # uInt32
             byref(self.buffers[buffer_index])        # void**
         )
