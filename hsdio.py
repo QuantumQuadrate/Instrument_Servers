@@ -322,12 +322,12 @@ class HSDIO(Instrument):
         """
         for wf in self.waveformArr:
 
-            self.logger.debug(f"wf pre-split : {wf}")
+            # self.logger.debug(f"wf pre-split : {wf}")
             wv_arr = wf.wave_split(flip=False)
             # for each HSDIO card (e.g., Rb experiment has two cards)
             for session, wave in zip(self.sessions, wv_arr):
 
-                self.logger.debug(f"post-split : {wave}")
+                # self.logger.debug(f"post-split : {wave}")
                 wave_format, data = wave.decompress()
                 self.logger.debug(f"format of waveform is {wave_format}")
                 try:
@@ -335,7 +335,7 @@ class HSDIO(Instrument):
                         # grouping = HSDIOSession.NIHSDIO_VAL_GROUP_BY_CHANNEL
                         grouping = HSDIOSession.NIHSDIO_VAL_GROUP_BY_SAMPLE
 
-                        self.logger.debug(f"{wave}")
+                        # self.logger.debug(f"{wave}")
 
                         session.write_waveform_wdt(
                             wave.name,
