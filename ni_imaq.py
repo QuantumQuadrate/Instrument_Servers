@@ -149,6 +149,8 @@ class NIIMAQSession:
         self.attributes = {}
         self.logger = logging.getLogger(repr(self))
 
+# TODO : Create decorator for wrapper functions
+
     def check(
             self,
             error_code: int,
@@ -398,6 +400,34 @@ class NIIMAQSession:
             self.check(
                 error_code,
                 traceback_msg=f"session acquire"
+            )
+
+        return error_code
+
+    def session_start_acquisition(
+            self,
+            check_error: bool = True
+    ):
+        """
+        Starts an acquisition asynchronously in the session identified by self.session_id
+        Args:
+            check_error : should the check() function be called once operation has completed
+
+        Returns:
+            error code which reports status of operation.
+
+                0 = Success, positive values = Warnings,
+                negative values = Errors
+        """
+
+        error_code = self.imaq.imgSessionStartAcquisition(
+            self.session_id,    # SESSION_ID
+        )
+
+        if error_code != 0 and check_error:
+            self.check(
+                error_code,
+                traceback_msg=f"session start acquisition"
             )
 
         return error_code
@@ -995,7 +1025,7 @@ class NIIMAQSession:
                 shared by all acquisitions
             start_now : specifies if the acquisition should start immediately. If the value is
                 false, you must manually start the acquisition with session_start_acquisition
-
+            check_error : should the check() function be called once operation has completed
         Returns:
             error code which reports status of operation.
 
@@ -1104,7 +1134,7 @@ class NIIMAQSession:
 
         self.init_buffers()
 
-        return self.ring_setup(skip_count=0, start_now=True)
+        return self.ring_setup(skip_count=0, start_now=False)
 
     def setup_buffers(
             self,
