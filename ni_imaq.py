@@ -139,7 +139,9 @@ class NIIMAQSession:
         '''
         self.num_buffers = 0
         self.buffer_size = 0
-        self.buffers = [self.BUFFER_TYPE(0) for i in range(self.num_buffers)]
+        self.buffers = None
+        self.c_buffers = None
+        self.init_buffers()
         self.buflist_id = c_uint32(0)
         self.buff_list_init = False  # Has the buffer list been created and initialized?
 
@@ -299,7 +301,7 @@ class NIIMAQSession:
         if free_resources:
             self.buflist_id = c_uint32(0)
             self.num_buffers = 0
-            self.buffers = [self.BUFFER_TYPE(0) for i in range(self.num_buffers)]
+            self.init_buffers()
             self.buffer_size = 0
             self.buff_list_init = False
 
@@ -564,7 +566,7 @@ class NIIMAQSession:
         if error_code == 0 or error_code == self.IMG_ERR_BAD_BUFFER_LIST:
             self.buflist_id = c_uint32(0)
             if free_resources:
-                self.buffers = [self.BUFFER_TYPE(0) for i in range(self.num_buffers)]
+                self.init_buffers()
             self.buff_list_init = False
 
         if error_code == self.IMG_ERR_BAD_BUFFER_LIST:
@@ -1002,12 +1004,10 @@ class NIIMAQSession:
 
         # high level functions require a C array of pointers (pointers to int8)
         # We initialize it will null pointers so the imgRingSetup function does the work for us
-        self.buffers = (c_void_p*self.num_buffers)(None)
-        c_buf = cast(self.buffers, POINTER(c_void_p))
         error_code = self.imaq.imgRingSetup(
             self.session_id,                # SESSION_ID
             c_uint32(self.num_buffers),     # uInt32
-            self.buffers,                   # void*[]
+            self.c_buffers,                 # void*[]
             c_uint32(skip_count),           # uInt32
             start_now                       # uInt32
         )
@@ -1066,6 +1066,17 @@ class NIIMAQSession:
         self.buffer_size = width*height*bytes_per_pix
         return 0, c_uint32(self.buffer_size)
 
+    def init_buffers(self):
+        """
+        Initializes the list of buffers we will use before they are configured by the
+        niImaq functions.
+        """
+
+        # c-like list of buffers but buffer elements are python types
+        self.buffers = (c_void_p*self.num_buffers)(None)
+        # List of buffers more in line with the expectations of the imaq dll
+        self.c_buffers = cast(self.buffers, POINTER(c_void_p))
+
     def hl_setup_buffers(
             self,
             num_buffers: int
@@ -1086,7 +1097,7 @@ class NIIMAQSession:
         """
         self.num_buffers = num_buffers
 
-        self.buffers = (c_void_p*self.num_buffers)(None)
+        self.init_buffers()
 
         return self.ring_setup(skip_count=0, start_now=True)
 
@@ -1104,7 +1115,7 @@ class NIIMAQSession:
         self.logger.debug("setting up buffers")
 
         self.create_buffer_list()
-        self.buffers = [self.BUFFER_TYPE(0) for i in range(self.num_buffers)]
+        self.init_buffers()
         self.logger.debug(f"Buffer list id = {self.buflist_id}")
 
         self.compute_buffer_size()

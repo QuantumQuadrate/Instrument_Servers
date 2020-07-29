@@ -266,7 +266,7 @@ class PXI:
                     elif child.tag == "camera":
                         # set up the Hamamatsu camera
                         self.hamamatsu.load_xml(child)  # Raises ValueError
-                        self.hamamatsu.init()  # Raises IMAQErrors
+                        self.hamamatsu.init_hl()  # Raises IMAQErrors
 
                     elif child.tag == "AnalogOutput":
                         # # set up the analog_output
