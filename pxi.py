@@ -25,8 +25,8 @@ from pxierrors import XMLError, HardwareError, PXIError
 ## local device classes
 from hsdio import HSDIO
 from hamamatsu import Hamamatsu
-# from analogin import AnalogInput
-# from analogout import AnalogOutput
+from analogin import AnalogInput
+from analogout import AnalogOutput
 # from digitalin import TTLInput
 # from digitalout import DAQmxDO
 from tcp import TCP
@@ -60,8 +60,8 @@ class PXI:
         self._reset_connection = False
         self._exit_measurement = False
         self.cycle_continuously = False
-        self.return_data = ""
-        self.return_data_queue = ""
+        self.return_data = b""
+        self.return_data_queue = b""
         self.measurement_timeout = 0
         self.keylisten_thread = None
         self.command_queue = Queue(0)  # 0 indicates no maximum queue length enforced.
@@ -71,8 +71,8 @@ class PXI:
         # instantiate the device objects
         self.hsdio = HSDIO(self)
         self.tcp = TCP(self, address)
-        # self.analog_input = AnalogInput(self)
-        # self.analog_output = AnalogOutput(self)
+        self.analog_input = AnalogInput(self)
+        self.analog_output = AnalogOutput(self)
         # self.ttl = TTLInput(self)
         # self.daqmx_do = DAQmxDO(self)
         self.hamamatsu = Hamamatsu(self)
@@ -165,7 +165,7 @@ class PXI:
 
             except Empty:
                 self.exit_measurement = False
-                self.return_data = ""  # clear the return data
+                self.return_data = b""  # clear the return data
 
                 if self.cycle_continuously and self.active_devices > 0:
                     self.logger.debug("Entering cycle continously...")
@@ -203,7 +203,8 @@ class PXI:
             self.logger.warning("Not a valid msg for the pxi")
 
         else:
-            # loop non-recursively over children in root
+            # loop non-recursively over children in root to setup device
+            # hardware and other server settings
             for child in root:
 
                 self.element_tags.append(child)
@@ -213,7 +214,7 @@ class PXI:
                     if child.tag == "measure":
                         # if no data available, take one measurement. Otherwise,
                         # use the most recent data.
-                        if self.return_data_queue == "":
+                        if self.return_data_queue == b"":
                             self.measurement()
                         else:
                             self.return_data = self.return_data_queue
@@ -232,6 +233,7 @@ class PXI:
                         pass
 
                     elif child.tag == "HSDIO":
+                        # setup the HSDIO
                         self.hsdio.load_xml(child)
                         self.logger.info("HSDIO XML loaded")
                         self.hsdio.init()
@@ -240,13 +242,15 @@ class PXI:
                         self.logger.info("HSDIO hardware updated")
                         self.logger.info(f"HSDIO.enable = {self.hsdio.enable}")
 
-                    # elif child.tag == "TTL":
+                    elif child.tag == "TTL":
                     #     self.ttl.load_xml(child)
                     #     self.ttl.init()
-                    #
-                    # elif child.tag == "DAQmxDO":
-                    #     self.daqmx_do.load_xml(child)
-                    #     self.daqmx_do.init()
+                        pass
+
+                    elif child.tag == "DAQmxDO":
+                        # self.daqmx_do.load_xml(child)
+                        # self.daqmx_do.init()
+                        pass
 
                     elif child.tag == "timeout":
                         try:
@@ -269,21 +273,19 @@ class PXI:
                         self.hamamatsu.init()  # Raises IMAQErrors
 
                     elif child.tag == "AnalogOutput":
-                        # # set up the analog_output
-                        # self.analog_output.load_xml(child)
-                        # self.logger.info("AnalogOutput XML loaded")
-                        # self.analog_output.init()
-                        # self.logger.info("AnalogOutput initialized")
-                        # self.analog_output.update()
-                        # self.logger.info("AnalogOutput hardware updated")
-                        pass
-
+                        # set up the analog_output
+                        self.analog_output.load_xml(child)
+                        self.logger.info("AnalogOutput XML loaded")
+                        self.analog_output.init()
+                        self.logger.info("AnalogOutput initialized")
+                        self.analog_output.update()
+                        self.logger.info("AnalogOutput hardware updated")
+                    
                     elif child.tag == "AnalogInput":
-                    #     # set up the analog_input
-                    #     self.analog_input.load_xml(child)
-                    #     self.analog_input.init()
-                        pass
-
+                        # set up the analog_input
+                        self.analog_input.load_xml(child)
+                        self.analog_input.init()
+                    
                     elif child.tag == "Counters":
                     #     # TODO: implement counters class
                     #     # set up the counters
@@ -312,8 +314,8 @@ class PXI:
         self.tcp.send_message(self.return_data)
 
         # clear the return data
-        self.return_data = ""
-        self.return_data_queue = ""
+        self.return_data = b""
+        self.return_data_queue = b""
 
     def data_to_xml(self) -> str:
         """
@@ -326,23 +328,23 @@ class PXI:
             'return_data': concatenated string of xml-formatted data
         """
 
-        return_data = ""
+        return_data = b""
 
         # the devices which have a method named 'data_out' which returns a str
         devices = [
-            self.hamamatsu
+            self.hamamatsu,
             # self.counters, #TODO: implement
             # self.ttl,
-            # self.analog_input
+            self.analog_input
             # self.demo # not implemented, and debatable whether it needs to be
         ]
-        #
-        # for dev in devices:
-        #     if dev.is_initialized:
-        #         try:
-        #             return_data += dev.data_out()
-        #         except HardwareError as e:
-        #             self.handle_errors(e)
+
+        for dev in devices:
+            if dev.is_initialized:
+                try:
+                    return_data += dev.data_out()
+                except HardwareError as e:
+                    self.handle_errors(e)
 
         self.return_data = return_data
         return return_data
@@ -427,10 +429,10 @@ class PXI:
 
         # devices which have a method 'start'
         devices = [
-            self.hsdio
+            self.hsdio,
             # self.daqmx_do,
-            # self.analog_input,
-            # self.analog_output
+            self.analog_input,
+            self.analog_output
             # self.counters # TODO: implement Counters.start
         ]
 
@@ -444,10 +446,10 @@ class PXI:
 
         # devices which have a method 'stop'
         devices = [
-            self.hsdio
+            self.hsdio,
             # self.daqmx_do,
-            # self.analog_input,
-            # self.analog_output
+            self.analog_input,
+            self.analog_output
             # self.counters # TODO: implement Counters.stop
         ]
 
@@ -460,10 +462,10 @@ class PXI:
 
         # devices which have a method 'stop'
         devices = [
-            self.hsdio
+            self.hsdio,
             # self.daqmx_do,
-            # self.analog_input,
-            # self.analog_output
+            self.analog_input,
+            self.analog_output
             # self.counters # TODO: implement Counters.stop
         ]
 
@@ -476,8 +478,8 @@ class PXI:
 
         # devices which have a method 'get_data'
         devices = [
-            self.hamamatsu
-            # self.analog_input,
+            self.hamamatsu,
+            self.analog_input,
             # self.counters  # TODO: implement Counters.get_data
         ]
 
@@ -501,9 +503,9 @@ class PXI:
 
             # devices which have a method named 'is_done' that returns a bool
             devices = [
-                self.hsdio
-                # self.analog_output,
-                # self.analog_input,
+                self.hsdio,
+                self.analog_output,
+                self.analog_input,
                 # self.daqmx_do
             ]
 
@@ -627,8 +629,8 @@ class PXI:
             self.reset_exp_thread() # this stalls the program currently
 
         # If not a type of error we anticipated, raise it.
-        # else:
-            # raise error
+        else:
+            raise error
 
     def cycle_message(self, dev: XMLLoader):
         """
@@ -684,10 +686,12 @@ class PXI:
 
         # only iterate over initialized devices
         for dev in filter(lambda x: x.is_initialized, device_list):
+            fun = getattr(dev, method, None)
+            if fun is None or not callable(fun):
+                self.logger.warning(f"{dev} does not have a method '{method}'")
+                continue
             try:
-                getattr(dev, method)()  # call the method
-            except AttributeError as ae:
-                self.logger.warning(f'{dev} does not have method \'{method}\'')
+                fun()  # call the method
             except HardwareError as he:
                 self.logger.info(
                     f"Error {he} encountered while performing {dev}.{method}()"

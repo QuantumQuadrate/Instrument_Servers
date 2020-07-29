@@ -49,7 +49,7 @@ class TCP:
             self.reset_connection = False
 
             # TODO: entering q in cmd line should terminate this process
-            self.logger.info("attempting to accept connection request.")
+            self.logger.info("Attempting to accept connection request.")
             self.current_connection, client_address = self.listening_socket.accept()
             self.logger.info(f"Started connection with {client_address}")
             while not (self.pxi.reset_connection or self.stop_connections):
@@ -57,6 +57,11 @@ class TCP:
                     self.receive_message()
                 except socket.timeout:
                     pass
+                except ConnectionResetError as e:
+                    self.logger.warning(e)
+                    self.pxi.reset_connection = True
+                    self.logger.info("Connection reset")
+                    
             self.logger.info(f"Closing connection with {client_address}")
             self.current_connection.close()
 
@@ -120,7 +125,10 @@ class TCP:
         
         if not self.stop_connections: # and msg_str:
             try:
-                self.current_connection.send(f"MESG{TCP.format_message(msg_str)}".encode())
+                self.logger.info("encoding message")
+                encoded = b"MESG"+TCP.format_message(msg_str)
+                self.current_connection.send(encoded)
+                self.logger.info("message sent")
             except Exception:
                 self.logger.exception("Issue sending message back to CsPy.")
                 self.reset_connection = True
@@ -129,7 +137,7 @@ class TCP:
 
 
     @staticmethod
-    def format_message(message: str) -> str:
+    def format_message(message) -> bytes:
         """
         Formats a message according to how CsPy expects to receive it. This is done by pre-prending
         the length of the message to the message in byte form
@@ -139,10 +147,13 @@ class TCP:
         Returns:
             formatted message string
         """
-        return f"{TCP.bytes_to_str(struct.pack('!L', len(message)))}{message}"
+        if isinstance(message, str):
+            message = message.encode()
+        return struct.pack('!L', len(message)) + message
+
 
     @staticmethod
-    def format_data(name, data) -> str:
+    def format_data(name, data) -> bytes:
         """
         Formats a bit of data according to how CsPy expects to receive it.
         Args:
@@ -152,7 +163,7 @@ class TCP:
         Returns:
             formatted string that CsPy can parse
         """
-        return f"{TCP.format_message(name)}{TCP.format_message(data)}"
+        return TCP.format_message(name)+TCP.format_message(data)
 
     @staticmethod
     def bytes_to_str(data) -> str:
