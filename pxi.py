@@ -630,8 +630,8 @@ class PXI:
             self.reset_exp_thread() # this stalls the program currently
 
         # If not a type of error we anticipated, raise it.
-        # else:
-            # raise error
+        else:
+            raise error
 
     def cycle_message(self, dev: XMLLoader):
         """
@@ -687,11 +687,11 @@ class PXI:
 
         # only iterate over initialized devices
         for dev in filter(lambda x: x.is_initialized, device_list):
+            fun = getattr(dev, method, None)
+            if fun is None or not callable(fun):
+                self.logger.warning(f"{dev} does not have a method '{method}'")
             try:
-                getattr(dev, method)()  # call the method
-            except AttributeError as ae:
-                self.logger.exception(ae)
-                self.logger.warning(f'{dev} does not have method \'{method}\'')
+                fun()  # call the method
             except HardwareError as he:
                 self.logger.info(
                     f"Error {he} encountered while performing {dev}.{method}()"
