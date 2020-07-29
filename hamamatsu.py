@@ -516,39 +516,31 @@ class Hamamatsu(Instrument):
         else:
             self.camera_temp = np.inf
 
-    def data_out(self) -> str:
+    def data_out(self) -> bytes:
         """
         Returns a formatted string of relevant hamamatsu data to be written to hdf5 fike
         Returns: formatted data string
         """
-        if self.stop_connections or self.reset_connection:
-            return ""
+        if self.stop_connections or self.reset_connection or not self.enable:
+            return b""
 
-        if not self.enable:
-            return ""
+        hm = "Hamamatsu"
+        hm_str = b""
+        sz = self.last_measurement.shape
+        hm_str += TCP.format_data(f"{hm}/numShots", f"{sz[0]}")
+        hm_str += TCP.format_data(f"{hm}/rows", f"{sz[1]}")
+        hm_str += TCP.format_data(f"{hm}/columns", f"{sz[2]}")
 
-        try:
-            hm = "Hamamatsu"
-            hm_str = ""
-            sz = self.last_measurement.shape
-            hm_str += TCP.format_data(f"{hm}/numShots", f"{sz[0]}")
-            hm_str += TCP.format_data(f"{hm}/rows", f"{sz[1]}")
-            hm_str += TCP.format_data(f"{hm}/columns", f"{sz[2]}")
+        for shot in range(sz[0]):
+            if self.measurement_success:
+                flat_ar = np.reshape(self.last_measurement[shot, :, :], sz[1] * sz[2])
+            else:
+                # A failed measurement returns useless data of all 0
+                flat_ar = np.zeroes(sz[1]*sz[2])
+            tmp_str = u16_ar_to_bytes(flat_ar)
+            hm_str += TCP.format_data(f"{hm}/shots/{shot}", tmp_str)
 
-            for shot in range(sz[0]):
-                if self.measurement_success:
-                    flat_ar = np.reshape(self.last_measurement[shot, :, :], sz[1] * sz[2])
-                else:
-                    # A failed measurement returns useless data of all 0
-                    flat_ar = np.zeroes(sz[1]*sz[2])
-                tmp_str = u16_ar_to_bytes(flat_ar)
-                hm_str += TCP.format_data(f"{hm}/shots/{shot}", tmp_str)
-
-            hm_str += TCP.format_data(f"{hm}/temperature", "{:.3f}".format(self.camera_temp))
-
-        except Exception as e:  # TODO : More specific error handling!
-            self.logger.exception(f"Error formatting data from {self.__class__.__name__}")
-            raise e
+        hm_str += TCP.format_data(f"{hm}/temperature", "{:.3f}".format(self.camera_temp))
 
         return hm_str
 
