@@ -217,6 +217,136 @@ class Hamamatsu(Instrument):
                 except (KeyError, ValueError, AssertionError) as e:
                     raise XMLError(self, child, message=f"{e}")
 
+    def init_hl(self):
+        """
+        initialized the Hamamatsu camera's hardware following the procedure
+        in the hlring.c file
+
+        Generates an imaq session and initialized the imaq acquisition
+        parameters, as well as those parameters that are set on the hamamatsu
+        using serial commands.
+        """
+        super().init()
+
+        if self.is_initialized:
+            self.close()
+
+        try:
+            self.session.open_interface("img0")
+            self.session.open_session()
+        except IMAQError as e:
+            raise HardwareError(self, self.session, e.message)
+
+        # call the Hamamatsu serial function to set the Hamamatsu settings
+        try:
+            self.session.hamamatsu_serial(self.fan, self.fan)
+            self.session.hamamatsu_serial(self.fan, self.fan)
+            self.session.hamamatsu_serial(self.cooling, self.cooling)
+            self.session.hamamatsu_serial(self.fan, self.fan)
+            self.session.hamamatsu_serial(self.scan_speed, self.scan_speed)
+
+            self.session.hamamatsu_serial(
+                self.external_trigger_source,
+                self.external_trigger_source)
+
+            # set trigger mode to external
+            # TODO : set this mode by xml parameter
+            self.session.hamamatsu_serial("AMD E", "AMD E")
+
+            # set the external trigger mode
+            self.session.hamamatsu_serial(
+                self.external_trigger_mode,
+                self.external_trigger_mode
+            )
+
+            self.session.hamamatsu_serial(
+                self.trigger_polarity,
+                self.trigger_polarity
+            )
+
+            # labview uses "Number to Fraction String Format VI" to convert the
+            # exposure time to a string; as far as I can tell this formatting
+            # accomplishes the same.
+            exposure = "AET {:.6f}".format(self.exposure_time)
+            self.session.hamamatsu_serial(exposure, exposure)
+            # default is to do nothing
+
+            # labview uses "Number to Decimal String VI" to convert the
+            # EMGain to a string; as far as I can tell this formatting
+            # accomplishes the same thing in this use case
+            emgain = f"EMG {self.em_gain}"
+            self.session.hamamatsu_serial(emgain, emgain)
+
+            analog_gain = f"CEG {self.analog_gain}"
+            self.session.hamamatsu_serial(analog_gain, analog_gain)
+
+            self.read_camera_temp()
+
+            # last frame acquired. first actual frame will be zero.
+            self.last_frame_acquired = -1
+
+            self.session.hamamatsu_serial(self.scan_mode, self.scan_mode)
+
+            if self.scan_mode in self.SCAN_MODE_VALUES.values():
+                if self.scan_mode == "SMD S":  # superPixelBinning
+
+                    self.session.hamamatsu_serial(
+                        self.super_pixel_binning,
+                        self.super_pixel_binning
+                    )
+
+                elif self.scan_mode == "SMD A":  # sub-array
+
+                    sub_array_left = ("SHO " +
+                                      str(self.sub_array.left))
+
+                    self.session.hamamatsu_serial(
+                        sub_array_left,
+                        sub_array_left
+                    )
+
+                    sub_array_top = ("SVO " +
+                                     str(self.sub_array.top))
+
+                    self.session.hamamatsu_serial(
+                        sub_array_top,
+                        sub_array_top
+                    )
+
+                    sub_array_width = ("SHW " +
+                                       str(self.sub_array.width))
+
+                    self.session.hamamatsu_serial(
+                        sub_array_width,
+                        sub_array_width
+                    )
+
+                    sub_array_height = ("SVW " +
+                                        str(self.sub_array.height))
+
+                    self.session.hamamatsu_serial(
+                        sub_array_height,
+                        sub_array_height
+                    )
+
+        except IMAQError as e:
+            ms = f"{e}\nError writing camera settings. Many camera settings likely not set."
+            raise HardwareError(self, self.session, ms)
+
+        try:
+            self.session.set_roi(self.fg_acquisition_region)
+        except IMAQError as e:
+            ms = f" {e}\nError: ROI not set correctly"
+            raise HardwareError(self, self.session, ms)
+        try:
+            self.session.hl_setup_buffers(self.num_img_buffers)
+        except IMAQError as e:
+            ms = f"{e}\nError: Buffers not set up correctly"
+
+        self.is_initialized = True
+        self.num_images = 0
+        self.logger.info(f"HL ring acquisition acquired. Starting session {self.session}")
+
     def init(self):
         """
         initialize the Hamamatsu camera's hardware 
@@ -341,7 +471,7 @@ class Hamamatsu(Instrument):
         except IMAQError as e:
             ms = f" {e}\nError: ROI not set correctly"
             raise HardwareError(self, self.session, ms)
-
+#--------------- HL and LL diverge
         try:
             self.session.setup_buffers(num_buffers=self.num_img_buffers)
         except IMAQError as e:

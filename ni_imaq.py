@@ -126,7 +126,7 @@ class NIIMAQSession:
     IMG_ERR_BAD_BUFFER_LIST = int(0xBFF60089)  # Invalid buffer list id
     IMG_ERR_BINT = int(0xBFF60015)  # Invalid interface or session
 
-    BUFFER_TYPE = c_uint32
+    BUFFER_TYPE = c_void_p
 
     def __init__(self):
         self.imaq = CDLL(os.path.join("C:\Windows\System32", "imaq.dll"))
@@ -977,6 +977,49 @@ class NIIMAQSession:
 
         return error_code
 
+# High Level functions -----------------------------------------------------------------------------
+
+    def ring_setup(
+            self,
+            skip_count: int,
+            start_now: bool,
+            check_error: bool = True
+    ) -> int:
+        """
+        prepares a session for acquiring continuously and looping into a buffer list
+        Args:
+            skip_count : number of images to skip before acquiring each buffer. This value is
+                shared by all acquisitions
+            start_now : specifies if the acquisition should start immediately. If the value is
+                false, you must manually start the acquisition with session_start_acquisition
+
+        Returns:
+            error code which reports status of operation.
+
+                    0 = Success, positive values = Warnings,
+                    negative values = Errors
+        """
+
+        # high level functions require a C array of pointers (pointers to int8)
+        # We initialize it will null pointers so the imgRingSetup function does the work for us
+        self.buffers = (c_void_p*self.num_buffers)(None)
+        c_buf = cast(self.buffers, POINTER(c_void_p))
+        error_code = self.imaq.imgRingSetup(
+            self.session_id,                # SESSION_ID
+            c_uint32(self.num_buffers),     # uInt32
+            self.buffers,                   # void*[]
+            c_uint32(skip_count),           # uInt32
+            start_now                       # uInt32
+        )
+
+        if error_code != 0 and check_error:
+            self.check(
+                error_code,
+                traceback_msg=f"Ring Setup"
+            )
+
+        return error_code
+
 # Non-Wrapper functions ----------------------------------------------------------------------------
 
     def status(self) -> Tuple[int, bool, int, int]:
@@ -1023,6 +1066,30 @@ class NIIMAQSession:
         self.buffer_size = width*height*bytes_per_pix
         return 0, c_uint32(self.buffer_size)
 
+    def hl_setup_buffers(
+            self,
+            num_buffers: int
+    ) -> int:
+        """
+        Initialized our buffer array and buffer list as is done in the hlring.c
+        example file
+
+        If all calls are successful self.buf_list_init will be set to True.
+        Otherwise it will be False
+        Args:
+            num_buffers : number of image buffers to create
+        Returns:
+            error code which reports status of operation.
+
+                    0 = Success, positive values = Warnings,
+                    negative values = Errors
+        """
+        self.num_buffers = num_buffers
+
+        self.buffers = (c_void_p*self.num_buffers)(None)
+
+        return self.ring_setup(skip_count=0, start_now=True)
+
     def setup_buffers(
             self,
             num_buffers: int
@@ -1052,7 +1119,7 @@ class NIIMAQSession:
             self.set_buf_element2(
                 buf_num,
                 "Address",
-                self.buffers[buf_num]
+                c_uint32(self.buffers[buf_num])
             )
 
             erc, buf_val = self.get_buffer_element(
