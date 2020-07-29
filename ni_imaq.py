@@ -831,13 +831,13 @@ class NIIMAQSession:
                 bf_addr : address to locked image buffer
         """
 
-        bf_num = c_uint32(0)
+        bf_num = c_void_p(0)
         bf_addr = c_void_p(0)
 
         error_code = self.imaq.imgSessionExamineBuffer2(
             self.session_id,            # SESSION_ID
             c_uint32(which_buffer),     # uInt32
-            bf_num,                     # void*
+            byref(bf_num),              # void*
             byref(bf_addr)              # void**
         )
 
@@ -845,8 +845,8 @@ class NIIMAQSession:
             self.check(
                 error_code,
                 traceback_msg=f"examine_buffer\n"
-                              f"buffer index :{which_buffer}\n"
-                              f"buffer read : {bf_num.value}"
+                              f"\tbuffer index :{which_buffer}\n"
+                              f"\tbuffer read : {bf_num.value}"
             )
 
         return error_code, bf_num.value, bf_addr
@@ -920,19 +920,20 @@ class NIIMAQSession:
         bf_size = self.attributes["ROI Width"]*self.attributes["ROI Height"]
         er_c, bits_per_pix = self.get_attribute("Bits Per Pixel")
         if bits_per_pix == 8:
-            bf_pt = (c_uint8 * bf_size)()
+            bf_type = c_uint8
         elif bits_per_pix == 16:
-            bf_pt = (c_uint16 * bf_size)()
+            bf_type = c_uint16
         elif bits_per_pix == 32:
-            bf_pt = (c_uint32 * bf_size)()
+            bf_type = c_uint32
         else:
             raise ValueError("I'm not sure how you got here. Good job! - Juan")
 
+        bf_pt = (bf_type*bf_size)()
         error_code = self.imaq.imgSessionCopyBuffer(
-            self.session_id,         # SESSION_ID
-            c_uint32[buf_index],     # uInt32
-            bf_pt,                   # void*
-            c_int32(wait_for_next)  # Int32
+            self.session_id,                    # SESSION_ID
+            c_uint32(buf_index),                # uInt32
+            cast(bf_pt, POINTER(bf_type)),      # void*
+            c_int32(wait_for_next)              # Int32
         )
 
         if error_code != 0 and check_error:
@@ -946,7 +947,7 @@ class NIIMAQSession:
         img_array = np.ctypeslib.as_array(bf_pt)
         img_array = np.reshape(
             img_array,
-            (self.attributes["ROI Width"].value, self.attributes["ROI Height"].value)
+            (self.attributes["ROI Width"], self.attributes["ROI Height"])
         )
         return error_code, img_array
 
@@ -1073,9 +1074,13 @@ class NIIMAQSession:
         """
 
         # c-like list of buffers but buffer elements are python types
-        self.buffers = (c_void_p*self.num_buffers)(None)
-        # List of buffers more in line with the expectations of the imaq dll
-        self.c_buffers = cast(self.buffers, POINTER(c_void_p))
+        if self.num_buffers:
+            self.buffers = (c_void_p*self.num_buffers)(None)
+            # List of buffers more in line with the expectations of the imaq dll
+            self.c_buffers = cast(self.buffers, POINTER(c_void_p))
+        else:
+            self.buffers = [c_void_p(None)]
+            self.c_buffers = None
 
     def hl_setup_buffers(
             self,

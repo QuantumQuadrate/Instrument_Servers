@@ -240,9 +240,7 @@ class Hamamatsu(Instrument):
         # call the Hamamatsu serial function to set the Hamamatsu settings
         try:
             self.session.hamamatsu_serial(self.fan, self.fan)
-            self.session.hamamatsu_serial(self.fan, self.fan)
             self.session.hamamatsu_serial(self.cooling, self.cooling)
-            self.session.hamamatsu_serial(self.fan, self.fan)
             self.session.hamamatsu_serial(self.scan_speed, self.scan_speed)
 
             self.session.hamamatsu_serial(
@@ -342,6 +340,16 @@ class Hamamatsu(Instrument):
             self.session.hl_setup_buffers(self.num_img_buffers)
         except IMAQError as e:
             ms = f"{e}\nError: Buffers not set up correctly"
+
+        # session attributes set in set_roi
+        self.last_measurement = np.zeros(
+            (
+                self.shots_per_measurement,
+                self.session.attributes["ROI Width"],
+                self.session.attributes["ROI Height"]
+            ),
+            dtype=np.uint16
+        )
 
         self.is_initialized = True
         self.num_images = 0
@@ -574,7 +582,7 @@ class Hamamatsu(Instrument):
         as_ms = "The number of images taken exceeds the number of buffers allotted." + \
                 "Images have been lost.  Increase the number of buffers."
         buf_num_ok = last_buf_num != self.last_frame_acquired and not_enough_buffers
-        assert buf_num_ok and last_buf_num != -1, as_ms
+        # assert buf_num_ok and last_buf_num != -1, as_ms
 
         frame_ind = self.last_frame_acquired
         # Warn user of previously silent failure mode.
@@ -589,16 +597,21 @@ class Hamamatsu(Instrument):
             self.logger.debug("Acquiring a new available image\n"
                               f" Reading buffer number {frame_ind}")
             try:
-                er_c, bf_ind, img = self.session.extract_buffer(frame_ind)
+                er_c, img = self.session.session_copy_buffer(frame_ind,wait_for_next=False)
             except IMAQError as e:
+                self.last_frame_acquired = last_buf_num
                 ms = f"{e}\nError acquiring buffer number {frame_ind} measurement abandoned"
                 raise HardwareError(self, self.session, ms)
-            self.last_measurement[i, :, :] = img
+            try:
+                self.last_measurement[i, :, :] = img
+            except IndexError as e:
+                self.logger.warning(f"{e}\nThere were too many indeces")
+                break
 
         self.measurement_success = True
         # Make certain the type is correct before passing this on to CsPy
         self.last_measurement = self.last_measurement.astype(np.uint16)
-        self.last_frame_acquired = frame_ind
+        self.last_frame_acquired = last_buf_num
         self.read_camera_temp()
 
     def read_camera_temp(self):
