@@ -690,6 +690,7 @@ class PXI:
             fun = getattr(dev, method, None)
             if fun is None or not callable(fun):
                 self.logger.warning(f"{dev} does not have a method '{method}'")
+                continue
             try:
                 fun()  # call the method
             except HardwareError as he:
