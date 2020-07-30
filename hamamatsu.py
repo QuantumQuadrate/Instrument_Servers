@@ -217,6 +217,8 @@ class Hamamatsu(Instrument):
                 except (KeyError, ValueError, AssertionError) as e:
                     raise XMLError(self, child, message=f"{e}")
 
+        self.logger.debug(f"Hamamatsu XML loaded. self.enable = {self.enable}")
+
     def init(self):
         """
         initialize the Hamamatsu camera's hardware 
@@ -227,14 +229,19 @@ class Hamamatsu(Instrument):
         This function should only be called after load_xml has been called at least once.
         """
 
-        super().init()
+        self.logger.debug(f"Initializing Hamamatsu. self.enable = {self.enable}")
+        if self.stop_connections or self.reset_connection:
+            return
+
+        if not self.enable:
+            return
 
         if self.is_initialized:
             self.close()
 
         try:
             # "img0" really shouldn't be hard-coded but it is in labview so we keep for now
-            self.session.open_interface("img0")
+            self.session.open_interface("img1")
             self.session.open_session()
         except IMAQError as e:
             raise HardwareError(self, self.session, e.message)
