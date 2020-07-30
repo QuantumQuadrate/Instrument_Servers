@@ -241,7 +241,7 @@ class Hamamatsu(Instrument):
 
         try:
             # "img0" really shouldn't be hard-coded but it is in labview so we keep for now
-            self.session.open_interface("img1")
+            self.session.open_interface("img0")
             self.session.open_session()
         except IMAQError as e:
             raise HardwareError(self, self.session, e.message)
