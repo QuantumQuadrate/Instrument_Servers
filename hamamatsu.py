@@ -433,7 +433,7 @@ class Hamamatsu(Instrument):
         if not self.enable:
             return
 
-        self.logger.info("Getting data!")
+        self.logger.debug("Getting data!")
         try:
             er_c, session_acquiring, last_buf_ind, last_buf_num = self.session.status()
         except IMAQError as e:
