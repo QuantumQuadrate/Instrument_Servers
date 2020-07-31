@@ -14,6 +14,7 @@ import logging
 import os
 from ctypes import c_uint32
 from typing import Tuple, Callable, TypeVar
+from typing import Union as typ_Union
 import numpy as np
 from recordclass import recordclass as rc
 
@@ -26,6 +27,7 @@ FrameGrabberAqRegion = rc('FrameGrabberAqRegion', ('left', 'right', 'top', 'bott
 
 # Sub array acquisition RecordClasses for TypeHint convenience =================================
 ROI = TypeVar("ROI", SubArray, FrameGrabberAqRegion)
+
 
 class NIIMAQSession:
 
@@ -92,8 +94,9 @@ class NIIMAQSession:
     # incomplete, add as they become relevant
     IMG_ATTR_ROI_WIDTH = _IMG_BASE + int(0x01A6)
     IMG_ATTR_ROI_HEIGHT = _IMG_BASE + int(0x01A7)
-    IMG_ATTR_BYTESPERPIXEL = _IMG_BASE + int(0x0066)
+    IMG_ATTR_BYTESPERPIXEL = _IMG_BASE + int(0x0067)
     IMG_ATTR_BITSPERPIXEL = _IMG_BASE + int(0x0066)
+    IMG_ATTR_ROWPIXELS = _IMG_BASE + int(0x00C1)
     IMG_ATTR_ROI_LEFT = _IMG_BASE + int(0x01A4)
     IMG_ATTR_ROI_TOP = _IMG_BASE + int(0x01A5)
     IMG_ATTR_ACQ_IN_PROGRESS = _IMG_BASE + int(0x0074)
@@ -109,13 +112,21 @@ class NIIMAQSession:
         "Bits Per Pixel": IMG_ATTR_BITSPERPIXEL,
         "ROI Left": IMG_ATTR_ROI_LEFT,
         "ROI Top": IMG_ATTR_ROI_TOP,
+        "Row Pixels": IMG_ATTR_ROWPIXELS,
         "Acquiring": IMG_ATTR_ACQ_IN_PROGRESS,  # Not reliable after the function call
         "Last Frame": IMG_ATTR_LAST_VALID_FRAME,  # Not reliable after the function call
-        "Last Buffer Index": IMG_ATTR_LAST_VALID_BUFFER  # Not reliable after the function call
+        "Last Buffer Index": IMG_ATTR_LAST_VALID_BUFFER , # Not reliable after the function call
+
     }
 
     # Add all keys from ATTRIBUTE dicts to this array
     ATTRIBUTE_KEYS = IMG_ATTRIBUTES_UINT32.keys()
+
+    # Specific Error Codes
+    IMG_ERR_BAD_BUFFER_LIST = int(0xBFF60089)  # Invalid buffer list id
+    IMG_ERR_BINT = int(0xBFF60015)  # Invalid interface or session
+
+    BUFFER_TYPE = c_void_p
 
     def __init__(self):
         self.imaq = CDLL(os.path.join("C:\Windows\System32", "imaq.dll"))
@@ -126,15 +137,19 @@ class NIIMAQSession:
         List of frame buffer pointers. It's extremely important that all image buffers created are
         tracked here so that they can be cleared effectively and prevent memory leaks.
         '''
-        self.buffers = []
-        self.buflist_id = c_uint32(0)
         self.num_buffers = 0
         self.buffer_size = 0
+        self.buffers = None
+        self.c_buffers = None
+        self.init_buffers()
+        self.buflist_id = c_uint32(0)
         self.buff_list_init = False  # Has the buffer list been created and initialized?
 
         # dict of values mapped to keys
         self.attributes = {}
         self.logger = logging.getLogger(repr(self))
+
+# TODO : Create decorator for wrapper functions
 
     def check(
             self,
@@ -154,12 +169,13 @@ class NIIMAQSession:
         if error_code == 0:
             return
 
-        err_msg = c_char_p("".encode('utf-8'))
+        c_err_msg = c_char_p("".encode('utf-8'))
 
         self.imaq.imgShowError(
             c_int32(error_code),    # IMG_ERR
-            err_msg)                # char*
+            c_err_msg)                # char*
 
+        err_msg = c_err_msg.value
         if error_code < 0:
             code_type = "Error Code"
         elif error_code > 0:
@@ -286,8 +302,8 @@ class NIIMAQSession:
         self.session_id = c_uint32(0)
         if free_resources:
             self.buflist_id = c_uint32(0)
-            self.buffers = []
             self.num_buffers = 0
+            self.init_buffers()
             self.buffer_size = 0
             self.buff_list_init = False
 
@@ -316,6 +332,8 @@ class NIIMAQSession:
                 negative values = Errors
         """
 
+        self.logger.debug(
+            f"In Session Configure.\nSID = {self.session_id}\nBID = {self.buflist_id}")
         error_code = self.imaq.imgSessionConfigure(
             self.session_id,  # SESSION_ID
             self.buflist_id   # BUFLIST_ID
@@ -367,16 +385,49 @@ class NIIMAQSession:
                 negative values = Errors
         """
 
+        if callback is None:
+            c_callback = callback
+        else:
+            raise NotImplementedError("Implement support for an actual callable here")
+
         error_code = self.imaq.imgSessionAcquire(
-            self.session_id,
-            c_uint32(asynchronous),
-            callback
+            self.session_id,            # SESSION_ID
+            c_uint32(asynchronous),     # uInt32
+            c_callback                    # CALLBACK_PTR
         )
 
         if error_code != 0 and check_error:
             self.check(
                 error_code,
                 traceback_msg=f"session acquire"
+            )
+
+        return error_code
+
+    def session_start_acquisition(
+            self,
+            check_error: bool = True
+    ):
+        """
+        Starts an acquisition asynchronously in the session identified by self.session_id
+        Args:
+            check_error : should the check() function be called once operation has completed
+
+        Returns:
+            error code which reports status of operation.
+
+                0 = Success, positive values = Warnings,
+                negative values = Errors
+        """
+
+        error_code = self.imaq.imgSessionStartAcquisition(
+            self.session_id,    # SESSION_ID
+        )
+
+        if error_code != 0 and check_error:
+            self.check(
+                error_code,
+                traceback_msg=f"session start acquisition"
             )
 
         return error_code
@@ -420,7 +471,7 @@ class NIIMAQSession:
             byref(attr_bf),   # void*, typing depends on attr
         )
 
-        self.attributes[attribute] = attr_bf
+        self.attributes[attribute] = attr_bf.value
 
         if error_code != 0 and check_error:
             self.check(error_code, traceback_msg=f"get attribute\n attribute : {attribute}")
@@ -430,7 +481,7 @@ class NIIMAQSession:
     def set_attribute2(
             self,
             attribute: str,
-            value,
+            value: int,
             check_error: bool = True
     ) -> int:
         """
@@ -473,7 +524,7 @@ class NIIMAQSession:
             attr_val          # variable argument
         )
 
-        self.attributes[attr] = attr_val
+        self.attributes[attribute] = attr_val.value
         if error_code != 0 and check_error:
             msg = f"set attribute 2\n attribute : {attribute} value : {value}"
             self.check(error_code, traceback_msg=msg)
@@ -542,12 +593,14 @@ class NIIMAQSession:
             c_uint32(free_resources)  # uInt32
         )
 
-        if error_code == 0:
+        if error_code == 0 or error_code == self.IMG_ERR_BAD_BUFFER_LIST:
             self.buflist_id = c_uint32(0)
             if free_resources:
-                self.buffers = [c_void_p(0)]*self.num_buffers
+                self.init_buffers()
             self.buff_list_init = False
 
+        if error_code == self.IMG_ERR_BAD_BUFFER_LIST:
+            self.logger.warning("Attempted to dispose a buffer list, but it likely didn't exist")
         if error_code != 0 and check_error:
             self.check(error_code, traceback_msg="Dispose Buffer List")
 
@@ -555,7 +608,6 @@ class NIIMAQSession:
 
     def create_buffer_list(
             self,
-            no_elements: int,
             check_error: bool = True
     ) -> int:
         """
@@ -576,25 +628,32 @@ class NIIMAQSession:
                 negative values = Errors
         """
 
-        if self.buflist_id != c_uint32(0):
+        if self.buflist_id.value != 0:
             # Make sure buffer list data and memory is cleared safely before making a new one
-            self.dispose_buffer_list()
+            self.logger.info(f"bufflist_id = {self.buflist_id}")
+            try:
+                self.dispose_buffer_list()
+            except IMAQError as e:
+                if e.error_code == self.IMG_ERR_BAD_BUFFER_LIST:
+                    self.logger.warning(
+                        "Attempted to dispose a buffer list but that buffer list does not exist.")
+                    self.buflist_id = c_uint32(0)
+                else:
+                    raise
 
         error_code = self.imaq.imgCreateBufList(
-            c_uint32(no_elements),  # uInt32
+            c_uint32(self.num_buffers),  # uInt32
             byref(self.buflist_id)  # BUFLIST_ID*
         )
 
         if error_code != 0 and check_error:
             self.check(error_code, traceback_msg="create_buffer_list")
-        if error_code == 0:
-            self.num_buffers = no_elements
-            self.buffers = [c_void_p(0)]*self.num_buffers  # Initialize a buffer list of a given size
 
         return error_code
 
     def create_buffer(
             self,
+            buffer_index: int,
             system_memory: bool = True,
             buffer_size: int = 0,
             check_error: bool = True
@@ -611,6 +670,7 @@ class NIIMAQSession:
 
         Wraps the imgCreateBuffer() function
         Args:
+            buffer_index : index in the buffer list of the buffer to be created
             system_memory : indicates if the buffer should be stored in system memory or in onboard
                 memory on the image acquisition device as specified bellow:
                     True : buffer is created in the host computer memory
@@ -633,20 +693,18 @@ class NIIMAQSession:
         else:
             where = self.IMG_DEVICE_FRAME
 
-        buffer_pt = c_void_p(0)
         error_code = self.imaq.imgCreateBuffer(
-            self.session_id,        # SESSION_ID
-            where,                  # uInt32
-            c_uint32(buffer_size),  # uInt32
-            byref(buffer_pt)        # void**
+            self.session_id,                         # SESSION_ID
+            c_uint32(where),                         # uInt32
+            c_uint32(buffer_size),                   # uInt32
+            byref(self.buffers[buffer_index])        # void**
         )
-
-        # self.frame_buffers.append(buffer_pointer) # Not sure we want this yet
 
         if error_code != 0 and check_error:
             self.check(error_code, traceback_msg="create buffer")
 
-        return error_code, buffer_pt
+        self.logger.debug(f"Buffer Created. Buffer Pointer = {self.buffers[buffer_index]}")
+        return error_code, self.buffers[buffer_index]
 
     def set_buf_element2(
             self,
@@ -687,7 +745,7 @@ class NIIMAQSession:
                 negative values = Errors
         """
         msg = f"{item_type} is not a valid ITEM_TYPE\n valid item types {self.ITEM_TYPES_2.keys()}"
-        assert item_type in self.ITEM_TYPES.keys(), msg
+        assert item_type in self.ITEM_TYPES_2.keys(), msg
 
         error_code = self.imaq.imgSetBufferElement2(
             self.buflist_id,                         # BUFLIST_ID
@@ -703,6 +761,68 @@ class NIIMAQSession:
             )
 
         return error_code
+
+    def get_buffer_element(
+            self,
+            element: int,
+            item_type: str,
+            check_error: bool = True
+    ) -> Tuple[int, typ_Union[int, c_void_p]]:
+        """
+        gets the value for a specified item_type for a buffer in this session's buffer list.
+
+        wraps imgGetBufferElement
+
+        Args:
+            element: inted of the buffer list item to examine
+            item_type: the parameter of the element to be read.
+                Allowed values:
+                "ActualHeight" - Returns the actual height, in lines, of a buffer acquired in VHA
+                    mode
+                    return type = int
+                "Address" - Specifies the buffer address portion of a buffer list element.
+                    return type = c_void_p
+                "Channel" - Specifies the channel from which to acquire an image.
+                    return type = int
+                "Command" - Specifies the command portion of a buffer list element.
+                    data type = int
+                "Size" - Specifies the size portion of a buffer list element (the buffer size).
+                    Required for user-allocated buffers.
+                    data type = int
+                "Skipcount" - Specifies the skip count portion of a buffer list element.
+                    data type = int
+
+            check_error : should the check() function be called once operation has completed
+        Returns:
+            (error_code, element_value):
+                error_code: reports status of operation.
+
+                    0 = Success, positive values = Warnings,
+                    negative values = Errors
+                element_value (variable type) :
+                    value of buffer element specified by item_type
+        """
+        msg = f"{item_type} is not a valid ITEM_TYPE\n valid item types {self.ITEM_TYPES.keys()}"
+        assert item_type in self.ITEM_TYPES.keys(), msg
+
+        val = c_uint32(0)
+        error_code = self.imaq.imgGetBufferElement(
+            self.buflist_id,                         # BUFLIST_ID
+            c_uint32(element),                       # uInt32
+            c_uint32(self.ITEM_TYPES[item_type]),    # uInt32
+            byref(val)                               # void*
+        )
+
+        if error_code != 0 and check_error:
+            self.check(
+                error_code,
+                traceback_msg=f"get_buf_element\nitem_type :{item_type}"
+            )
+        if item_type != "Address":
+            element_value = int(val.value)
+        else:
+            element_value = val
+        return error_code, element_value
 
     def examine_buffer(
             self,
@@ -741,13 +861,13 @@ class NIIMAQSession:
                 bf_addr : address to locked image buffer
         """
 
-        bf_num = c_uint32(0)
+        bf_num = c_void_p(0)
         bf_addr = c_void_p(0)
 
         error_code = self.imaq.imgSessionExamineBuffer2(
             self.session_id,            # SESSION_ID
             c_uint32(which_buffer),     # uInt32
-            bf_num,                     # void*
+            byref(bf_num),              # void*
             byref(bf_addr)              # void**
         )
 
@@ -755,8 +875,8 @@ class NIIMAQSession:
             self.check(
                 error_code,
                 traceback_msg=f"examine_buffer\n"
-                              f"buffer index :{which_buffer}\n"
-                              f"buffer read : {bf_num.value}"
+                              f"\tbuffer index :{which_buffer}\n"
+                              f"\tbuffer read : {bf_num.value}"
             )
 
         return error_code, bf_num.value, bf_addr
@@ -826,23 +946,24 @@ class NIIMAQSession:
         as_ms = f"buf_index {buf_index} must be less than num_buffers {self.num_buffers}"
         assert buf_index < self.num_buffers, as_ms
 
-        self.compute_buffer_size()  # Make sure our info on size is up to date (should be unnecessary)
+        self.compute_buffer_size()
         bf_size = self.attributes["ROI Width"]*self.attributes["ROI Height"]
         er_c, bits_per_pix = self.get_attribute("Bits Per Pixel")
         if bits_per_pix == 8:
-            bf_pt = (c_uint8 * bf_size)()
+            bf_type = c_uint8
         elif bits_per_pix == 16:
-            bf_pt = (c_uint16 * bf_size)()
+            bf_type = c_uint16
         elif bits_per_pix == 32:
-            bf_pt = (c_uint32 * bf_size)()
+            bf_type = c_uint32
         else:
             raise ValueError("I'm not sure how you got here. Good job! - Juan")
 
+        bf_pt = (bf_type*bf_size)()
         error_code = self.imaq.imgSessionCopyBuffer(
-            self.session_id,         # SESSION_ID
-            c_uint32[buf_index],     # uInt32
-            bf_pt,                   # void*
-            c_int32(wait_for_next)  # Int32
+            self.session_id,                    # SESSION_ID
+            c_uint32(buf_index),                # uInt32
+            cast(bf_pt, POINTER(bf_type)),      # void*
+            c_int32(wait_for_next)              # Int32
         )
 
         if error_code != 0 and check_error:
@@ -856,9 +977,79 @@ class NIIMAQSession:
         img_array = np.ctypeslib.as_array(bf_pt)
         img_array = np.reshape(
             img_array,
-            (self.attributes["ROI Width"].value, self.attributes["ROI Height"].value)
+            (self.attributes["ROI Width"], self.attributes["ROI Height"])
         )
         return error_code, img_array
+
+    def mem_lock(
+            self,
+            check_error: bool = True
+    ) -> int:
+        """
+        Undocumented in current help file. Deprecated function that locks our buffer list.
+
+        wraps imgMemLock
+
+        Args:
+            check_error : should the check() function be called once operation has completed
+        Returns:
+            error code which reports status of operation.
+
+                    0 = Success, positive values = Warnings,
+                    negative values = Errors
+        """
+        error_code = self.imaq.imgMemLock(
+            self.buflist_id  # BUFLIST_ID
+        )
+
+        if error_code != 0 and check_error:
+            self.check(
+                error_code,
+                traceback_msg=f"Mem Lock"
+            )
+
+        return error_code
+
+# High Level functions -----------------------------------------------------------------------------
+
+    def ring_setup(
+            self,
+            skip_count: int,
+            start_now: bool,
+            check_error: bool = True
+    ) -> int:
+        """
+        prepares a session for acquiring continuously and looping into a buffer list
+        Args:
+            skip_count : number of images to skip before acquiring each buffer. This value is
+                shared by all acquisitions
+            start_now : specifies if the acquisition should start immediately. If the value is
+                false, you must manually start the acquisition with session_start_acquisition
+            check_error : should the check() function be called once operation has completed
+        Returns:
+            error code which reports status of operation.
+
+                    0 = Success, positive values = Warnings,
+                    negative values = Errors
+        """
+
+        # high level functions require a C array of pointers (pointers to int8)
+        # We initialize it will null pointers so the imgRingSetup function does the work for us
+        error_code = self.imaq.imgRingSetup(
+            self.session_id,                # SESSION_ID
+            c_uint32(self.num_buffers),     # uInt32
+            self.c_buffers,                 # void*[]
+            c_uint32(skip_count),           # uInt32
+            start_now                       # uInt32
+        )
+
+        if error_code != 0 and check_error:
+            self.check(
+                error_code,
+                traceback_msg=f"Ring Setup"
+            )
+
+        return error_code
 
 # Non-Wrapper functions ----------------------------------------------------------------------------
 
@@ -897,11 +1088,53 @@ class NIIMAQSession:
         """
 
         er_c, bytes_per_pix = self.get_attribute("Bytes Per Pixel")
+        self.logger.debug(f"bytes_per_pix = {bytes_per_pix}")
         er_c, width = self.get_attribute("ROI Width")
+        self.logger.debug(f"ROI width = {width}")
         er_c, height = self.get_attribute("ROI Height")
+        self.logger.debug(f"ROI height = {height}")
 
         self.buffer_size = width*height*bytes_per_pix
         return 0, c_uint32(self.buffer_size)
+
+    def init_buffers(self):
+        """
+        Initializes the list of buffers we will use before they are configured by the
+        niImaq functions.
+        """
+
+        # c-like list of buffers but buffer elements are python types
+        if self.num_buffers:
+            self.buffers = (c_void_p*self.num_buffers)(None)
+            # List of buffers more in line with the expectations of the imaq dll
+            self.c_buffers = cast(self.buffers, POINTER(c_void_p))
+        else:
+            self.buffers = [c_void_p(None)]
+            self.c_buffers = None
+
+    def hl_setup_buffers(
+            self,
+            num_buffers: int
+    ) -> int:
+        """
+        Initialized our buffer array and buffer list as is done in the hlring.c
+        example file
+
+        If all calls are successful self.buf_list_init will be set to True.
+        Otherwise it will be False
+        Args:
+            num_buffers : number of image buffers to create
+        Returns:
+            error code which reports status of operation.
+
+                    0 = Success, positive values = Warnings,
+                    negative values = Errors
+        """
+        self.num_buffers = num_buffers
+
+        self.init_buffers()
+
+        return self.ring_setup(skip_count=0, start_now=False)
 
     def setup_buffers(
             self,
@@ -912,32 +1145,65 @@ class NIIMAQSession:
         If all calls to imaq are successful self.buf_list_init should be True, otherwise
         it will be False
         """
+        self.num_buffers = num_buffers
 
-        self.create_buffer_list(num_buffers)
+        self.logger.debug("setting up buffers")
+
+        self.create_buffer_list()
+        self.init_buffers()
+        self.logger.debug(f"Buffer list id = {self.buflist_id}")
+
+        self.compute_buffer_size()
+
         for buf_num in range(self.num_buffers):
             # Based on c ll ring example  -------------------
+            self.logger.debug(f"Buffer list : {[buffer for buffer in self.buffers]}")
+            self.logger.debug(f"Setting up buffer {buf_num}")
+            self.create_buffer(buf_num, buffer_size=self.buffer_size)
 
-            self.compute_buffer_size()
-            erc, self.buffers[buf_num] = self.create_buffer()
+            self.logger.debug(f"Setting buffer pointer = {self.buffers[buf_num]}")
             self.set_buf_element2(
                 buf_num,
                 "Address",
-                self.buffers[buf_num]
+                c_uint32(self.buffers[buf_num])
             )
+
+            erc, buf_val = self.get_buffer_element(
+                buf_num,
+                "Address"
+            )
+            self.logger.debug(f"Set buffer pointer = {buf_val}")
+
+            self.logger.debug(f"Setting buffer size = {self.buffer_size}")
             self.set_buf_element2(
                 buf_num,
                 "Size",
                 c_uint32(self.buffer_size)
             )
+            erc, buf_val = self.get_buffer_element(
+                buf_num,
+                "Size"
+            )
+            self.logger.debug(f"Set buffer size = {buf_val}")
+
             if buf_num == self.num_buffers - 1:
                 buf_cmd = self.BUFFER_COMMANDS["Loop"]
             else:
                 buf_cmd = self.BUFFER_COMMANDS["Next"]
+
+            self.logger.debug(f"Setting buffer Command = {buf_cmd}")
             self.set_buf_element2(
                 buf_num,
                 "Command",
                 c_uint32(buf_cmd)
             )
+
+            erc, buf_val = self.get_buffer_element(
+                buf_num,
+                "Command"
+            )
+            self.logger.debug(f"Set buffer command = {buf_val}")
+
         self.buff_list_init = True
 
     def set_roi(
@@ -956,10 +1222,10 @@ class NIIMAQSession:
         """
 
         m = roi.__class__.__name__
-        if m.group(1) == "FrameGrabberAqRegion":
+        if m == "FrameGrabberAqRegion":
             width = roi.right - roi.left
             height = roi.bottom - roi.top
-        elif m.group(1) == "SubArray":
+        elif m == "SubArray":
             width = roi.width
             height = roi.height
         else:
@@ -971,12 +1237,16 @@ class NIIMAQSession:
         er_c, acq_height = self.get_attribute("ROI Height")
 
         # Soft checks to ensure roi is within camera acquisition region
-        if width <= acq_width:
-            self.set_attribute2("ROI Width", c_uint32(width))
-        if height <= acq_height:
-            self.set_attribute2("ROI Height", c_uint32(height))
-        self.set_attribute2("ROI Left", left)
+        if width > acq_width:
+            width = acq_width
+        if height > acq_height:
+            height = acq_height
+
         self.set_attribute2("ROI Top", top)
+        self.set_attribute2("ROI Height", height)
+        self.set_attribute2("ROI Left", left)
+        self.set_attribute2("ROI Width", width)
+        self.set_attribute2("Row Pixels", width)
 
         return 0
 
@@ -1056,7 +1326,7 @@ class NIIMAQSession:
             expected_response: str = "Nothing",
             timeout: int = 10000,
             check_error: bool = True
-    ) -> Tuple[int, str]:
+    ) -> Tuple[int, bytes]:
         """
         Writes data to the hamamatsu serial port.
 
@@ -1082,12 +1352,21 @@ class NIIMAQSession:
                 negative values = Errors
                 camera_response : camera's response to command. encoded in utf-8
         """
+        # Clear internal buffer before write
+        error_code = self.imaq.imgSessionSerialFlush(
+            self.session_id     # SESSION_ID
+        )
+
+        if error_code != 0 and check_error:
+            self.check(error_code, f"IMAQ serial flush before writing {command}")
 
         # add carriage return, ends all camera serial i/o
         c_cmd = c_char_p(f"{command}\r".encode('utf-8'))
         enc_exp_rsp = f"{expected_response}\r".encode('utf-8')
 
-        bf_size = c_uint32(sizeof(c_cmd))
+        bf_size = c_uint32(len(c_cmd.value))
+        # self.logger.debug(f"len of {c_cmd.value} = {len(c_cmd.value)}")
+        # self.logger.debug(f"Size of buffer = {bf_size.value}")
 
         error_code = self.imaq.imgSessionSerialWrite(
             self.session_id,   # SESSION_ID
@@ -1098,8 +1377,8 @@ class NIIMAQSession:
 
         if error_code != 0 and check_error:
             self.check(error_code, f"IMAQ serial write command {command}")
-            return error_code, "Error"
 
+        bf_size = c_uint32(100)
         str_bf = create_string_buffer(b"", bf_size.value)
         error_code = self.imaq.imgSessionSerialRead(
             self.session_id,  # SESSION_ID
@@ -1112,9 +1391,29 @@ class NIIMAQSession:
             self.check(error_code, f"IMAQ serial read command {command}")
 
         enc_rsp = str_bf.value
+        self.logger.debug(f"Command : {command} Received : {enc_rsp.decode('utf-8')}")
         if expected_response == "Nothing" or enc_exp_rsp == enc_rsp:
             return error_code, enc_rsp
-        msg = f"Serial write {command}.\n Expected Response {enc_exp_rsp} got {enc_rsp}\n"
+        error_resp = ""
+        if enc_rsp == b"E0\r":
+            error_resp = "E0 : camera above max temperature"
+        elif enc_rsp == b"E1\r":
+            error_resp = "E1 : Error on reception: Framing, parity or overrun error"
+        elif enc_rsp == b"E2\r":
+            error_resp = "E2 : Error on reception: input buffer overload"
+        elif enc_rsp == b"E3\r":
+            error_resp = f"E3 : Command {command} contains an error"
+        elif enc_rsp == b"E4\r":
+            error_resp = f"E4 : Command {command} is not suitable for current operating mode"
+        elif enc_rsp == b"E5\r":
+            error_resp = f"E5 : Command {command} has error in parameters"
+        elif enc_rsp == b"E6\r":
+            error_resp = \
+                f"E6 : Command {command} has parameters unsuitable for current operating mode"
+        msg = \
+            f"Serial write {command}.\n" \
+            f"  Expected Response {expected_response} got {enc_rsp.decode('utf-8')}\n" \
+            f"\t{error_resp}"
         self.logger.warning(msg)
         return error_code, enc_rsp
 

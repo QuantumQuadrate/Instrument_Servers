@@ -77,7 +77,7 @@ class HSDIO(Instrument):
         
                 try:
 
-                    self.logger.debug(child)
+                    # self.logger.debug(child)
                     # handle each tag by name:
                     if child.tag == "enable":
                         self.enable = Instrument.str_to_bool(child.text)
@@ -105,7 +105,7 @@ class HSDIO(Instrument):
                             self.scriptTriggers.append(Trigger(t_child))
 
                     elif child.tag == "waveforms":
-                        self.logger.debug("found a waveform")
+                        # self.logger.debug("found a waveform")
                         wvforms_node = child
                         for wvf_child in wvforms_node:
                             if wvf_child.tag == "waveform":
@@ -329,7 +329,7 @@ class HSDIO(Instrument):
 
                 # self.logger.debug(f"post-split : {wave}")
                 wave_format, data = wave.decompress()
-                self.logger.debug(f"format of waveform is {wave_format}")
+                # self.logger.debug(f"format of waveform is {wave_format}")
                 try:
                     if wave_format == "WDT":
                         # grouping = HSDIOSession.NIHSDIO_VAL_GROUP_BY_CHANNEL

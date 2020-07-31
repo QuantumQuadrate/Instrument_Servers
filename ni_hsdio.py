@@ -638,10 +638,10 @@ class HSDIOSession:
                 negative values = Errors
         """
 
-        self.logger.debug(f"Python Waveform data is {data}\nlength = {len(data)}")
+        # self.logger.debug(f"Python Waveform data is {data}\nlength = {len(data)}")
         c_data = (c_uint8 * len(data))(*data)
-        self.logger.debug(f"C Waveform data is {list(c_data)}\n length = {len(list(c_data))}")
-        self.logger.debug(f"Pyhon samples per channel = {samples_per_chan}\n C samples per chan {c_int32(samples_per_chan)}")
+        # self.logger.debug(f"C Waveform data is {list(c_data)}\n length = {len(list(c_data))}")
+        # self.logger.debug(f"Pyhon samples per channel = {samples_per_chan}\n C samples per chan {c_int32(samples_per_chan)}")
         c_wvfm_name = c_char_p(waveform_name.encode('utf-8'))
         error_code = self.hsdio.niHSDIO_WriteNamedWaveformWDT(
             self.vi,                    # ViSession

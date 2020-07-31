@@ -154,3 +154,6 @@ static
 # local test files
 thread_test.py
 local_test.py
+
+#local hybrid files
+/imaq code.zip
