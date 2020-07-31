@@ -296,10 +296,13 @@ class AnalogInput(Instrument):
         """
         
         if self.task is not None:
+            self.logger.info(self.task.name)
+
             self.is_initialized = False
             try:
                 self.task.close()
             except DaqError as e:
-                msg = '\n AnalogInput failed to close current task'
-                self.logger.warning(msg)
-                self.logger.exception(e)
+                if not e.error_code == DAQmxErrors.INVALID_TASK.value:
+                    msg = '\n AnalogInput failed to close current task'
+                    self.logger.warning(msg)
+                    self.logger.exception(e)

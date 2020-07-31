@@ -390,7 +390,6 @@ class PXI:
             try:
                 self.get_data()
                 self.system_checks()
-                self.system_checks()
                 self.stop_tasks()
                 return_data = self.data_to_xml()
                 return return_data
@@ -467,7 +466,8 @@ class PXI:
             self.hsdio,
             # self.daqmx_do,
             self.analog_input,
-            self.analog_output
+            self.analog_output,
+            self.ttl
             # self.counters # TODO: implement Counters.stop
         ]
 

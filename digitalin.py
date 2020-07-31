@@ -2,7 +2,7 @@
 TTL Input class for the PXI Server
 SaffmanLab, University of Wisconsin - Madison
 
-For parsing XML strings which setup NI DAQ hardware for reading digital input.
+For parsing XML strings which setup NI-DAQ hardware for reading digital input.
 """
 
 ## built-in modules
@@ -118,11 +118,12 @@ class TTLInput(Instrument):
         self.data = np.array([]) 
 
     # TODO: see what kind of data we actually get when this runs
-    def check(self):
+    def check(self,timeout=1):
         """
         Check for data. Waits up to 1 second for data to become available.
         
-        TODO: need to implement error checking here
+        Args:
+            timeout: seconds to wait for data. 1 by default.
         """
         
         if not (self.stop_connections or self.exit_measurement) and self.enable:
@@ -132,9 +133,7 @@ class TTLInput(Instrument):
             try:                
                 # number_of_samples_per_channel unset means 1 sample per channel
                 # 1 second timeout
-                data = self.task.read(timeout=1)
-                
-                # for debugging:
+                data = self.task.read(timeout=timeout)
                 self.logger.debug(f'TTL Data out: {data}')# \n shape: {data.shape}')
                 
                 # get data out and append it to the extant data array
@@ -230,7 +229,7 @@ class TTLInput(Instrument):
         if self.enable:
             try:          
                 self.task.stop()
-                self.logger.debug("stopped TTL task")
+                self.logger.debug(f"stopped {self.__class__.__name__} task")
             except DaqError as e:
                 if not e.error_code == DAQmxErrors.INVALID_TASK.value:
                     msg = f'\n {self.__class__.__name__} failed to stop current task'
@@ -243,9 +242,12 @@ class TTLInput(Instrument):
         """
         
         if self.task is not None:
+            self.logger.info(self.task.name)
+        
             try:
                 self.task.close()
             except DaqError as e:
-                msg = '\n TTLInput failed to close current task'
-                self.logger.warning(msg)
-                self.logger.exception(e)
+                if not e.error_code == DAQmxErrors.INVALID_TASK.value:
+                    msg = f'\n Failed to close {self.__class__.__name__} task'
+                    self.logger.warning(msg)
+                    self.logger.exception(e)
