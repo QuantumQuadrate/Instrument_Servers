@@ -447,7 +447,7 @@ class Hamamatsu(Instrument):
             ms = f"{e}\nError Reading out session status during measurement"
             raise HardwareError(self, self.session, ms)
 
-        bf_dif = last_buf_num - self.last_frame_acquired
+        bf_dif = (last_buf_num - self.last_frame_acquired) % self.num_img_buffers
         not_enough_buffers = bf_dif > self.num_img_buffers
 
         self.logger.debug(f"Last Frame : {self.last_frame_acquired}\n"
