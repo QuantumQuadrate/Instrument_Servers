@@ -471,10 +471,11 @@ class Hamamatsu(Instrument):
 
         for i in range(bf_dif):
             frame_ind += 1
+            frame_ind %= self.num_img_buffers
             self.logger.debug("Acquiring a new available image\n"
                               f" Reading buffer number {frame_ind}")
             try:
-                er_c, img = self.session.session_copy_buffer(frame_ind,wait_for_next=False)
+                er_c, img = self.session.session_copy_buffer(frame_ind, wait_for_next=False)
             except IMAQError as e:
                 self.last_frame_acquired = last_buf_num
                 ms = f"{e}\nError acquiring buffer number {frame_ind} measurement abandoned"
