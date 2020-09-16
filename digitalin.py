@@ -226,7 +226,7 @@ class TTLInput(Instrument):
         Stop the task
         """
         
-        if self.enable:
+        if self.task is not None:
             try:          
                 self.task.stop()
                 self.logger.debug(f"stopped {self.__class__.__name__} task")
@@ -239,11 +239,8 @@ class TTLInput(Instrument):
     def close(self):
         """
         Close the task
-        """
-        
+        """   
         if self.task is not None:
-            self.logger.info(self.task.name)
-        
             try:
                 self.task.close()
             except DaqError as e:

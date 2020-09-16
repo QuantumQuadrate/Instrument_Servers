@@ -271,14 +271,11 @@ class AnalogInput(Instrument):
         """
         Stop the task
         """
-        
         if self.task is not None:
             msg = ""
             try:
-                # be nice and attempt to wait for the measurement to end
                 try:
-                    while not self.is_done():
-                        pass
+                    self.task.stop()
                 except DaqWarning as e:
                     if e.error_code == DAQmxWarnings.STOPPED_BEFORE_DONE.value:
                         pass
@@ -294,7 +291,6 @@ class AnalogInput(Instrument):
         """
         Close the task
         """
-        
         if self.task is not None:
             self.logger.info(self.task.name)
 

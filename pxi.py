@@ -171,6 +171,10 @@ class PXI:
                     self.logger.debug("Entering cycle continously...")
                     # This method returns the data
                     self.return_data_queue = self.measurement()
+        
+        self.shutdown()
+        self.logger.info("Exiting Experiment Thread.")
+        
 
     def launch_keylisten_thread(self):
         """
@@ -431,8 +435,10 @@ class PXI:
         devices = [
             self.hsdio,
             # self.daqmx_do,
+            self.hamamatsu,
             self.analog_input,
-            self.analog_output
+            self.analog_output,
+            self.ttl
             # self.counters # TODO: implement Counters.start
         ]
 
@@ -449,7 +455,8 @@ class PXI:
             self.hsdio,
             # self.daqmx_do,
             self.analog_input,
-            self.analog_output
+            self.analog_output,
+            self.ttl
             # self.counters # TODO: implement Counters.stop
         ]
 
@@ -464,6 +471,7 @@ class PXI:
         devices = [
             self.hsdio,
             # self.daqmx_do,
+            self.hamamatsu,
             self.analog_input,
             self.analog_output,
             self.ttl
@@ -476,15 +484,15 @@ class PXI:
         """
         Get data from the devices
         """
+        if not (self.stop_connections or self.exit_measurement):
+            # devices which have a method 'get_data'
+            devices = [
+                self.hamamatsu,
+                self.analog_input,
+                # self.counters  # TODO: implement Counters.get_data
+            ]
 
-        # devices which have a method 'get_data'
-        devices = [
-            self.hamamatsu,
-            self.analog_input,
-            # self.counters  # TODO: implement Counters.get_data
-        ]
-
-        self.batch_method_call(devices, 'get_data', handle_error)
+            self.batch_method_call(devices, 'get_data', handle_error)
 
     def is_done(self) -> bool:
         """
@@ -507,6 +515,7 @@ class PXI:
                 self.hsdio,
                 self.analog_output,
                 self.analog_input,
+                self.ttl,
                 # self.daqmx_do
             ]
 
@@ -568,8 +577,8 @@ class PXI:
             
         elif key == 'q':
             self.logger.info("Connection stopped by user. Closing server.")
-            self.stop()
-
+            self.exit_measurement = True
+            self.stop_connections = True
         else:
             self.logger.info("Not a valid keypress. Type \'h\' for help.")
 
@@ -613,7 +622,9 @@ class PXI:
         # intended to change the state the of the server and/or log a report of what happened,
         # in response to whatever mess was made.
 
-        
+        if self.stop_connections:
+            return
+            
         self.logger.warning("PXIError encountered. Closing the problematic tasks.")
         
         if isinstance(error, XMLError):
@@ -700,15 +711,17 @@ class PXI:
                 if handle_error:
                     self.handle_errors(he)
 
-    def stop(self):
+    def shutdown(self):
         """
         Nicely shut down this server
         """
-        self.logger.info(f"The following devices will be stopped: {self.devices}")
+        if self.tcp.seeking_connection:
+            self.tcp.abort()
+        
+        self.logger.info(f"Attempting to stop devices with stop method")
         self.stop_tasks()
+        self.logger.info(f"Attempting to close devices with close method")
         self.close_tasks()
-        self.exit_measurement = True
-        self.tcp.stop_connections = True
-
-        # self.experiment_thread.join()
-        # experiment_thread is the only user thread; other threads are daemon.
+        self.logger.info(f"Disabling all devices")
+        for device in self.devices:
+            device.enable = False

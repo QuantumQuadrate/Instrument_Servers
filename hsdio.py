@@ -271,39 +271,34 @@ class HSDIO(Instrument):
         """
         Abort the session
         """
-        self.logger.debug("Stopping operation")
-        if self.enable:
-            for session in self.sessions:
-                try:
-                    session.abort()
-                    self.logger.debug("Aborted an HSDIO session")
-                except HSDIOError as e:
-                    if e.error_code == HSDIO.HSDIO_ERR_BSESSION:
-                        self.logger.warning(
-                            f"Tried to abort {session}, but it does not exist"
-                        )
-                    else:
-                        raise HardwareError(self, session, message=e.message)
+        for session in self.sessions:
+            try:
+                session.abort()
+                self.logger.debug("Aborted an HSDIO session")
+            except HSDIOError as e:
+                if e.error_code == HSDIO.HSDIO_ERR_BSESSION:
+                    self.logger.warning(
+                        f"Tried to abort {session}, but it does not exist"
+                    )
+                else:
+                    raise HardwareError(self, session, message=e.message)
 
     def close(self):
         """
         Close the session
         """
-
-        self.logger.debug("Closing HSDIO operation")
-        if self.enable:
-            self.is_initialized = False
-            for session in self.sessions:
-                try:
-                    session.close(check_error=True)
-                    self.logger.debug("Closed an HSDIO session")
-                except HSDIOError as e:
-                    if e.error_code == HSDIO.HSDIO_ERR_BSESSION:
-                        self.logger.warning(
-                            f"Tried to close {session}, but it does not exist"
-                        )
-                    else:
-                        raise HardwareError(self, session, message=e.message)
+        self.is_initialized = False
+        for session in self.sessions:
+            try:
+                session.close(check_error=True)
+                self.logger.debug("Closed an HSDIO session")
+            except HSDIOError as e:
+                if e.error_code == HSDIO.HSDIO_ERR_BSESSION:
+                    self.logger.warning(
+                        f"Tried to close {session}, but it does not exist"
+                    )
+                else:
+                    raise HardwareError(self, session, message=e.message)
                     
     def log_settings(self, wf_arr, wf_names):  # TODO : @Juan Implement
         pass

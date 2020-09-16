@@ -198,9 +198,8 @@ class DAQmxDO(Instrument):
     def stop(self):
         """
         Stop the task
-        """
-        
-        if self.enable:
+        """  
+        if self.task is not None:
             try:
                 self.task.stop()
             except DaqError as e:
@@ -211,8 +210,7 @@ class DAQmxDO(Instrument):
     def close(self):
         """
         Close the task
-        """
-        
+        """  
         if self.task is not None:
             try:
                 self.task.close()
