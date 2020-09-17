@@ -43,8 +43,8 @@ class TTLInput(Instrument):
         
         self.is_initialized = False
         
-        assert (node.tag == self.expectedRoot,
-                f"Expected tag <{self.expectedRoot}>, but received <{node.tag}>")
+        assert node.tag == self.expectedRoot, \
+                f"Expected tag <{self.expectedRoot}>, but received <{node.tag}>"
         
         if not (self.exit_measurement or self.stop_connections):
 
