@@ -20,8 +20,8 @@ class KeyListener(Thread):
             key = msvcrt.getwch()
             self.on_key_press(key)
             if key == 'q':
-                print("Closing KeyListener Thread")
                 self.running = False
+
                                     
     def end(self):
         """End this thread"""

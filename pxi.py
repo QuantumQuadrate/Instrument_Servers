@@ -339,7 +339,7 @@ class PXI:
         devices = [
             self.hamamatsu,
             # self.counters, #TODO: implement
-            self.ttl,
+            #self.ttl,
             self.analog_input
             # self.demo # not implemented, and debatable whether it needs to be
         ]
@@ -438,7 +438,7 @@ class PXI:
             self.hamamatsu,
             self.analog_input,
             self.analog_output,
-            self.ttl
+            #self.ttl
             # self.counters # TODO: implement Counters.start
         ]
 
@@ -456,7 +456,7 @@ class PXI:
             # self.daqmx_do,
             self.analog_input,
             self.analog_output,
-            self.ttl
+            #self.ttl
             # self.counters # TODO: implement Counters.stop
         ]
 
@@ -474,7 +474,7 @@ class PXI:
             self.hamamatsu,
             self.analog_input,
             self.analog_output,
-            self.ttl
+            #self.ttl
             # self.counters # TODO: implement Counters.stop
         ]
 
@@ -515,7 +515,7 @@ class PXI:
                 self.hsdio,
                 self.analog_output,
                 self.analog_input,
-                self.ttl,
+                #self.ttl,
                 # self.daqmx_do
             ]
 
