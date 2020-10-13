@@ -474,7 +474,7 @@ class PXI:
             self.hamamatsu,
             self.analog_input,
             self.analog_output,
-            #self.ttl
+            self.ttl
             # self.counters # TODO: implement Counters.stop
         ]
 
