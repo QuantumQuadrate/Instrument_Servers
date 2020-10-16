@@ -552,6 +552,7 @@ class Hamamatsu(Instrument):
 
         return hm_str
 
+
     def close(self):
         """
         Closes the Hamamatsu Imaq session gracefully

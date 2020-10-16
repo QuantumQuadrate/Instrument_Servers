@@ -276,34 +276,23 @@ class AnalogOutput(Instrument):
         """
         Stop the task
         """
-        
         if self.task is not None:
-            msg = ""
             try:
-                # be nice and attempt to wait for the measurement to end
-                try:
-                    while not self.is_done():
-                        pass
-                except DaqWarning as e:
-                    if e.error_code == DAQmxWarnings.STOPPED_BEFORE_DONE.value:
-                        pass
-                                            
                 self.task.stop()
             except DaqError as e:
                 if not e.error_code == DAQmxErrors.INVALID_TASK.value:
                     msg = f'\n {self.__class__.__name__} failed to stop current task'
                     self.logger.warning(msg)
                     self.logger.exception(e)
+            except DaqWarning as e:
+                if e.error_code == DAQmxWarnings.STOPPED_BEFORE_DONE.value:
+                    pass
 
     def close(self):
         """
         Close the task
         """
-
-        
         if self.task is not None:
-            self.logger.info(self.task.name)
-
             self.is_initialized = False
             try:
                 self.task.close()

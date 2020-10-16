@@ -14,6 +14,7 @@ class TCP:
         self.current_connection = None
         self.network_thread = None
         self.pxi = pxi
+        self.seeking_connection = False
 
     @property
     def reset_connection(self) -> bool:
@@ -50,7 +51,9 @@ class TCP:
 
             # TODO: entering q in cmd line should terminate this process
             self.logger.info("Attempting to accept connection request.")
+            self.seeking_connection = True
             self.current_connection, client_address = self.listening_socket.accept()
+            self.seeking_connection = False
             self.logger.info(f"Started connection with {client_address}")
             while not (self.pxi.reset_connection or self.stop_connections):
                 try:
@@ -64,7 +67,7 @@ class TCP:
                     
             self.logger.info(f"Closing connection with {client_address}")
             self.current_connection.close()
-
+        self.logger.info("Closing Networking Thread")
         self.listening_socket.close()
 
     def receive_message(self):
@@ -135,7 +138,13 @@ class TCP:
         else:
             self.logger.warning("tried to send a message but the connection is stopped :'(")
 
+            
+    def abort(self):
+        kill_socket = socket.socket()
+        kill_socket.connect(('127.0.0.1', 9000))
+        kill_socket.close()
 
+    
     @staticmethod
     def format_message(message) -> bytes:
         """
