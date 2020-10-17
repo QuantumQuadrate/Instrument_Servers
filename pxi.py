@@ -435,7 +435,7 @@ class PXI:
         devices = [
             self.hsdio,
             # self.daqmx_do,
-            self.hamamatsu,
+            # self.hamamatsu,
             self.analog_input,
             self.analog_output,
             #self.ttl
