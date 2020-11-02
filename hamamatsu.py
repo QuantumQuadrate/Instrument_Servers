@@ -447,7 +447,7 @@ class Hamamatsu(Instrument):
             ms = f"{e}\nError Reading out session status during measurement"
             raise HardwareError(self, self.session, ms)
 
-        bf_dif = last_buf_num - self.last_frame_acquired
+        bf_dif = (last_buf_num - self.last_frame_acquired) % self.num_img_buffers
         not_enough_buffers = bf_dif > self.num_img_buffers
 
         self.logger.debug(f"Last Frame : {self.last_frame_acquired}\n"
@@ -471,10 +471,11 @@ class Hamamatsu(Instrument):
 
         for i in range(bf_dif):
             frame_ind += 1
+            frame_ind %= self.num_img_buffers
             self.logger.debug("Acquiring a new available image\n"
                               f" Reading buffer number {frame_ind}")
             try:
-                er_c, img = self.session.session_copy_buffer(frame_ind,wait_for_next=False)
+                er_c, img = self.session.session_copy_buffer(frame_ind, wait_for_next=False)
             except IMAQError as e:
                 self.last_frame_acquired = last_buf_num
                 ms = f"{e}\nError acquiring buffer number {frame_ind} measurement abandoned"
@@ -550,6 +551,7 @@ class Hamamatsu(Instrument):
         hm_str += TCP.format_data(f"{hm}/temperature", "{:.3f}".format(self.camera_temp))
 
         return hm_str
+
 
     def close(self):
         """
