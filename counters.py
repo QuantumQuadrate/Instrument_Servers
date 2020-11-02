@@ -20,15 +20,16 @@ from tcp import TCP
 class Counter(Instrument):
     """Class to interface with a single counter""" 
     def __init__(self, pxi, name, node: ET.Element = None):
+        super().__init__(pxi, node)
         self.name = name
-        self.task = None
         self.data: List[int] = []
 
         self.counter_source = ""
         self.clock_source = ""
         self.clock_rate = ""
+        self.__task = None
 
-        super().__init__(pxi, "", node)
+        
 
     @property
     def task(self) -> nidaqmx.Task:
@@ -65,10 +66,11 @@ class Counter(Instrument):
     def init(self):
         self.is_initialized = False
 
-        if self.stop_connections or self.reset_connection:
+        if self.stop_connections or self.reset_connection or not self.enable:
             return
 
         try:
+            self.logger.debug("Counter init")
             self.task = nidaqmx.Task()
 
             self.task.ci_channels.add_ci_count_edges_chan(
@@ -94,7 +96,7 @@ class Counter(Instrument):
         self.is_initialized = True
 
     def get_data(self):
-        if self.stop_connections or self.exit_measurement:
+        if self.stop_connections or self.exit_measurement or not self.enable:
             return
 
         try:
@@ -111,11 +113,13 @@ class Counter(Instrument):
             raise HardwareError(self, task=self.task, message=msg)
 
     def start(self):
-        if self.stop_connections or self.exit_measurement:
+        if self.stop_connections or self.exit_measurement or not self.enable:
             return
 
         try:
+            self.logger.debug("Counter start")
             self.task.start()
+            
         except DaqError:
             self.stop()
             self.close()
@@ -126,22 +130,21 @@ class Counter(Instrument):
         """
         Stop the task
         """
-
         if self.task is not None:
             msg = ""
             try:
-                # be nice and attempt to wait for the measurement to end
                 try:
-                    while not self.is_done():
-                        pass
+                    self.logger.debug("Counter stop")
+                    self.task.stop()
+                    
                 except DaqWarning as e:
                     if e.error_code == DAQmxWarnings.STOPPED_BEFORE_DONE.value:
                         pass
-
+                                            
                 self.task.stop()
             except DaqError as e:
                 if not e.error_code == DAQmxErrors.INVALID_TASK.value:
-                    msg = f'\nCounter {self.name} failed to stop current task'
+                    msg = f'\n {self.__class__.__name__} failed to stop current task'
                     self.logger.warning(msg)
                     self.logger.exception(e)
 
@@ -170,12 +173,12 @@ class Counter(Instrument):
         """
         Close the task
         """
-
+        self.logger.info("Counter close")
         if self.task is not None:
-            self.logger.info(self.task.name)
 
             self.is_initialized = False
             try:
+                
                 self.task.close()
             except DaqError as e:
                 if not e.error_code == DAQmxErrors.INVALID_TASK.value:
@@ -220,11 +223,21 @@ class Counters(Instrument):
                     self.enable = Instrument.str_to_bool(child.text)
                 elif child.tag == "counters":
                     for counter_node in child:
-                        self.counters.append(Counter(
-                            self.pxi,
-                            counter_node.tag,
-                            counter_node
-                        ))
+                        this_counter = None
+                        for counter in self.counters:
+                            if counter.name == counter_node.tag:
+                                this_counter = counter
+                                break
+                        if this_counter is None:
+                            this_counter = Counter(
+                                self.pxi,
+                                counter_node.tag,
+                                counter_node
+                            )
+                        this_counter.load_xml(counter_node)
+                        this_counter.enable = self.enable
+                        self.counters.append(this_counter)
+                        
                 elif child.tag == "version":
                     pass
                 else:
@@ -242,6 +255,7 @@ class Counters(Instrument):
 
         try:
             for counter in self.counters:
+                
                 counter.init()
         finally:
             self.check_init()
@@ -332,7 +346,7 @@ class Counters(Instrument):
 
             shape_str = ",".join([str(x) for x in data_shape])
 
-            data_bytes = struct.pack(f"!{len(flat_data)}d", *flat_data)
+            data_bytes = struct.pack(f"!{len(flat_data)}L", *flat_data)
 
             self.data_string = (TCP.format_data('counter/dimensions', shape_str))
             self.data_string += (TCP.format_data('counter/data', data_bytes))
