@@ -14,7 +14,7 @@ import threading
 import xml.etree.ElementTree as ET
 from typing import Tuple
 from queue import Queue, Empty
-from time import perf_counter_ns
+from time import perf_counter_ns, time
 from typing import List
 
 ## misc local classes
@@ -78,6 +78,7 @@ class PXI:
         self.hamamatsu = Hamamatsu(self)
         # TODO: implement these classes
         # self.counters = None  # Counters()
+        self.trelative = time()
 
     @property
     def stop_connections(self) -> bool:
@@ -160,8 +161,10 @@ class PXI:
         while not (self.stop_connections or self.exit_measurement):
             try:
                 # dequeue xml; non-blocking
+                # poptime=time()
                 xml_str = self.command_queue.get(block=False, timeout=0)
                 self.parse_xml(xml_str)
+                # self.logger.info(f"handled cmd: {time()-poptime}")
 
             except Empty:
                 self.exit_measurement = False
@@ -364,6 +367,12 @@ class PXI:
         """
 
         if not (self.stop_connections or self.exit_measurement):
+            
+            tmeas = time()
+            
+            self.logger.info(f"measurement time lapse= {time()-self.trelative}")
+            self.trelative = time()
+            
             self.reset_data()
             self.system_checks()
             self.start_tasks()
@@ -375,26 +384,36 @@ class PXI:
             tau = 10  # loop period in [ms]
             scl = 1e-6  # scale factor to convert ns to ms
             t0 = perf_counter_ns()  # integer ns. reference point is undefined.
+            
+            devtime = time()
+            finished_devs = []
             while not (_is_done or _is_error or self.stop_connections
                        or self.exit_measurement):
                 try:
-                    _is_done = self.is_done()
-
+                    _is_done, dev, tiempo = self.is_done()
+                    if _is_done:
+                        donetime = tiempo - devtime
+                        finished_devs.append((dev, donetime))
+                        # for d,t in finished_devs:
+                            # self.logger.info(f"{d} done at {t}")
+                    
                 except HardwareError as e:
                     self.handle_errors(e)
 
                 # sleep until the outer loop iteration has taken at least 1 ms
-                while True:
-                    dt = perf_counter_ns() - t0
-                    if dt * scl > tau:  # compare time in ms
-                        t0 = perf_counter_ns()
-                        break
+                # while True:
+                    # dt = perf_counter_ns() - t0
+                    # if dt * scl > tau:  # compare time in ms
+                        # t0 = perf_counter_ns()
+                        # break
 
             try:
                 self.get_data()
                 self.system_checks()
                 self.stop_tasks()
                 return_data = self.data_to_xml()
+                
+                self.logger.info(f"meas time: {time()-tmeas}")
                 return return_data
 
             except Exception as e:  # TODO: make less general
@@ -518,19 +537,46 @@ class PXI:
                 #self.ttl,
                 # self.daqmx_do
             ]
-
+            
             try:
                 for dev in devices:
                     if dev.is_initialized:
+                        # self.logger.info(f'checking {dev.__class__.__name__}.is_done()')
                         if not dev.is_done():
+                            # self.logger.info(f'{dev.__class__.__name__} not done yet')
+                            
                             done = False
                             break
+                        
+                        else:
+                            return done, dev.__class__.__name__, time()
+                        
             except HardwareError as e:
                 self.handle_errors(e)
-                return done
+                return done, None, None
+                
+        return done, None, None
 
-        return done
+        # return done
+            
+            # try:
+                # for dev in devices:
+                    # if dev.is_initialized:
+                        # self.logger.info(f'checking {dev.__class__.__name__}.is_done()')
+                        # if not dev.is_done():
+                            # self.logger.info(f'{dev.__class__.__name__} not done yet')
+                            
+                            
+                            # done = False
+                            # break
+                        
+            # except HardwareError as e:
+                # self.handle_errors(e)
+                # return done
 
+        # return done
+        
+        
     def reset_timeout(self):
         """
         Seems to change a global variable 'Timeout Elapses at' to the current time + timeout
@@ -704,6 +750,9 @@ class PXI:
                 continue
             try:
                 fun()  # call the method
+                
+                self.logger.info("starting the {}")
+                
             except HardwareError as he:
                 self.logger.info(
                     f"Error {he} encountered while performing {dev}.{method}()"

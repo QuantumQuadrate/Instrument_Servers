@@ -2,6 +2,7 @@ import socket
 import struct
 import logging
 import threading
+from time import time
 
 
 class TCP:
@@ -79,7 +80,10 @@ class TCP:
 
         """
         # Read first 4 bytes looking for a specific message header
-        self.current_connection.settimeout(0.3)
+        
+        trec = time()
+        
+        # self.current_connection.settimeout(0.3)
         header = self.current_connection.recv(4)
         self.logger.info(f"header was read as {header}")
         if header == b'MESG':
@@ -93,13 +97,16 @@ class TCP:
             bytes_remaining = length
             message = ''
 
+            tbytes = time()
             while bytes_remaining > 0:
                 snippet = self.current_connection.recv(bytes_remaining)
                 bytes_remaining -=  len(snippet)
                 message += TCP.bytes_to_str(snippet)
+            self.logger.info(f"bytes read {time()-tbytes}")
 
             if len(message) == length:
                 self.logger.info("message received with expected length.")
+                self.logger.info(f"msg to cmd in {time()-trec}")
                 self.pxi.queue_command(message)
             else:
                 self.logger.info(f"Something went wrong,"
@@ -117,6 +124,8 @@ class TCP:
             finally:
                 self.reset_connection = True
                 self.logger.info("reset connection true")
+                
+        self.logger.info(f"receive time: {time()-trec}")
 
     def send_message(self, msg_str=None):
         """
@@ -127,6 +136,7 @@ class TCP:
         """
         
         if not self.stop_connections: # and msg_str:
+            tsend = time()
             try:
                 self.logger.info("encoding message")
                 encoded = b"MESG"+TCP.format_message(msg_str)
@@ -135,6 +145,7 @@ class TCP:
             except Exception:
                 self.logger.exception("Issue sending message back to CsPy.")
                 self.reset_connection = True
+            self.logger.info(f"send time: {time()-tsend}")
         else:
             self.logger.warning("tried to send a message but the connection is stopped :'(")
 
