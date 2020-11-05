@@ -43,6 +43,7 @@ class PXI:
                 " - 'h to see this message again \n" +
                 " - 'r' to reset the connection to CsPy \n" +
                 " - 'd' to toggle the server DEBUG level logging \n" +
+                " - 'x' to print the most recently received xml to a file \n" +
                 " - 'q' to stop the connection and close this server.")
 
     def __init__(self, address: Tuple[str, int]):
@@ -161,10 +162,10 @@ class PXI:
         while not (self.stop_connections or self.exit_measurement):
             try:
                 # dequeue xml; non-blocking
-                # poptime=time()
+                poptime=time()
                 xml_str = self.command_queue.get(block=False, timeout=0)
                 self.parse_xml(xml_str)
-                # self.logger.info(f"handled cmd: {time()-poptime}")
+                self.logger.info(f"handled cmd: {time()-poptime}")
 
             except Empty:
                 self.exit_measurement = False
@@ -605,6 +606,13 @@ class PXI:
             self.logger.info("Connection reset by user.")
             self.reset_connection = True
 
+        if key == 'x': # print most recently received xml to file
+            try:
+                fname = self.tcp.xml_to_file()
+                self.logger.info("wrote xml to file "+fname)
+            except Exception as e:
+                self.logger.error(f"oops. failed to write to file. + \n {e}")
+            
         if key == 'd': # toggle debug/info level root logging
             if self.root_logger.level != logging.DEBUG:
                 self.root_logger.setLevel(logging.DEBUG)
@@ -751,7 +759,7 @@ class PXI:
             try:
                 fun()  # call the method
                 
-                self.logger.info("starting the {}")
+                # self.logger.info("starting the {dev.__class__.__name__}")
                 
             except HardwareError as he:
                 self.logger.info(

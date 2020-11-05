@@ -3,6 +3,7 @@ import struct
 import logging
 import threading
 from time import time
+from datetime import datetime
 
 
 class TCP:
@@ -16,6 +17,7 @@ class TCP:
         self.network_thread = None
         self.pxi = pxi
         self.seeking_connection = False
+        self.last_xml = ""
 
     @property
     def reset_connection(self) -> bool:
@@ -103,7 +105,9 @@ class TCP:
                 bytes_remaining -=  len(snippet)
                 message += TCP.bytes_to_str(snippet)
             self.logger.info(f"bytes read {time()-tbytes}")
-
+            if message != "<LabView><measure/></LabView>":
+                self.last_xml = message
+            
             if len(message) == length:
                 self.logger.info("message received with expected length.")
                 self.logger.info(f"msg to cmd in {time()-trec}")
@@ -149,6 +153,16 @@ class TCP:
         else:
             self.logger.warning("tried to send a message but the connection is stopped :'(")
 
+            
+    def xml_to_file(self):
+        """
+        print last xml to a file
+        """
+        fname = "xml_" + (datetime.now()).strftime("%Y%m%d_%H_%M_%S") + ".txt"
+        with open(fname, 'w') as f:
+            f.write(self.last_xml)
+        return fname
+            
             
     def abort(self):
         kill_socket = socket.socket()
