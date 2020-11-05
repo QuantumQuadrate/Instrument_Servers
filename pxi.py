@@ -14,7 +14,7 @@ import threading
 import xml.etree.ElementTree as ET
 from typing import Tuple
 from queue import Queue, Empty
-from time import perf_counter_ns, time
+from time import time, sleep
 from typing import List
 
 ## misc local classes
@@ -40,7 +40,7 @@ class PXI:
     
     """
     help_str = ("At any time, type... \n" +
-                " - 'h to see this message again \n" +
+                " - 'h' to see this message again \n" +
                 " - 'r' to reset the connection to CsPy \n" +
                 " - 'd' to toggle the server DEBUG level logging \n" +
                 " - 'x' to print the most recently received xml to a file \n" +
@@ -161,11 +161,9 @@ class PXI:
 
         while not (self.stop_connections or self.exit_measurement):
             try:
-                # dequeue xml; non-blocking
-                poptime=time()
+                # dequeue xml
                 xml_str = self.command_queue.get(block=False, timeout=0)
                 self.parse_xml(xml_str)
-                self.logger.info(f"handled cmd: {time()-poptime}")
 
             except Empty:
                 self.exit_measurement = False
@@ -175,6 +173,8 @@ class PXI:
                     self.logger.debug("Entering cycle continously...")
                     # This method returns the data
                     self.return_data_queue = self.measurement()
+            
+            sleep(0.001) # keep while loop from hogging resources
         
         self.shutdown()
         self.logger.info("Exiting Experiment Thread.")
@@ -369,9 +369,7 @@ class PXI:
 
         if not (self.stop_connections or self.exit_measurement):
             
-            tmeas = time()
-            
-            self.logger.info(f"measurement time lapse= {time()-self.trelative}")
+            # self.logger.info(f"measurement time lapse= {time()-self.trelative}")
             self.trelative = time()
             
             self.reset_data()
@@ -384,7 +382,6 @@ class PXI:
             ## timed loop to frequently check if tasks are done
             tau = 10  # loop period in [ms]
             scl = 1e-6  # scale factor to convert ns to ms
-            t0 = perf_counter_ns()  # integer ns. reference point is undefined.
             
             devtime = time()
             finished_devs = []
@@ -401,20 +398,14 @@ class PXI:
                 except HardwareError as e:
                     self.handle_errors(e)
 
-                # sleep until the outer loop iteration has taken at least 1 ms
-                # while True:
-                    # dt = perf_counter_ns() - t0
-                    # if dt * scl > tau:  # compare time in ms
-                        # t0 = perf_counter_ns()
-                        # break
+                # sleep to reduce resource usage
+                sleep(0.001)
 
             try:
                 self.get_data()
                 self.system_checks()
                 self.stop_tasks()
                 return_data = self.data_to_xml()
-                
-                self.logger.info(f"meas time: {time()-tmeas}")
                 return return_data
 
             except Exception as e:  # TODO: make less general
