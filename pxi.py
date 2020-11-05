@@ -248,7 +248,6 @@ class PXI:
                         self.logger.info("HSDIO hardware initialized")
                         self.hsdio.update()
                         self.logger.info("HSDIO hardware updated")
-                        self.logger.info(f"HSDIO.enable = {self.hsdio.enable}")
 
                     elif child.tag == "TTL":
                         self.ttl.load_xml(child)
