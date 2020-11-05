@@ -388,13 +388,8 @@ class PXI:
             while not (_is_done or _is_error or self.stop_connections
                        or self.exit_measurement):
                 try:
-                    _is_done, dev, tiempo = self.is_done()
-                    if _is_done:
-                        donetime = tiempo - devtime
-                        finished_devs.append((dev, donetime))
-                        # for d,t in finished_devs:
-                            # self.logger.info(f"{d} done at {t}")
-                    
+                    _is_done = self.is_done()
+
                 except HardwareError as e:
                     self.handle_errors(e)
 
@@ -529,44 +524,18 @@ class PXI:
                 #self.ttl,
                 # self.daqmx_do
             ]
-            
+
             try:
                 for dev in devices:
                     if dev.is_initialized:
-                        # self.logger.info(f'checking {dev.__class__.__name__}.is_done()')
                         if not dev.is_done():
-                            # self.logger.info(f'{dev.__class__.__name__} not done yet')
-                            
                             done = False
                             break
-                        
-                        else:
-                            return done, dev.__class__.__name__, time()
-                        
             except HardwareError as e:
                 self.handle_errors(e)
-                return done, None, None
-                
-        return done, None, None
+                return done
 
-        # return done
-            
-            # try:
-                # for dev in devices:
-                    # if dev.is_initialized:
-                        # self.logger.info(f'checking {dev.__class__.__name__}.is_done()')
-                        # if not dev.is_done():
-                            # self.logger.info(f'{dev.__class__.__name__} not done yet')
-                            
-                            
-                            # done = False
-                            # break
-                        
-            # except HardwareError as e:
-                # self.handle_errors(e)
-                # return done
-
-        # return done
+        return done
         
         
     def reset_timeout(self):
