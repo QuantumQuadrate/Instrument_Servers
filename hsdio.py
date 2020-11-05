@@ -90,6 +90,7 @@ class HSDIO(Instrument):
                         self.resourceNames = resources
 
                     elif child.tag == "clockRate":
+                        self.logger.debug(f"XML clockRate = {child.text}")
                         self.clockRate = float(child.text)
 
                     elif child.tag == "hardwareAlignmentQuantum":
@@ -156,6 +157,7 @@ class HSDIO(Instrument):
                 session.init_generation_sess()
                 # TODO : deal with error case where session is not initiated
                 session.assign_dynamic_channels(chan_list)
+                self.logger.debug(f"ClockRate = {self.clockRate}")
                 session.configure_sample_clock(self.clockRate)
                 session.configure_generation_mode(
                     generation_mode=HSDIOSession.NIHSDIO_VAL_SCRIPTED
