@@ -93,9 +93,10 @@ class AnalogInput(Instrument):
 
                     else:
                         self.logger.warning(f"Unrecognized XML tag \'{child.tag}\' in <{self.expectedRoot}>")
-
+                
                 except (KeyError, ValueError):
                     raise XMLError(self, child)
+            
                 
     def init(self):
     
