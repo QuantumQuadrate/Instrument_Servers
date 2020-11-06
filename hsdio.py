@@ -326,8 +326,10 @@ class HSDIO(Instrument):
 
                 # self.logger.debug(f"post-split : {wave}")
                 wave_format, data = wave.decompress()
+
                 # self.logger.debug(f"format of waveform is {wave_format}")
                 try:
+
                     if wave_format == "WDT":
                         # grouping = HSDIOSession.NIHSDIO_VAL_GROUP_BY_CHANNEL
                         grouping = HSDIOSession.NIHSDIO_VAL_GROUP_BY_SAMPLE
