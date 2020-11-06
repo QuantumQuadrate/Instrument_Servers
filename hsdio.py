@@ -153,7 +153,7 @@ class HSDIO(Instrument):
             session = self.sessions[-1]
 
             try:
-                self.logger.info(f"resource: {resource} \n chan_list: {chan_list} \n idle_state: {idle_state} \n init_state: {init_state}")
+                self.logger.debug(f"resource: {resource} \n chan_list: {chan_list} \n idle_state: {idle_state} \n init_state: {init_state}")
                 session.init_generation_sess()
                 # TODO : deal with error case where session is not initiated
                 session.assign_dynamic_channels(chan_list)

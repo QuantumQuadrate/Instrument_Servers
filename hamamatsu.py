@@ -367,31 +367,8 @@ class Hamamatsu(Instrument):
 
         self.is_initialized = True
         self.num_images = 0
-        self.logger.debug(f"HL ring acquisition completed. Starting session {self.session}")
-        self.start()
+        self.logger.debug(f"HL ring acquisition setup completed. Starting session {self.session}")
 
-    def check_camera_setting(self, command, msg=None):
-        """
-        Checks the hamamatsu's setting indicated by command and prints that setting to logger.debug
-        A debugging tool
-        Args:
-            command: String indicating setting. eg 'AMD' corresponds to camera's Mode
-            msg: Additional message to be tacked onto debug message
-        """
-        erc, response = self.session.hamamatsu_serial(f"?{command}")
-        debug_msg = f"{command} setting = {response}"
-        debug_msg += "" if msg is None else f"\n{msg}"
-        self.logger.debug(debug_msg)
-
-    def start(self):
-        """
-        Starts the data acquisition and outputs acquisition status to log
-        """
-        if self.stop_connections or self.reset_connection:
-            return
-
-        if not self.enable:
-            return
         # begin asynchronous acquisition
         er_c, resp = self.session.hamamatsu_serial("?AMD")
         self.logger.debug(f"Pre_asynchronous acquisition Camera Trigger mode = {resp}")
@@ -408,11 +385,7 @@ class Hamamatsu(Instrument):
         except IMAQError as e:
             self.logger.warning(e)
             trig_mode = "ERROR GETTING TRIG MODE"
-        '''
-        This function is called in labview and these variables are set (locally?) but they're not 
-        sed in the scope, just broken out as indicators. I wonder if scope in labview is somehow 
-        different from what I imagine
-        '''
+
         try:
             err_c, acquiring, last_buffer_index, last_buffer_number = self.session.status()
         except IMAQError as e:
@@ -423,6 +396,19 @@ class Hamamatsu(Instrument):
         self.logger.debug(f"trig mode = {trig_mode}\n"
                           f"acquiring? = {acquiring}\n"
                           f"last buffer acquired image number = {last_buffer_number}")
+
+    def check_camera_setting(self, command, msg=None):
+        """
+        Checks the hamamatsu's setting indicated by command and prints that setting to logger.debug
+        A debugging tool
+        Args:
+            command: String indicating setting. eg 'AMD' corresponds to camera's Mode
+            msg: Additional message to be tacked onto debug message
+        """
+        erc, response = self.session.hamamatsu_serial(f"?{command}")
+        debug_msg = f"{command} setting = {response}"
+        debug_msg += "" if msg is None else f"\n{msg}"
+        self.logger.debug(debug_msg)
 
     def get_data(self):  # name change to comply with name/functionality convention used in pxi.py
         """

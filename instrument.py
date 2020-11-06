@@ -34,7 +34,7 @@ class XMLLoader(ABC):
         # TODO : Set logging level globally. Maybe config file
         if node is not None:
             self.load_xml(node)
-
+        
     @abstractmethod
     def load_xml(self, node: ET.Element):
         """
@@ -153,6 +153,11 @@ class Instrument(XMLLoader):
         self.expectedRoot = expected_root
         self.enable = False
         self.is_initialized = False
+        self._name = self.__class__.__name__
+
+    @property
+    def name(self):
+        return self._name
     
     @property
     def reset_connection(self) -> bool:

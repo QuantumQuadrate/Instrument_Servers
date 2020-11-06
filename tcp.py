@@ -2,6 +2,8 @@ import socket
 import struct
 import logging
 import threading
+from time import time
+from datetime import datetime
 
 
 class TCP:
@@ -15,6 +17,7 @@ class TCP:
         self.network_thread = None
         self.pxi = pxi
         self.seeking_connection = False
+        self.last_xml = ""
 
     @property
     def reset_connection(self) -> bool:
@@ -79,17 +82,15 @@ class TCP:
 
         """
         # Read first 4 bytes looking for a specific message header
-        self.current_connection.settimeout(0.3)
         header = self.current_connection.recv(4)
-        self.logger.info(f"header was read as {header}")
+        self.logger.debug(f"header was read as {header}")
         if header == b'MESG':
             self.logger.info("We got a message! now to handle it.")
             # Assume next 4 bytes contains the length of the remaining message
             length_bytes = self.current_connection.recv(4)
             length = int.from_bytes(length_bytes, byteorder='big')
-            self.logger.info(f"I think the message is {length} bytes long.")
+            self.logger.debug(f"I think the message is {length} bytes long.")
             self.current_connection.settimeout(20)
-
             bytes_remaining = length
             message = ''
 
@@ -97,12 +98,14 @@ class TCP:
                 snippet = self.current_connection.recv(bytes_remaining)
                 bytes_remaining -=  len(snippet)
                 message += TCP.bytes_to_str(snippet)
-
+            if message != "<LabView><measure/></LabView>":
+                self.last_xml = message
+            
             if len(message) == length:
-                self.logger.info("message received with expected length.")
+                self.logger.debug("message received with expected length.")
                 self.pxi.queue_command(message)
             else:
-                self.logger.info(f"Something went wrong,"
+                self.logger.warning(f"Something went wrong,"
                                  f" I only found {len(message)} bytes to read!")
         else:
             self.logger.info("We appear to have received junk. Clearing buffer.")
@@ -117,7 +120,8 @@ class TCP:
             finally:
                 self.reset_connection = True
                 self.logger.info("reset connection true")
-
+                
+                
     def send_message(self, msg_str=None):
         """
         Send a message back to CsPy via the current connection.
@@ -128,7 +132,7 @@ class TCP:
         
         if not self.stop_connections: # and msg_str:
             try:
-                self.logger.info("encoding message")
+                self.logger.debug("encoding message")
                 encoded = b"MESG"+TCP.format_message(msg_str)
                 self.current_connection.send(encoded)
                 self.logger.info("message sent")
@@ -138,6 +142,16 @@ class TCP:
         else:
             self.logger.warning("tried to send a message but the connection is stopped :'(")
 
+            
+    def xml_to_file(self):
+        """
+        print last xml to a file
+        """
+        fname = "xml_" + (datetime.now()).strftime("%Y%m%d_%H_%M_%S") + ".txt"
+        with open(fname, 'w') as f:
+            f.write(self.last_xml)
+        return fname
+            
             
     def abort(self):
         kill_socket = socket.socket()
