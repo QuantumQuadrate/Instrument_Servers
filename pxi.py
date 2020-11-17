@@ -14,7 +14,7 @@ import threading
 import xml.etree.ElementTree as ET
 from typing import Tuple
 from queue import Queue, Empty
-from time import perf_counter_ns
+from time import time, sleep
 from typing import List
 
 ## misc local classes
@@ -41,9 +41,10 @@ class PXI:
     
     """
     help_str = ("At any time, type... \n" +
-                " - 'h to see this message again \n" +
+                " - 'h' to see this message again \n" +
                 " - 'r' to reset the connection to CsPy \n" +
                 " - 'd' to toggle the server DEBUG level logging \n" +
+                " - 'x' to print the most recently received xml to a file \n" +
                 " - 'q' to stop the connection and close this server.")
 
     def __init__(self, address: Tuple[str, int]):
@@ -77,7 +78,6 @@ class PXI:
         self.ttl = TTLInput(self)
         # self.daqmx_do = DAQmxDO(self)
         self.hamamatsu = Hamamatsu(self)
-        # TODO: implement these classes
         self.counters = Counters(self)
 
     @property
@@ -160,7 +160,7 @@ class PXI:
 
         while not (self.stop_connections or self.exit_measurement):
             try:
-                # dequeue xml; non-blocking
+                # dequeue xml
                 xml_str = self.command_queue.get(block=False, timeout=0)
                 self.parse_xml(xml_str)
 
@@ -172,6 +172,8 @@ class PXI:
                     self.logger.debug("Entering cycle continously...")
                     # This method returns the data
                     self.return_data_queue = self.measurement()
+            
+            sleep(0.001) # keep while loop from hogging resources
         
         self.shutdown()
         self.logger.info("Exiting Experiment Thread.")
@@ -245,7 +247,6 @@ class PXI:
                         self.logger.info("HSDIO hardware initialized")
                         self.hsdio.update()
                         self.logger.info("HSDIO hardware updated")
-                        self.logger.info(f"HSDIO.enable = {self.hsdio.enable}")
 
                     elif child.tag == "TTL":
                         self.ttl.load_xml(child)
@@ -365,6 +366,10 @@ class PXI:
         """
 
         if not (self.stop_connections or self.exit_measurement):
+            
+            # self.logger.info(f"measurement time lapse= {time()-self.trelative}")
+            self.trelative = time()
+            
             self.reset_data()
             self.system_checks()
             self.start_tasks()
@@ -375,7 +380,9 @@ class PXI:
             ## timed loop to frequently check if tasks are done
             tau = 10  # loop period in [ms]
             scl = 1e-6  # scale factor to convert ns to ms
-            t0 = perf_counter_ns()  # integer ns. reference point is undefined.
+            
+            devtime = time()
+            finished_devs = []
             while not (_is_done or _is_error or self.stop_connections
                        or self.exit_measurement):
                 try:
@@ -384,12 +391,8 @@ class PXI:
                 except HardwareError as e:
                     self.handle_errors(e)
 
-                # sleep until the outer loop iteration has taken at least 1 ms
-                while True:
-                    dt = perf_counter_ns() - t0
-                    if dt * scl > tau:  # compare time in ms
-                        t0 = perf_counter_ns()
-                        break
+                # sleep to reduce resource usage
+                sleep(0.001)
 
             try:
                 self.get_data()
@@ -436,7 +439,7 @@ class PXI:
         devices = [
             self.hsdio,
             # self.daqmx_do,
-            self.hamamatsu,
+            # self.hamamatsu,
             self.analog_input,
             self.analog_output,
             #self.ttl
@@ -532,7 +535,8 @@ class PXI:
                 return done
 
         return done
-
+        
+        
     def reset_timeout(self):
         """
         Seems to change a global variable 'Timeout Elapses at' to the current time + timeout
@@ -561,6 +565,13 @@ class PXI:
             self.logger.info("Connection reset by user.")
             self.reset_connection = True
 
+        if key == 'x': # print most recently received xml to file
+            try:
+                fname = self.tcp.xml_to_file()
+                self.logger.info("wrote xml to file "+fname)
+            except Exception as e:
+                self.logger.error(f"oops. failed to write to file. + \n {e}")
+            
         if key == 'd': # toggle debug/info level root logging
             if self.root_logger.level != logging.DEBUG:
                 self.root_logger.setLevel(logging.DEBUG)
@@ -706,6 +717,9 @@ class PXI:
                 continue
             try:
                 fun()  # call the method
+                
+                # self.logger.info("starting the {dev.__class__.__name__}")
+                
             except HardwareError as he:
                 self.logger.info(
                     f"Error {he} encountered while performing {dev}.{method}()"

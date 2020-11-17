@@ -90,6 +90,7 @@ class HSDIO(Instrument):
                         self.resourceNames = resources
 
                     elif child.tag == "clockRate":
+                        self.logger.debug(f"XML clockRate = {child.text}")
                         self.clockRate = float(child.text)
 
                     elif child.tag == "hardwareAlignmentQuantum":
@@ -152,10 +153,11 @@ class HSDIO(Instrument):
             session = self.sessions[-1]
 
             try:
-                self.logger.info(f"resource: {resource} \n chan_list: {chan_list} \n idle_state: {idle_state} \n init_state: {init_state}")
+                self.logger.debug(f"resource: {resource} \n chan_list: {chan_list} \n idle_state: {idle_state} \n init_state: {init_state}")
                 session.init_generation_sess()
                 # TODO : deal with error case where session is not initiated
                 session.assign_dynamic_channels(chan_list)
+                self.logger.debug(f"ClockRate = {self.clockRate}")
                 session.configure_sample_clock(self.clockRate)
                 session.configure_generation_mode(
                     generation_mode=HSDIOSession.NIHSDIO_VAL_SCRIPTED
@@ -324,8 +326,10 @@ class HSDIO(Instrument):
 
                 # self.logger.debug(f"post-split : {wave}")
                 wave_format, data = wave.decompress()
+
                 # self.logger.debug(f"format of waveform is {wave_format}")
                 try:
+
                     if wave_format == "WDT":
                         # grouping = HSDIOSession.NIHSDIO_VAL_GROUP_BY_CHANNEL
                         grouping = HSDIOSession.NIHSDIO_VAL_GROUP_BY_SAMPLE

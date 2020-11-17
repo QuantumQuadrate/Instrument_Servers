@@ -192,7 +192,6 @@ class HSDIOWaveform(Waveform):
             except ValueError:
                 raise XMLError(self, child)
 
-
     def decompress(
             self,
             data_format: str = "WDT",
@@ -236,7 +235,7 @@ class HSDIOWaveform(Waveform):
 
         Returns:
             self.format (str): data encoding format
-            self.data (np.array(c_uint8 or c_uint32)): uncompressed waveform data array
+            self.wvfm (np.array(c_uint8 or c_uint32)): uncompressed waveform data array
         """
 
         allowed_formats = ["WDT", "uInt32"]
@@ -250,11 +249,10 @@ class HSDIOWaveform(Waveform):
                 (len(self), len(self.states[0])),
                 dtype=c_uint8
             )
+
             for state, transition in zip(self.states, self.transitions):
-                for c in range(t_old, len(wvfm)):
-                    wvfm[c, :] = s_old
-                t_old = transition
-                s_old = state
+                for c in range(transition, len(wvfm)):
+                    wvfm[c, :] = state
 
             if data_layout:
                 wvfm = wvfm.flatten()
