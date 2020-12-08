@@ -17,19 +17,19 @@ from instrument import Instrument
 from pxierrors import XMLError, HardwareError
 from tcp import TCP
 
+
 class Counter(Instrument):
     """Class to interface with a single counter""" 
     def __init__(self, pxi, name, node: ET.Element = None):
+        self._name = name  # Doing this twice on purpose
         super().__init__(pxi, node)
-        self.name = name
+        self._name = name
         self.data: List[int] = []
 
         self.counter_source = ""
         self.clock_source = ""
         self.clock_rate = ""
         self.__task = None
-
-        
 
     @property
     def task(self) -> nidaqmx.Task:
@@ -70,7 +70,7 @@ class Counter(Instrument):
             return
 
         try:
-            self.logger.debug("Counter init")
+            self.logger.debug(f"{self} init")
             self.task = nidaqmx.Task()
 
             self.task.ci_channels.add_ci_count_edges_chan(
@@ -103,6 +103,7 @@ class Counter(Instrument):
             # I think the number_of_samples_per_channel setting here mimics the labview behavior
             #   but we may want to set the read_all_avail_samp property to true for the task.
             #   -Juan
+            self.logger.debug(f"{self} get_data")
             self.data = self.task.read(
                 number_of_samples_per_channel=nidaqmx.constants.READ_ALL_AVAILABLE,
                 timeout=0)
@@ -117,10 +118,11 @@ class Counter(Instrument):
             return
 
         try:
-            self.logger.debug("Counter start")
+            self.logger.debug(f"{self} Start")
             self.task.start()
             
-        except DaqError:
+        except DaqError as e:
+            self.logger.exception(f"Error in start task\n{e}")
             self.stop()
             self.close()
             msg = f"\nCounter {self.name} failed to start it's task"
@@ -134,7 +136,7 @@ class Counter(Instrument):
             msg = ""
             try:
                 try:
-                    self.logger.debug("Counter stop")
+                    self.logger.debug(f"{self} stop")
                     self.task.stop()
                     
                 except DaqWarning as e:
@@ -160,6 +162,7 @@ class Counter(Instrument):
             return True
 
         try:
+            self.logger.debug(f"{self} is_done")
             done = self.task.is_task_done()
             return done
         except DaqError as e:
@@ -173,7 +176,7 @@ class Counter(Instrument):
         """
         Close the task
         """
-        self.logger.info("Counter close")
+        self.logger.debug(f"{self} close")
         if self.task is not None:
 
             self.is_initialized = False
@@ -185,6 +188,12 @@ class Counter(Instrument):
                     msg = f'\nCounter {self.name} failed to close current task'
                     self.logger.warning(msg)
                     self.logger.exception(e)
+
+    def __repr__(self):
+        if hasattr(self, "name"):
+            return self.name
+        else:
+            return self.__class__.__name__
 
 
 class Counters(Instrument):
@@ -217,6 +226,7 @@ class Counters(Instrument):
         if self.stop_connections or self.exit_measurement:
             return
 
+        self.logger.debug("Counters load_xml")
         for child in node:
             try:
                 if child.tag == "enable":
@@ -226,6 +236,7 @@ class Counters(Instrument):
                         this_counter = None
                         for counter in self.counters:
                             if counter.name == counter_node.tag:
+                                self.logger.debug(f"Comparing counter {counter.name} with tag {counter_node.tag}")
                                 this_counter = counter
                                 break
                         if this_counter is None:
@@ -234,9 +245,9 @@ class Counters(Instrument):
                                 counter_node.tag,
                                 counter_node
                             )
-                        this_counter.load_xml(counter_node)
-                        this_counter.enable = self.enable
-                        self.counters.append(this_counter)
+                            this_counter.load_xml(counter_node)
+                            this_counter.enable = self.enable
+                            self.counters.append(this_counter)
                         
                 elif child.tag == "version":
                     pass
@@ -254,6 +265,7 @@ class Counters(Instrument):
             return
 
         try:
+            self.logger.debug(f"Counters init. Initializing counters {self.counters}")
             for counter in self.counters:
                 
                 counter.init()

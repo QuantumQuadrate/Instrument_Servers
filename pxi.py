@@ -443,7 +443,7 @@ class PXI:
             self.analog_input,
             self.analog_output,
             #self.ttl
-            self.counters # TODO: implement Counters.start
+            self.counters
         ]
 
         self.batch_method_call(devices, 'start', handle_error)
