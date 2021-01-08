@@ -28,6 +28,7 @@ from hamamatsu import Hamamatsu
 from analogin import AnalogInput
 from analogout import AnalogOutput
 from digitalin import TTLInput
+from counters import Counters
 # from digitalout import DAQmxDO
 from tcp import TCP
 
@@ -77,9 +78,7 @@ class PXI:
         self.ttl = TTLInput(self)
         # self.daqmx_do = DAQmxDO(self)
         self.hamamatsu = Hamamatsu(self)
-        # TODO: implement these classes
-        # self.counters = None  # Counters()
-        self.trelative = time()
+        self.counters = Counters(self)
 
     @property
     def stop_connections(self) -> bool:
@@ -297,8 +296,8 @@ class PXI:
                     elif child.tag == "Counters":
                     #     # TODO: implement counters class
                     #     # set up the counters
-                    #     # self.counters.load_xml(child)
-                    #     # self.counters.init()
+                        self.counters.load_xml(child)
+                        self.counters.init()
                         pass
 
                     # # might implement, or might move RF generator functionality to
@@ -341,6 +340,8 @@ class PXI:
         # the devices which have a method named 'data_out' which returns a str
         devices = [
             self.hamamatsu,
+            self.counters,
+            #self.ttl,
             # self.counters, #TODO: implement
             self.ttl,
             self.analog_input
@@ -443,7 +444,8 @@ class PXI:
             # self.hamamatsu,
             self.analog_input,
             self.analog_output,
-            # self.counters # TODO: implement Counters.start
+            #self.ttl
+            self.counters
         ]
 
         self.batch_method_call(devices, 'start', handle_error)
@@ -460,7 +462,8 @@ class PXI:
             # self.daqmx_do,
             self.analog_input,
             self.analog_output,
-            # self.counters # TODO: implement Counters.stop
+            #self.ttl
+            self.counters # TODO: implement Counters.stop
         ]
 
         self.batch_method_call(devices, 'stop', handle_error)
@@ -477,8 +480,8 @@ class PXI:
             self.hamamatsu,
             self.analog_input,
             self.analog_output,
-            self.ttl
-            # self.counters # TODO: implement Counters.stop
+            self.ttl,
+            self.counters # TODO: implement Counters.stop
         ]
 
         self.batch_method_call(devices, 'close', handle_error)
@@ -492,7 +495,7 @@ class PXI:
             devices = [
                 self.hamamatsu,
                 self.analog_input,
-                # self.counters  # TODO: implement Counters.get_data
+                self.counters  # TODO: implement Counters.get_data
             ]
 
             self.batch_method_call(devices, 'get_data', handle_error)
@@ -519,6 +522,7 @@ class PXI:
                 self.analog_output,
                 self.analog_input,
                 # self.daqmx_do
+                #self.counters
             ]
 
             try:
