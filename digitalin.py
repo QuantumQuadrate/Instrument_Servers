@@ -140,7 +140,7 @@ class TTLInput(Instrument):
                 # i think this ends up being an array of dimensions (1, samples)
                 # so it is technically 2D as each newly acquired datum is a column
                 self.data = np.append(self.data, data)
-                
+                                
                 # Stop the task and reset it to the state it was initially
                 self.stop()
                            
@@ -161,11 +161,14 @@ class TTLInput(Instrument):
         """
         
         if not (self.stop_connections or self.exit_measurement) and self.enable:
-
+        
             try:
                 # flatten the data and convert to a str
                 data_shape = np.array(self.data).shape
-                flat_data = np.reshape(self.data, np.prod(data_shape)) # nD data --> 1D data
+                flat_data = np.reshape(self.data, (np.prod(data_shape),1)) # nD data --> 1D data
+                data_shape = np.array(flat_data).shape
+                self.logger.debug(f"TTL flattened data: {flat_data}")
+                self.logger.debug(f"TTL data shape :{data_shape}")
 
                 shape_str = ",".join([str(x) for x in data_shape])
 
@@ -173,6 +176,7 @@ class TTLInput(Instrument):
 
                 self.data_string = TCP.format_data('TTL/dimensions', shape_str) + \
                     TCP.format_data('TTL/data', data_bytes)
+                    
             except Exception as e:
                 self.logger.exception(f"Error formatting data from {self.__class__.__name__}")
                 raise e
@@ -200,7 +204,7 @@ class TTLInput(Instrument):
                     # end the task nicely
                     self.stop()
                     self.close()
-                    msg = '\n AnalogInput check for task completion failed'
+                    msg = '\n TTLInput check for task completion failed'
                     raise HardwareError(self, task=self.task, message=msg)
 
         return done

@@ -340,8 +340,10 @@ class PXI:
         # the devices which have a method named 'data_out' which returns a str
         devices = [
             self.hamamatsu,
-            self.counters, #TODO: implement
+            self.counters,
             #self.ttl,
+            # self.counters, #TODO: implement
+            self.ttl,
             self.analog_input
             # self.demo # not implemented, and debatable whether it needs to be
         ]
@@ -519,7 +521,6 @@ class PXI:
                 self.hsdio,
                 self.analog_output,
                 self.analog_input,
-                #self.ttl,
                 # self.daqmx_do
                 #self.counters
             ]
