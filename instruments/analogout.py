@@ -19,7 +19,7 @@ import logging
 from recordclass import recordclass as rc
 
 ## local imports
-from instrument import Instrument
+from instruments.instrument import Instrument
 from trigger import StartTrigger
 from pxierrors import XMLError, HardwareError
 

@@ -18,17 +18,17 @@ from time import time, sleep
 from typing import List
 
 ## misc local classes
-from instrument import XMLLoader, Instrument
+from instruments.instrument import XMLLoader, Instrument
 from keylistener import KeyListener
 from pxierrors import XMLError, HardwareError, PXIError
 
-## local device classes
-from hsdio import HSDIO
-from hamamatsu import Hamamatsu
-from analogin import AnalogInput
-from analogout import AnalogOutput
-from digitalin import TTLInput
-from counters import Counters
+## local instrument classes
+from instruments.hsdio import HSDIO
+from instruments.hamamatsu import Hamamatsu
+from instruments.analogin import AnalogInput
+from instruments.analogout import AnalogOutput
+from instruments.digitalin import TTLInput
+from instruments.counters import Counters
 # from digitalout import DAQmxDO
 from tcp import TCP
 

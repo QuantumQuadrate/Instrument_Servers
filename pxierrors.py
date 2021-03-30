@@ -10,7 +10,7 @@ useful categories where specific handling action pertains to each type.
 import xml.etree.ElementTree as ET
 
 ## local class imports
-from instrument import XMLLoader
+from instruments.instrument import XMLLoader
 
 class PXIError(Exception):
     """

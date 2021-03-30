@@ -13,7 +13,7 @@ import numpy as np
 import struct
 
 # local files
-from instrument import Instrument
+from instruments.instrument import Instrument
 from pxierrors import XMLError, HardwareError
 from tcp import TCP
 
