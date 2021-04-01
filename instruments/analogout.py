@@ -164,7 +164,7 @@ class AnalogOutput(Instrument):
                             self.logger.warning("Tried to close AO task that probably didn't exist")
                         else:
                             self.logger.exception(e)
-                        
+                            
                 try:
                     self.task = nidaqmx.Task()
                     self.task.ao_channels.add_ao_voltage_chan(
@@ -208,8 +208,20 @@ class AnalogOutput(Instrument):
         
         if not (self.stop_connections or self.exit_measurement) and self.enable:
                         
+            print("ENABLED EVEN THOUGH IT WAS FORBID")
+                        
             channels, samples = self.waveforms.shape
             
+            # if self.task.number_of_channels != channels:
+                # self.logger.warning("Number of channels in task does not"+
+                                    # "match number of data channels")
+                
+                #TODO: figure out the root of the issue and fix appropriately
+                # self.logger.info("WILL NOT WRITE WAVEFORM.")
+                # self.enable = False
+                # self.pxi.devices.pop() # remove this device from the pxi devs
+                #pass
+                        
             try:
                 self.task.timing.cfg_samp_clk_timing(
                     rate=self.sampleRate, 
@@ -226,7 +238,7 @@ class AnalogOutput(Instrument):
             except DaqError:
                 # end the task nicely
                 self.stop()
-                self.close()
+                # self.close()
                 msg = '\n AnalogOutput hardware update failed'
                 raise HardwareError(self, task=self.task, message=msg)
 
