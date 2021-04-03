@@ -6,7 +6,7 @@ SaffmanLab, University of Wisconsin - Madison
 from ctypes import c_uint32
 import xml.etree.ElementTree as ET
 from nidaqmx.constants import Edge
-from instrument import XMLLoader, Instrument
+from instruments.instrument import XMLLoader, Instrument
 from pxierrors import XMLError
 
 

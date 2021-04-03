@@ -15,10 +15,10 @@ from math import floor
 from typing import List
 
 ## local class imports
-from ni_hsdio import HSDIOSession
+from instruments.ni_hsdio import HSDIOSession
 from trigger import Trigger, StartTrigger
 from waveform import HSDIOWaveform
-from instrument import Instrument
+from instruments.instrument import Instrument
 from pxierrors import XMLError, HSDIOError, HardwareError
 
 

@@ -15,7 +15,7 @@ import logging
 
 ## local imports
 from tcp import TCP
-from instrument import Instrument
+from instruments.instrument import Instrument
 from trigger import StartTrigger
 from pxierrors import XMLError, HardwareError
 

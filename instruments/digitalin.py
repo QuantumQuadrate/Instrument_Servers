@@ -20,7 +20,7 @@ import struct
 
 ## local class imports
 from pxierrors import XMLError, HardwareError
-from instrument import Instrument
+from instruments.instrument import Instrument
 from tcp import TCP
 
 

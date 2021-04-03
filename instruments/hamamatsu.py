@@ -10,11 +10,11 @@ camera and initialization of the hardware of said camera.
 
 import numpy as np
 import xml.etree.ElementTree as ET
-from ni_imaq import NIIMAQSession, SubArray, FrameGrabberAqRegion
+from instruments.ni_imaq import NIIMAQSession, SubArray, FrameGrabberAqRegion
 import re
 import struct
 from tcp import TCP
-from instrument import Instrument
+from instruments.instrument import Instrument
 from pxierrors import XMLError, IMAQError, HardwareError
 
 
