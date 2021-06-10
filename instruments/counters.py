@@ -24,7 +24,7 @@ class Counter(Instrument):
         self._name = name  # Doing this twice on purpose
         super().__init__(pxi, node)
         self._name = name
-        self.data: List[int] = []
+        self.data: List[int] = [-1]
 
         self.counter_source = ""
         self.clock_source = ""
