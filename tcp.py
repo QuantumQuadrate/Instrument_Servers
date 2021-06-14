@@ -134,6 +134,7 @@ class TCP:
             try:
                 self.logger.debug("encoding message")
                 encoded = b"MESG"+TCP.format_message(msg_str)
+                self.logger.debug(f"Encoded Message : {encoded}")
                 self.current_connection.send(encoded)
                 self.logger.info("message sent")
             except Exception:

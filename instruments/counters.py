@@ -96,6 +96,7 @@ class Counter(Instrument):
         self.is_initialized = True
 
     def get_data(self):
+        self.logger.debug("getting data")
         if self.stop_connections or self.exit_measurement or not self.enable:
             return
 
@@ -104,9 +105,11 @@ class Counter(Instrument):
             #   but we may want to set the read_all_avail_samp property to true for the task.
             #   -Juan
             self.logger.debug(f"{self} get_data")
+            self.logger.debug(f"\tOld data = {self.data}")
             self.data = self.task.read(
                 number_of_samples_per_channel=nidaqmx.constants.READ_ALL_AVAILABLE,
                 timeout=0)
+            self.logger.debug(f"\tNew data data = {self.data}")
         except DaqError:
             self.stop()
             self.close()
@@ -355,7 +358,7 @@ class Counters(Instrument):
         try:
             data_shape = np.array(self.data).shape
             flat_data = np.reshape(self.data, np.prod(data_shape)) # nD data --> 1D data
-
+            self.logger.debug(f"data_shape = {data_shape}\nflat_data = {flat_data}")
             shape_str = ",".join([str(x) for x in data_shape])
 
             data_bytes = struct.pack(f"!{len(flat_data)}L", *flat_data)
@@ -364,4 +367,6 @@ class Counters(Instrument):
             self.data_string += (TCP.format_data('counter/data', data_bytes))
         except Exception as e:
             self.logger.exception(f"Error formatting data for counters.\n{e}", exc_info=True)
+
+        self.logger.debug(f"data string  = {self.data_string}")
         return self.data_string
