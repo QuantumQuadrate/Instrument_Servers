@@ -29,6 +29,7 @@ from instruments.analogin import AnalogInput
 from instruments.analogout import AnalogOutput
 from instruments.digitalin import TTLInput
 from instruments.counters import Counters
+from instruments.awg import AWG
 # from digitalout import DAQmxDO
 from tcp import TCP
 
@@ -79,6 +80,7 @@ class PXI:
         # self.daqmx_do = DAQmxDO(self)
         self.hamamatsu = Hamamatsu(self)
         self.counters = Counters(self)
+        self.AWG = AWG(self)
 
     @property
     def stop_connections(self) -> bool:
@@ -300,6 +302,14 @@ class PXI:
                         self.counters.init()
                         pass
 
+                    elif child.tag =="AWG":
+                        with open(f'awg_xml_{time()}') as f:
+                            for c in child:
+                                f.writeline(c)
+                            
+                        # self.awg.load_xml(child)
+                        # self.awg.init()
+
                     # # might implement, or might move RF generator functionality to
                     # # CsPy based on code used by Hybrid.
                     elif child.tag == "RF_generators":
@@ -308,6 +318,7 @@ class PXI:
                     else:
                         self.logger.warning(f"Node {child.tag} received is not a valid" +
                                             f"child tag under root <{root.tag}>")
+                                            
 
                 # I do not catch AssertionErrors. The one at the top of load_xml in every 
                 # device class can only occur if the device is passed the wrong xml node, 
@@ -446,6 +457,7 @@ class PXI:
             self.analog_output,
             #self.ttl
             self.counters
+            #self.awg #TODO uncomment when ready
         ]
 
         self.batch_method_call(devices, 'start', handle_error)

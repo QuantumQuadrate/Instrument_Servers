@@ -1,0 +1,17 @@
+[[source]]
+url = "https://pypi.org/simple"
+verify_ssl = true
+name = "pypi"
+
+[packages]
+numpy = "==1.18.2"
+recordclass = "==0.13.2"
+colorlog = "==4.1.0"
+logger = "==1.4"
+nidaqmx = "==0.5.7"
+pytest = "*"
+
+[dev-packages]
+
+[requires]
+python_version = "3"
