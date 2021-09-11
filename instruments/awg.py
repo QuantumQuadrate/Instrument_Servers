@@ -2,7 +2,10 @@
 AWG class for the PXI Server
 SaffmanLab, University of Wisconsin - Madison
 
-Represents the Signadyne Arbitrary Waveform Generator card
+Represents the Signadyne Arbitrary Waveform Generator card. As much as possible, 
+I've used the same variable names, down to the single camel font, as used in the
+AWG card manual. See also examples here to better understant the intended work
+flow: https://github.com/QuantumQuadrate/AWG
 """
 
 # TODO: could use nidaqmx task register_done_event, which can pass out and allow
@@ -24,6 +27,32 @@ from pxierrors import XMLError, HardwareError
 sys.path.insert(0,'C:/Program Files/Signadyne/Libraries/Python')
 import signadyne as sd
 
+class AWGchannel:
+    
+    modulationFunctionList = ['amplitude','angle']
+    modulationTypeDescriptions = {'amplitude': ['Modulation off','Amplitude','Offset'],
+                          'angle': ['Modulation off','Frequency','Phase']}
+    modulationTypeDict = {'amplitude': ['AOU_MOD_OFF','AOU_MOD_AM','AOU_MOD_OFFSET'],
+                          'angle': ['AOU_MOD_OFF','AOU_MOD_FM','AOU_MOD_PM']}
+    
+    def __init__(self, number: int):
+        self.number = number
+        self.amplitude = 0
+        self.frequency = 0
+        self.waveformQueue = []
+        self.waveshape = ''
+        self.modulationFunction = 0
+        self.modulationType = 0
+        self.deviationGain = 0
+        self.trigger = ExternalTrigger()
+        
+        
+class ExternalTrigger:
+
+    def __init__(self, triggerBehavior=0, externalSource=0):
+        self.triggerBehavior = triggerBehavior
+        self.externalSource = externalSource
+
 
 class AWG(Instrument):
 
@@ -33,14 +62,14 @@ class AWG(Instrument):
     def __init__(self, pxi):
         super().__init__(pxi, "AWG")
         
+        self.channels = [AWGchannel(i) for i in range(4)]
 
     def load_xml(self, node: ET.Element):
         """
         Initialize AnalogOutput instance attributes with xml from CsPy
 
         Args:
-            'node': type is ET.Element. tag should be "HSDIO". Expects 
-            node.tag == "AnalogOutput"
+            'node': type is ET.Element. tag should be "AWG"
         """
         
         self.is_initialized = False
@@ -60,50 +89,48 @@ class AWG(Instrument):
                     if child.tag == "enable":
                         self.enable = Instrument.str_to_bool(child.text)
 
-                    elif child.tag == "physicalChannels":
-                        self.physicalChannels = child.text
+                    if child.tag == 'slot':
+                        self.slot = int(child.text)
+                        
+                    if child.tag == 'clockFrequency':
+                        self.clockFrequency = float(child.text)
+                        
+                    if child.tag == 'channels':
+                        for chan in child:
+                            
+                            # todo some error handling here
+                            cnum = int(chan.tag[-1]) # get the channel number
+                            for attr in chan:
+                                
+                                if attr.tag == 'waveformQueue':
+                                    self.channels[cnum].waveformQueue = child.text
+                                
+                                if attr.tag == 'waveshape':
+                                    self.channels[cnum].waveshape = child.text
+                                
+                                if attr.tag == 'modulationFunction':
+                                    self.channels[cnum].modulationFunction = chan.text
+                                    
+                                if attr.tag == 'modulationType':
+                                    self.channels[cnum].modulationType = int(chan)
+                                    
+                                if attr.tag == 'deviationGain':
+                                    self.channels[cnum].modulationType = int(chan)
 
-                    elif child.tag == "minimum":
-                        self.minValue = float(child.text)
+                                if attr.tag == 'trigger':
+                                    for item in attr:
+                                        if item.tag = 'triggerBehavior':
+                                            self.channels[cnum].trigger.triggerBehavior = int(item.text)
+                                        if item.tag = 'externalSource':
+                                            self.channels[cnum].trigger.externalSource = int(item.text)
 
-                    elif child.tag == "maximum":
-                        self.maxValue = float(child.text)
-
-                    elif child.tag == "clockRate":
-                        self.sampleRate = float(child.text) # samples per second in LabVIEW
-
-                    elif child.tag == "waveform":
-                        self.waveforms = self.wave_from_str(child.text)
-
-                    elif child.tag == "waitForStartTrigger":
-                        self.startTrigger.wait_for_start_trigger = Instrument.str_to_bool(child.text)
-
-                    elif child.tag == "exportStartTrigger":
-                        self.exportTrigger.exportStartTrigger = Instrument.str_to_bool(child.text)
-
-                    elif child.tag == "triggerSource":
-                        self.startTrigger.source = child.text
-
-                    elif child.tag == "exportStartTriggerDestination":
-                        self.exportTrigger.outputTerminal = child.text
-
-                    elif child.tag == "triggerEdge":
-                        try:
-                            self.startTrigger.edge = StartTrigger.nidaqmx_edges[child.text.lower()]
-                        except KeyError as e:
-                            raise KeyError(f"Not a valid {child.tag} value {child.text} \n {e}")
-
-                    elif child.tag == "useExternalClock":
-                        self.externalClock.useExternalClock = Instrument.str_to_bool(child.text)
-
-                    elif child.tag == "externalClockSource":
-                        self.externalClock.source = child.text
-
-                    elif child.tag == "maxExternalClockRate":
-                        self.externalClock.maxClockRate = float(child.text)
+                                if attr.tag == 'waveformList':
+                                    #todo: proper error handling; import numpy functions or build a way
+                                    # to add 'np.' to the beginning of functions. sounds tough. 
+                                    self.waveformList = eval(attr.tag)                                
 
                     else:
-                        self.logger.warning(f"Unrecognized XML tag \'{child.tag}\' in <AnalogOutput>")
+                        self.logger.warning(f"Unrecognized XML tag \'{child.tag}\' in <AWG>")
 
                 except (KeyError, ValueError):
                     raise XMLError(self, child)
