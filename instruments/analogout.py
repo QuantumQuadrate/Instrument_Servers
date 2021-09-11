@@ -77,7 +77,7 @@ class AnalogOutput(Instrument):
         Initialize AnalogOutput instance attributes with xml from CsPy
 
         Args:
-            'node': type is ET.Element. tag should be "HSDIO". Expects 
+            'node': type is ET.Element. Expects 
             node.tag == "AnalogOutput"
         """
         
