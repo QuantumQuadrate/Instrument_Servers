@@ -24,7 +24,7 @@ class Counter(Instrument):
         self._name = name  # Doing this twice on purpose
         super().__init__(pxi, node)
         self._name = name
-        self.data: List[int] = [-1]
+        self.data: List[int] = [0]
 
         self.counter_source = ""
         self.clock_source = ""
@@ -110,6 +110,9 @@ class Counter(Instrument):
                 number_of_samples_per_channel=nidaqmx.constants.READ_ALL_AVAILABLE,
                 timeout=0)
             self.logger.debug(f"\tNew data data = {self.data}")
+            if not self.data:
+                self.logger.warning("No data collected")
+                self.data = [0]
         except DaqError:
             self.stop()
             self.close()

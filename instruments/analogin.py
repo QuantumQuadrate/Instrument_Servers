@@ -124,7 +124,7 @@ class AnalogInput(Instrument):
                 # this is what is done in LabVIEW but I believe it is an error. 
                 # self.source will always refer to physical channel(s), which will
                 # never be a key in TerminalConfiguration. 
-                inputTerminalConfig = TerminalConfiguration[self.source]
+                inputTerminalConfig = TerminalConfiguration[self.groundMode]
             except KeyError as e:
                 self.logger.warning(f"Invalid output terminal setting \'{self.source}\' \n"+
                          "Using default, 'NRSE' , instead")

@@ -93,6 +93,8 @@ class AnalogOutput(Instrument):
                 if self.exit_measurement or self.stop_connections:
                     break
 
+                self.logger.debug(f"XML child.tag = {child.tag}, child.text = {child.text}")
+
                 try:
 
                     if child.tag == "enable":
